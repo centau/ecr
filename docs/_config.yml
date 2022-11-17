@@ -1,9 +1,7 @@
-# Welcome to Jekyll!
-
 # build settings
-theme: minimal-mistakes-jekyll
+remote_theme: mmistakes/minimal-mistakes-jekyll@4.22.0
 plugins:
-  - jekyll-feed
+  - jekyll-include-cache
 minimal_mistakes_skin: dark
 
 include: [api, docs]
