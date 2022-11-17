@@ -1,5 +1,5 @@
 # build settings
-remote_theme: mmistakes/minimal-mistakes-jekyll@4.22.0
+remote_theme: mmistakes/minimal-mistakes@4.22.0
 plugins:
   - jekyll-include-cache
 minimal_mistakes_skin: dark
