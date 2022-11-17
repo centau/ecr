@@ -1,0 +1,4 @@
+{
+    "name": "ecr",
+    "tree": { "$path": "src/ecr.luau" }
+}

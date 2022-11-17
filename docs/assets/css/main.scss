@@ -1,0 +1,42 @@
+---
+search: false
+---
+
+@charset "utf-8";
+
+// site colors
+$background-color: #1a1a1b;
+$text-color: #ffffff;
+$primary-color: #ee5e0b;
+$border-color: mix(#fff, $background-color, 20%);
+$code-background-color: mix(#000, $background-color, 15%);
+$code-background-color-dark: mix(#000, $background-color, 20%);
+$form-background-color: mix(#000, $background-color, 15%);
+$footer-background-color: mix(#000, $background-color, 30%);
+$link-color: mix($primary-color, $text-color, 80%);
+$link-color-hover: mix(#fff, $link-color, 25%);
+$link-color-visited: mix(#000, $link-color, 25%);
+$masthead-link-color: $text-color;
+$masthead-link-color-hover: mix(#000, $text-color, 20%);
+$navicon-link-color-hover: mix(#000, $background-color, 30%);
+
+// codeblock colors
+$base00: #27292b; // background
+$base01: #2e3c43;
+$base02: #314549;
+$base03: #546e7a;
+$base04: #b2ccd6;
+$base05: #eeffff;
+$base06: #eeffff;
+$base07: #ffffff;
+$base08: #f07178;
+$base09: #f78c6c;
+$base0a: #ffcb6b;
+$base0b: #c3e88d;
+$base0c: #89ddff;
+$base0d: #82aaff;
+$base0e: #c792ea;
+$base0f: #ff5370;
+
+@import "minimal-mistakes/skins/{{ site.minimal_mistakes_skin | default: 'default' }}";
+@import "minimal-mistakes";

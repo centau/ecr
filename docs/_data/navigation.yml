@@ -1,0 +1,23 @@
+main:
+  - title: Docs
+    url: /docs/introduction
+  - title: API
+    url: /api/ecr
+  - title: GitHub
+    url: https://github.com/centau/ecr
+
+docs:
+  - title: Docs
+    children:
+      - title: Introduction
+        url: /docs/introduction
+
+api:
+  - title: API
+    children:
+    - title: ecr
+      url: /api/ecr
+    - title: Registry
+      url: /api/Registry
+    - title: View
+      url: /api/View
