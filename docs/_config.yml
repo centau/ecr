@@ -9,8 +9,6 @@ minimal_mistakes_skin: dark
 include: [api, docs]
 
 # customization settings
-title: ECR
-subtitle: v0.1.0
 name: centau
 description: A fast entity component system (ECS) for Luau and Roblox.
 baseurl: /ecr
