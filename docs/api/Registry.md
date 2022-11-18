@@ -143,7 +143,7 @@ Returns a boolean telling if the given entity is a orphan
 - ### Type
 
     ```lua
-    function Registry:orphan(entity: Entity): number
+    function Registry:orphan(entity: Entity): boolean
     ```
     
 - ### Details
