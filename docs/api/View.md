@@ -21,8 +21,6 @@ Excludes entities with the given component from the view.
 
     Any entities encountered with **any** of the excluded components, will be skipped over in iteration.
 
----
-
 ## Iteration
 
 ### each()
@@ -53,7 +51,7 @@ Returns a generator that can be used to iterate over all entities within the vie
 
 - ### Example
 
-    The need to call `view:each()` can be omitted.
+    The need to call [`view:each()`](View#each) can be omitted.
     The following code functions identically to the previous example.
 
     ```lua

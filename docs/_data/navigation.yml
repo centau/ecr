@@ -19,5 +19,10 @@ api:
       url: /api/ecr
     - title: Registry
       url: /api/Registry
+    - title: Observer
+      url: /api/Observer
+    - title: Signal
+      url: /api/Signal
     - title: View
       url: /api/View
+    
