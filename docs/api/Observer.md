@@ -10,7 +10,7 @@ You can get this object through [`Registry:track()`](Registry#track).
 
 ## Methods
 
-### disconnect
+### disconnect()
 
 Disconnects the Observer stopping any new changes from being tracked
 
@@ -22,7 +22,7 @@ Disconnects the Observer stopping any new changes from being tracked
 
 ---
 
-### reconnect
+### reconnect()
 
 Reconnects the Observer and allows it to start tracking changes again
 
@@ -34,7 +34,7 @@ Reconnects the Observer and allows it to start tracking changes again
 	
 ---
 
-### clear
+### clear()
 
 Clears all tracked changes and starts tracking new changes
 
