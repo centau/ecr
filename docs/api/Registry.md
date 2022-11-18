@@ -194,7 +194,7 @@ Returns if a entity has all of the given components.
 - ### Type
     
     ```lua
-    function Registry:has(entity: Entity, ...Component): boolean
+    function Registry:has<T...>(entity: Entity, components: T...): boolean
     ```
 
 ---
@@ -222,7 +222,7 @@ Removes the given components from a entity.
 - ### Type
     
     ```lua
-    function Registry:remove(entity: Entity, ...Component): ()
+    function Registry:remove<T...>(entity: Entity, components: T...): ()
     ```
 
 ### view()
