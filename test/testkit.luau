@@ -1,6 +1,6 @@
 ----------------------------------------------------------------------
 -- testkit.luau
--- v0.1.0
+-- v0.1.1
 ----------------------------------------------------------------------
 
 --!strict
@@ -55,32 +55,6 @@ local function outputTestResults(test: Test)
     print ""
 end
 
-local function TEST(name: string, fn: () -> ())
-    assert(not activeTest, "new test was started while a test was in progress")
-    local test: Test = {
-        name = name,
-        cases = {},
-        duration = 0
-    }
-
-    activeTest = test
-    table.insert(tests, test)
-
-    local start = os.clock()
-    local success, msg: string? = pcall(fn)
-    test.duration = os.clock() - start
-
-    assert(test.activeCase, "empty test")
-
-    if not success then
-        test.activeCase.result = ERROR
-        test.error = msg
-    end
-
-    activeTest = nil
-    outputTestResults(test)
-end
-
 local function CASE(name: string)
     assert(activeTest, "no active test")
 
@@ -106,6 +80,33 @@ local function CHECK(value: any)
         activeCase.result = value and PASS or FAIL
         activeCase.line = debug.info(2, "l")
     end
+end
+
+local function TEST(name: string, fn: () -> ())
+    assert(not activeTest, "new test was started while a test was in progress")
+    local test: Test = {
+        name = name,
+        cases = {},
+        duration = 0
+    }
+
+    activeTest = test
+    table.insert(tests, test)
+
+    local start = os.clock()
+    local success, msg: string? = pcall(fn)
+    test.duration = os.clock() - start
+
+    if not test.activeCase then CASE "" end
+    assert(test.activeCase, "no active case")
+
+    if not success then
+        test.activeCase.result = ERROR
+        test.error = msg
+    end
+
+    activeTest = nil
+    outputTestResults(test)
 end
 
 local function FINISH(): boolean
