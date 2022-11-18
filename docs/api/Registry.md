@@ -138,7 +138,7 @@ Returns the current version of the given entity
 
 ### orphan()
 
-Returns if the given entity is considered a orphan
+Returns a boolean telling if the given entity is a orphan
 
 - ### Type
 
