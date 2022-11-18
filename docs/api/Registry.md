@@ -83,15 +83,26 @@ Returns the version of the given entity.
 
 - ### Example
 
-    ```lua
+     ```lua
     local entityA = registry:create()
-    registry:release()
+    
+    -- Will print 1, because this is the first version of the
+    -- entity.
+    print(registry:version(entityA))
+    
+    -- We release the entity, causing the id to be freed allowing
+    -- it to be used again.
+    registry:release(entityA)
+    
+    -- We create a new entity, which will now use the recycled id
     local entityB = registry:create()
     
-    print(registry:version(entityA)) -- prints 1
-    print(registry:current(entityA)) -- prints 2
-    print(registry:version(entityB)) -- prints 2
-    print(registry:current(entityB)) -- prints 2
+    -- Will print 2, because this is the second version of this
+    -- entity as the last version has been released.
+    print(registry:version(entityB))
+    -- Will still print 1, because this is from the first version
+    -- of the entity
+    print(registry:version(entityA))
     ```
 
 ---
@@ -114,24 +125,13 @@ Returns the current version of the given entity
 
     ```lua
     local entityA = registry:create()
-    
-    -- Will print 1, because this is the first version of the
-    -- entity.
-    print(registry:version(entityA))
-    
-    -- We release the entity, causing the id to be freed allowing
-    -- it to be used again.
-    registry:release(entityA)
-    
-    -- We create a new entity, which will now use the recycled id
+    registry:release()
     local entityB = registry:create()
     
-    -- Will print 2, because this is the second version of this
-    -- entity as the last version has been released.
-    print(registry:version(entityB))
-    -- Will still print 1, because this is from the first version
-    -- of the entity
-    print(registry:version(entityA))
+    print(registry:version(entityA)) -- prints 1
+    print(registry:current(entityA)) -- prints 2
+    print(registry:version(entityB)) -- prints 2
+    print(registry:current(entityB)) -- prints 2
     ```
     
 ---
