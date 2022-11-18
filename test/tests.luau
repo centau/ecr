@@ -1,4 +1,4 @@
-local TEST, CASE, CHECK = require "test/testkit/unit"()
+local TEST, CASE, CHECK, FINISH = require("test/testkit").getUnitTestTools()
 
 local ecr = require "src/ecr"
 
@@ -86,7 +86,7 @@ TEST("pool - basic tests", function()
     end
 end)
 
-TEST("registry::create", function()
+TEST("registry:create()", function()
     local N = 1e3
 
     do CASE "New ids are unique"
@@ -103,7 +103,7 @@ TEST("registry::create", function()
     do CASE "Reused ids are unique"
         -- create N entities, destroy all then recreate N entities
         -- indexes will be reused, check if identifier remains unique
-        local reg = ecr.registry()
+        local reg = ecr.registry(N)
         local cache = {}
 
         for i = 1, N do
@@ -121,10 +121,12 @@ TEST("registry::create", function()
             cache[entity] = true
         end
     end
+
+    do CASE "Version overflow"
+    end
 end)
 
-TEST("registry::valid and registry::release", function()
-    CASE ""
+TEST("registry:valid() and registry:release()", function()
     local reg = ecr.registry()
 
     local e1 = reg:create()
@@ -142,8 +144,7 @@ TEST("registry::valid and registry::release", function()
     CHECK(reg:valid(e3))
 end)
 
-TEST("registry::version and registry::current", function()
-    CASE ""
+TEST("registry:version() and registry:current()", function()
     local reg = ecr.registry()
 
     local e1 = reg:create()
@@ -157,20 +158,17 @@ TEST("registry::version and registry::current", function()
     CHECK(reg:version(e2) == 1)
 end)
 
-TEST("registry::orphan", function()
-    CASE ""
+TEST("registry:orphan()", function()
     local reg = ecr.registry()
     local e = reg:create()
     CHECK(reg:orphan(e))
     reg:set(e, A, true)
-    reg:set(e, B, true)
-    reg:set(e, C, true)
     CHECK(not reg:orphan(e))
-    reg:remove(e, A, B, C)
+    reg:remove(e, A)
     CHECK(reg:orphan(e))
 end)
 
-TEST("registry::has and registry::set", function()
+TEST("registry:has() and registry:set()", function()
     local reg = ecr.registry()
 
     local e1 = reg:create()
@@ -194,7 +192,7 @@ TEST("registry::has and registry::set", function()
     end
 end)
 
-TEST("registry::get and registry::set", function()
+TEST("registry:get() and registry:set()", function()
     local reg = ecr.registry()
     local e = reg:create()
     reg:set(e, A, 1)
@@ -219,7 +217,7 @@ TEST("registry::get and registry::set", function()
     end
 end)
 
-TEST("registry::remove", function()
+TEST("registry:remove()", function()
     local reg = ecr.registry()
 
     local e1 = reg:create()
@@ -241,9 +239,9 @@ TEST("registry::remove", function()
     end
 end)
 
-TEST("registry::size registry::clear", function()
-    CASE ""
+TEST("registry:size() registry:clear()", function()
     local reg = ecr.registry()
+
     CHECK(reg:size() == 0)
     local e = reg:create()
     CHECK(reg:size() == 1)
@@ -257,8 +255,8 @@ TEST("registry::size registry::clear", function()
     CHECK(not reg:valid(e))
 end)
 
-TEST("registry::destroy", function()
-    CASE ""
+TEST("registry:destroy()", function()
+    
     local reg = ecr.registry()
 
     local e = reg:create()
@@ -272,7 +270,7 @@ TEST("registry::destroy", function()
     CHECK(not reg:valid(e))
 end)
 
-TEST("registry::view", function()
+TEST("registry:view()", function()
     local reg = ecr.registry()
 
     local N = 1e3
@@ -354,7 +352,6 @@ TEST("registry::view", function()
         CHECK((next(viewed)))
         for _, entity in ABnotCs do 
             CHECK(viewed[entity])
-            --CHECK(viewed[entity] == entity) -- check if entity and corresponding component matches
         end
     end
 
@@ -401,15 +398,17 @@ TEST("Removal during iterations", function()
         for i = 1, 1e3 do
             entities[i] = reg:create()
             reg:set(entities[i], A, 1)
+            reg:set(entities[i], B, 2)
+            reg:set(entities[i], C, 3)
         end
 
         -- 1. all entities are iterated over
         -- 2. no entity is iterated twice
         local viewed = {}
-        for entity, a in reg:view(A) do
+        for entity, a in reg:view(A, B, C) do
             CHECK(not viewed[entity])
             viewed[entity] = true
-            reg:remove(entity, A)
+            reg:remove(entity, A, B, C)
         end
 
         for _, entity in entities do
@@ -418,10 +417,10 @@ TEST("Removal during iterations", function()
     end
 end)
 
-TEST("registry::entities", function()
-    CASE ""
+TEST("registry:entities()", function()
     local N = 1e3
-    local reg = ecr.registry()
+
+    local reg = ecr.registry(N)
     local cache = table.create(N)
     for i = 1, N do cache[i] = reg:create() end
     
@@ -432,8 +431,7 @@ TEST("registry::entities", function()
     end
 end)
 
-TEST("registry::storage", function()
-    CASE ""
+TEST("registry:storage()", function()
     local reg = ecr.registry()
 
     local e1 = reg:create()
@@ -456,9 +454,37 @@ end)
 TEST("registry events", function()
     local reg = ecr.registry()
 
-    do CASE "registry::changed"
+    do CASE "registry:added()"
         local e1 = reg:create()
 
+        -- runcount, reg, entity, value
+        local cc, cr, ce, cv = 0, nil, nil, nil
+
+        local fn = function(...)
+            cr, ce, cv = ...
+            cc += 1
+        end
+
+        reg:added(A):connect(fn)
+
+        reg:set(e1, A, true)
+        CHECK(cc == 1)
+        CHECK(cr == reg)
+        CHECK(ce == e1)
+        CHECK(cv == true)
+
+        reg:set(e1, A, 2)
+        CHECK(cc == 1)
+
+        reg:changed(A):disconnect(fn)
+        reg:set(e1, A, true)
+        CHECK(cc == 1)
+    end
+
+    do CASE "registry:changed()"
+        local e1 = reg:create()
+
+        -- runcount, reg, entity, value
         local cc, cr, ce, cv = 0, nil, nil, nil
 
         local fn = function(...)
@@ -472,7 +498,6 @@ TEST("registry events", function()
 
         reg:set(e1, A, true)
         CHECK(cc == 1)
-        print(cc)
         CHECK(cr == reg)
         CHECK(ce == e1)
         CHECK(cv == true)
@@ -488,7 +513,7 @@ TEST("registry events", function()
         CHECK(cc == 2)
     end
 
-    do CASE "registry::removing"
+    do CASE "registry:removing()"
         local e1 = reg:create()
 
         local cc, cr, ce = 0, nil, nil
@@ -521,11 +546,14 @@ TEST("registry events", function()
     end
 end)
 
-TEST("tracker", function()
+TEST("reg:track()", function()
     local function flip() return math.random() > 0.5 end
 
     local N = 1e2
     local reg = ecr.registry(N)
+
+    local trackerA = reg:track(A)
+    local trackerAB = reg:track(A, B)
 
     local entities = {}
     local As = {}
@@ -547,19 +575,34 @@ TEST("tracker", function()
         end
     end
 
-    local trackerA = reg:track(A)
-
     do CASE "Initial data treated as changed"
-        local viewed = {}
-        for entity, value in trackerA:each() do
-            viewed[entity] = value
+        do
+            local tracker = reg:track(A)
+            local viewed = {}
+            for entity, value in tracker:each() do
+                viewed[entity] = value
+            end
+
+            CHECK((next(viewed)))
+
+            for i, entity in As do
+                CHECK(viewed[entity])
+                CHECK(viewed[entity] == i)
+            end
         end
+        do
+            local tracker = reg:track(A, B)
+            local viewed = {}
+            for entity, value in tracker:each() do
+                viewed[entity] = value
+            end
 
-        CHECK((next(viewed)))
+            CHECK((next(viewed)))
 
-        for i, entity in entities do
-            CHECK(viewed[entity])
-            CHECK(viewed[entity] == i)
+            for i, entity in ABs do
+                CHECK(viewed[entity])
+                CHECK(viewed[entity] == i)
+            end
         end
     end
 
@@ -568,6 +611,7 @@ TEST("tracker", function()
         for _ in trackerA:each() do
             CHECK(false) -- check this loop does not run
         end
+        CHECK(true)
     end
 
     do CASE "Tracker tracks future changes"
@@ -593,24 +637,45 @@ TEST("tracker", function()
     end
 
     do CASE "Track A for entities with B"
-        local tracker = reg:track(A, B)
-
         local viewed = {}
 
-        for entity, a, b in tracker:each() do
+        for entity, a, b in trackerAB:each() do
             viewed[entity] = { a = entity, b = entity }
         end
 
-        for i, entity in ABs do
+        CHECK((next(viewed)))
+
+        for _, entity in ABs do
             CHECK(viewed[entity])
+            if not viewed[entity] then continue end
             CHECK(viewed[entity].a == entity)
             CHECK(viewed[entity].b == entity)
         end
+    end
 
+    do CASE "Track removal"
+        trackerA:clear()
+
+        local removed = {}
+
+        for i = 1, N do
+            if math.random() > 0.5 then continue end
+            table.insert(removed, As[i])
+            reg:remove(As[i], A)
+        end
+
+        local viewed = {}
+        for entity in trackerA:each() do
+            viewed[entity] = true
+        end
+
+        for _, rentity in removed do
+            CHECK(viewed[rentity])
+        end
     end
 end)
 
-TEST("ecr::component", function()
+TEST("ecr:component()", function()
     do CASE "Components have unique ids"
         local cache = {}
         for i = 1, 1000 do
@@ -621,3 +686,6 @@ TEST("ecr::component", function()
     end
 end)
 
+local success = FINISH()
+
+if not success then error "Test failed" end
