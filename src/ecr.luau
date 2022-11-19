@@ -3,8 +3,6 @@
 -- v0.1.0
 ----------------------------------------------------------------------
 
---!optimize 2
-
 type vector<T> = { T }
 type map<T, U> = { [T]: U }
 
@@ -45,6 +43,7 @@ export type Registry = {
 export type View<T...> = typeof(setmetatable(
     {} :: {
         each: (View<T...>) -> () -> (EntityId, T...),
+        include: <U...>(View<T...>, U...) -> View<T...>,
         exclude: <U...>(View<T...>, U...) -> View<T...>,
     },
     {} :: {
@@ -64,18 +63,20 @@ export type Signal<T...> = {
     disconnect: ( Signal<T...>, (T...) -> () ) -> ()
 }
 
-local alloc = table.create
-
 ----------------------------------------------------------------------
 -- Entity Id
 ----------------------------------------------------------------------
 
 --[[
- - Entity Id implementation.
+ - Entity Id implementation
  -      53 bits total
  -      Upper 33 bits represents version (8,589,934,591)
  -      Lower 20 bits represents key (1,048,575)
+ -
  - Luau numbers are 64-bit floats so bitshifting is done through multiplication by power of 2
+ -
+ - The key is used as an array index for pools
+ - The version is used to keep the actual identifier unique.
 ]]
 
 local id_MASK_KEY = 0x000FFFFF -- first 20 bits
@@ -84,29 +85,34 @@ local _id_MASK_VERSION = 2^53-1 - id_MASK_KEY
 local id_LSHIFT_VERSION = id_MASK_KEY + 1
 local id_RSHIFT_VERSION = 1/id_LSHIFT_VERSION
 
-local function id_encode(idx: number, ver: number): number
-    --assert(idx <= id_mask_index)
-    --assert(ver <= id_mask_version)
-    return ver * id_LSHIFT_VERSION + idx
+-- encodes the given key and version into a single identifier
+local function id_encode(key: number, ver: number): number
+    --assert(key <= id_MASK_KEY)
+    --assert(ver <= id_MASK_VERSION)
+    return ver * id_LSHIFT_VERSION + key
 end
 
-local function id_decode(id: number): (number, number) -- idx, ver
+-- gets key and version from identifier
+local function id_decode(id: number): (number, number) -- key, ver
     local lower = bit32.band(id, id_MASK_KEY)
     local upper = (id - lower) * id_RSHIFT_VERSION
     return lower, upper
 end
 
-local function id_getkey(id: number): number
+-- gets only key from identifier
+local function id_getKey(id: number): number
     return bit32.band(id, id_MASK_KEY)
 end
 
-local function id_getversion(id: number): number
+-- gets only version from identifier
+local function id_getVersion(id: number): number
     local lower = bit32.band(id, id_MASK_KEY)
     return (id - lower) * id_RSHIFT_VERSION
 end
 
-local function id_setkey(id: number, ver: number): number
-    return id - bit32.band(id, id_MASK_KEY) + ver
+-- sets a new key for a given identifier
+local function id_setKey(id: number, key: number): number
+    return id - bit32.band(id, id_MASK_KEY) + key
 end
 
 ----------------------------------------------------------------------
@@ -128,27 +134,63 @@ type Pool<T> = {
     size: number,
 }
 
+local function pool_create(size: number?): Pool<any>
+    local n = size or 1
+    return {
+        map = table.create(n),
+        entities = table.create(n),
+        values = table.create(n),
+        size = 0
+    }
+end
+
+--[[ Specialized pool functions ]]
+
 -- maps entity key to internal index
-local function pool_map<T>(self: Pool<T>, k: number): number?
+-- returns nil if entity is not in pool
+local function pool_mapKey<T>(self: Pool<T>, k: number): number?
     return self.map[k]
+end
+
+-- checks if entity key `k` is contained within the pool
+local function pool_hasKey<T>(self: Pool<T>, k: number): boolean
+    return self.map[k] ~= nil
+end
+
+-- get entity key value from pool
+-- returns nil if entity not in pool or value is nil
+local function pool_getKey<T>(self: Pool<T>, k: number): T?
+    local i = self.map[k]
+    return i and self.values[i] :: any
 end
 
 -- replaces value at internal index with new value
 -- undefined behavior if index is not valid
-local function pool_replace<T>(self: Pool<T>, i: number, v: T)
+local function pool_replaceIndex<T>(self: Pool<T>, i: number, v: T)
     self.values[i] = v
 end
 
--- 
-local function pool_addk<T>(self: Pool<T>, k: number, entity: EntityId, v: T)
+-- adds a new value to the pool using the given entity key `k`
+-- undefined behavior if entity already exists in pool
+local function pool_addKey<T>(self: Pool<T>, k: number, entity: EntityId, v: T)
     local n = self.size + 1; self.size = n
     self.map[k] = n
     self.entities[n] = entity
     self.values[n] = v   
 end
 
--- removes value 
-local function pool_erase<T>(self: Pool<T>, k: number, i: number)
+-- adds the given entity key `k`
+-- assumes the pool size `n`
+-- undefined behavior if entity already exists in pool
+local function pool_addKeyWithoutValueForSize<T>(self: Pool<T>, k: number, entity: EntityId, n: number)
+    self.size = n
+    self.map[k] = n
+    self.entities[n] = entity
+end
+
+-- removes given entity key `k` at the given index from pool
+-- undefined behavior if entity is not already in pool
+local function pool_eraseKeyAtIndex<T>(self: Pool<T>, k: number, i: number)
     local map = self.map
     local entities = self.entities
     local values = self.values
@@ -156,31 +198,22 @@ local function pool_erase<T>(self: Pool<T>, k: number, i: number)
 
     local lastEntity = entities[n]
     entities[i] = lastEntity; entities[n] = nil
-    map[id_getkey(lastEntity)] = i; map[k] = nil
+    map[id_getKey(lastEntity)] = i; map[k] = nil
     values[i] = values[n]; values[n] = nil
     self.size = n - 1   
 end
 
-local function pool_create(size: number?): Pool<any>
-    local n = size or 1
-    return {
-        map = alloc(n),
-        entities = alloc(n),
-        values = alloc(n),
-        size = 0
-    }
-end
+--[[ General pool functions ]]
 
--- a sparse set contains an element if `i <= self.size and self.entities[i] == entity`
--- but our indexes are initialized to nil so we suffice with `self.sparse[idx] ~= nil`
+-- checks if the entity is contained within pool
 local function pool_has<T>(self: Pool<T>, entity: EntityId): boolean
-    return self.map[id_getkey(entity)] ~= nil
+    return self.map[id_getKey(entity)] ~= nil
 end
 
 -- get entity value from pool
--- returns nil if entity not in pool
+-- returns nil if entity not in pool or value is nil
 local function pool_get<T>(self: Pool<T>, entity: EntityId): T?
-    local i = self.map[id_getkey(entity)]
+    local i = self.map[id_getKey(entity)]
     return i and self.values[i] :: any -- TODO: resolve typechecking error
 end
 
@@ -188,36 +221,33 @@ end
 -- undefined behavior if entity is already in pool
 local function pool_add<T>(self: Pool<T>, entity: EntityId, v: T)
     local n = self.size + 1; self.size = n
-    self.map[id_getkey(entity)] = n
+    self.map[id_getKey(entity)] = n
     self.entities[n] = entity
     self.values[n] = v
-end
-
-local function pool_add_kn<T>(self: Pool<T>, entity: EntityId, k: number, n: number)
-    self.size = n
-    self.map[k] = n
-    self.entities[n] = entity
 end
 
 -- set an entity and value
 -- changes value if entity is already in pool
 -- adds entity and value if not in pool
 local function pool_set<T>(self: Pool<T>, entity: EntityId, v: T)
-    local k = id_getkey(entity)
+    local k = id_getKey(entity)
     local i = self.map[k]
     if i then
-        pool_replace(self, i, v)
-    else -- not in pool
-        pool_addk(self, k, entity, v)
+        self.values[i] = v
+    else
+        local n = self.size + 1; self.size = n
+        self.map[k] = n
+        self.entities[n] = entity
+        self.values[n] = v
     end
 end
 
 -- removes an entity and value
 -- does nothing if entity is not in pool
--- order is not preserved (swap and pop policy)
+-- order is not preserved (swap and pop)
 local function pool_remove<T>(self: Pool<T>, entity: EntityId)
     local map = self.map
-    local k = id_getkey(entity)
+    local k = id_getKey(entity)
     local i = map[k] :: number
     if not i then return end
 
@@ -227,7 +257,7 @@ local function pool_remove<T>(self: Pool<T>, entity: EntityId)
 
     local lastEntity = entities[n]
     entities[i] = lastEntity; entities[n] = nil
-    map[id_getkey(lastEntity)] = i; map[k] = nil
+    map[id_getKey(lastEntity)] = i; map[k] = nil
     values[i] = values[n]; values[n] = nil
     self.size = n - 1
 end
@@ -243,23 +273,6 @@ local function pool_clear<T>(self: Pool<T>)
     self.size = 0
 end
 
--- fast remove
--- no check, works with entity index directly
--- does not remove value
--- undefined behavior if used on an entity not in the pool
-local function pool_fremove_nv<T>(self: Pool<T>, removeIndex: number)
-    local map = self.map
-    local i = map[removeIndex] :: number
-
-    local entities = self.entities
-    local n = self.size
-
-    local lastEntity = entities[n]
-    entities[i] = lastEntity; entities[n] = nil
-    map[id_getkey(lastEntity)] = i; map[removeIndex] = nil
-    self.size = n - 1
-end
-
 local function pool_clone<T>(self: Pool<T>): Pool<T>
     return {
         map = table.clone(self.map),
@@ -273,30 +286,28 @@ end
 -- Views
 ----------------------------------------------------------------------
 
-local function hasNone(entity: EntityId, excludes: vector<Pool<unknown>>): boolean
-    for _, pool in next, excludes do
-        if pool_has(pool, entity) then return true end
-    end
-    return false
-end
-
-local function hasAll(entity: EntityId, pools: vector<Pool<unknown>>): boolean
+local function hasNone(entity: EntityId, pools: vector<Pool<unknown>>): boolean
+    local key = id_getKey(entity)
     for _, pool in next, pools do
-        if pool_has(pool, entity) == false then return false end
+        if pool_has(pool, key) then return false end
     end
     return true
 end
 
--- true if criteria broken
-local function filter(entity: EntityId, includes: vector<Pool<unknown>>, excludes: vector<Pool<unknown>>?): boolean
-    return excludes and hasNone(entity, excludes) or not hasAll(entity, includes)
+local function hasAll(entity: EntityId, pools: vector<Pool<unknown>>): boolean
+    local key = id_getKey(entity)
+    for _, pool in next, pools do
+        if not pool_hasKey(pool, key) then return false end
+    end
+    return true
 end
 
 local View = {} do
     type _View = View<...unknown> & {
         registry: Registry,
         components: map<ComponentId, boolean>,
-        includes: vector<Pool<unknown>>,
+        targets: vector<Pool<unknown>>, -- components to return
+        includes: vector<Pool<unknown>>?,
         excludes: vector<Pool<unknown>>?
     }
 
@@ -305,100 +316,103 @@ local View = {} do
     function View.new(reg: Registry, ...: ComponentId): View<...unknown>
         local argn = select("#", ...)
     
-        local components, includes = {}, {}
+        local components, targets = {}, {}
 
         for i = 1, argn do
             local component = select(i, ...)
-            if components[component] then error("duplicate component", 3) end
+            if components[component] then error("duplicate component included", 3) end
             components[component] = true
-            includes[i] = reg:storage(component)
+            targets[i] = reg:storage(component)
         end
 
         return setmetatable({
             registry = reg,
             components = components,
-            includes = includes,
+            targets = targets,
+            includes = nil,
             excludes = nil
         }, View) :: any
     end
 
-    --[[
-     - returns:
-     -  1. smallest pool
-     -  2. array of other pools
-     -  3. original index of smallest pool
-     -  4. array of original indexes of other pools (same order as 3.)
-    ]]
-    local function sortPools(pools: vector<Pool<unknown>>): (Pool<unknown>, vector<Pool<unknown>>, number, vector<number>)
-        local smallest = pools[1]
+    -- sorts through targets and optional includes and returns the smallest pool
+    local function getSmallestPool(targets: vector<Pool<unknown>>, includes: vector<Pool<unknown>>?): Pool<unknown>
+        local smallest = targets[1]
+
         if smallest == nil then error("no pools given", 2) end
-        local index = 1
-        for i, pool in next, pools, 1 do
+
+        local function check(pool)
             if pool_size(pool) < pool_size(smallest) then
                 smallest = pool
-                index = i
             end
         end
 
-        local others = alloc(#pools-1)
-        local indexes = alloc(#pools-1)
-        for i, pool in next, pools do
-            if pool ~= smallest then
-                table.insert(others, pool)
-                table.insert(indexes, i)
-            end
+        for _, pool in next, targets, 1 do check(pool) end
+        if includes then
+            for _, pool in next, includes do check(pool) end
         end
 
-        return smallest, others, index, indexes
+        return smallest
     end
 
     local function iter(self: _View): () -> (EntityId, ...unknown)
+        local targets = self.targets
         local includes = self.includes
-        local minPool, otherPools, minPoolIndex, otherPoolsIndexes = sortPools(includes)
-        local entities = minPool.entities
-        local values = minPool.values
         local excludes = self.excludes
-        local tuple = alloc(#includes)
 
-        local i = pool_size(minPool)
-        return if #otherPools == 0 and not excludes then -- single view
+        local spool = getSmallestPool(targets, includes)
+        local entities = spool.entities
+        local values = spool.values
+    
+        local tuple = table.create(#targets)
+
+        local iu = pool_size(spool)
+        return if #targets == 1 and not includes and not excludes then -- pure single view
                 function()
-                    local _i = i; i = _i - 1
-                    return entities[_i], values[_i]
+                    local i = iu; iu = i - 1
+                    return entities[i], values[i]
                 end
-            elseif #otherPools and excludes then -- single view with excludes
-                function()
-                    local _i = i
-                    while _i > 0 do 
-                        local entity = entities[_i]
-                        if hasNone(entity, excludes) then _i -= 1; continue end
-                        i = _i - 1
-                        return entity, values[_i]
+            else function() -- general view
+                local i = iu
+                while i > 0 do
+                    local entity = entities[i]
+                    if excludes and not hasNone(entity, excludes) or includes and not hasAll(entity, includes) then i -= 1; continue end
+
+                    local key = id_getKey(entity)
+                    local missing = false
+                    for ii, target in next, targets do
+                        local value = pool_getKey(target, key)
+                        if value == nil then missing = true; break end
+                        tuple[ii] = value
                     end
-                    return nil :: any
-                end
-            else function() -- multi view with excludes
-                local _i = i
-                while _i > 0 do
-                    local entity = entities[_i]
-                    if filter(entity, includes, excludes) then _i -= 1; continue end
-                    tuple[minPoolIndex] = values[_i]
-                    for ii, otherPools in next, otherPools do
-                        tuple[otherPoolsIndexes[ii]] = pool_get(otherPools, entity) 
-                    end
-                    i = _i - 1
+                    if missing then i -= 1; continue end
+
+                    iu = i - 1
                     return entity, unpack(tuple)
                 end
                 return nil :: any
             end
     end
 
+    function View.include(self: _View, ...: unknown): _View
+        if not self.includes then self.includes = {} end
+        local includes = assert(self.includes)
+
+        local components = self.components
+
+        for i = 1, select("#", ...) do
+            local component = select(i, ...)
+            if components[component] == true then error("duplicate component included", 2) end
+            if components[component] == false then error("cannot include an already excluded component", 2) end
+            components[component] = true
+            table.insert(includes, self.registry:storage(component))
+        end
+
+        return self
+    end
+
     function View.exclude(self: _View, ...: unknown): _View
-        local excludes = self.excludes or (function()
-            local t = {}
-            self.excludes = t
-            return t
-        end)()
+        if not self.excludes then self.excludes = {} end
+        local excludes = assert(self.excludes)
 
         local components = self.components
 
@@ -422,19 +436,20 @@ local View = {} do
     end
 
     function View.__len(self: _View): number
-        return pool_size((sortPools(self.includes)))
+        return pool_size((getSmallestPool(self.targets, self.includes)))
     end
 end
 
 ----------------------------------------------------------------------
--- Observer W.I.P
+-- Observer
 ----------------------------------------------------------------------
 
 local Observer = {} do
     type _Observer = Observer<...unknown> & {
         registry: Registry,
         components: map<ComponentId, boolean>,
-        includes: vector<Pool<unknown>>,
+        targets: vector<Pool<unknown>>,
+        includes: vector<Pool<unknown>>?,
         excludes: vector<Pool<unknown>>?,
 
         tracking: ComponentId,
@@ -447,20 +462,21 @@ local Observer = {} do
     function Observer.new(reg: Registry, toTrack: ComponentId , ...: ComponentId)
         local argn = select("#", ...)
 
-        local components, includes = {}, {}
+        local components, targets = {}, {}
         local changed = pool_clone(reg:storage(toTrack))
 
         for i = 1, argn do
             local component = select(i, ...)
-            if components[component] then error("duplicate component", 3) end
+            if components[component] then error("duplicate component included", 3) end
             components[component] = true
-            includes[i] = reg:storage(component)
+            targets[i] = reg:storage(component)
         end
 
         local self: _Observer = setmetatable({
             registry = reg,
             components = components,
-            includes = includes,
+            targets = targets,
+            includes = nil,
             excludes = nil,
             tracking = toTrack,
             changed = changed,
@@ -474,30 +490,37 @@ local Observer = {} do
 
     local function iter(self: _Observer): () -> (EntityId, ...unknown)
         local changed = self.changed
-
+        local targets = self.targets
         local includes = self.includes
         local excludes = self.excludes
 
         local entities = changed.entities
         local values = changed.values
 
-        local tuple = alloc(#includes + 1)
+        local tuple = table.create(#targets + 1)
 
-        local i = pool_size(changed)
-        return function() -- multi view with excludes
-            local _i = i
-            while _i > 0 do
-                local entity = entities[_i]
-                if filter(entity, includes, excludes) then _i -= 1; continue end
-                tuple[1] = values[_i]
-                for ii, pool in next, includes do
-                    tuple[ii + 1] = pool_get(pool, entity) 
+        local iu = pool_size(changed)
+        return function() -- multi view
+            local i = iu
+            while i > 0 do
+                local entity = entities[i]
+                if excludes and not hasNone(entity, excludes) or includes and not hasAll(entity, includes) then i -= 1; continue end
+
+                local key = id_getKey(entity)
+                tuple[1] = values[i]
+                local missing = false
+                for ii, target in next, targets do
+                    local v = pool_getKey(target, key)
+                    if v == nil then missing = true; break end
+                    tuple[ii + 1] = v
                 end
-                i = _i - 1
+                if missing then i -= 1; continue end
+
+                iu = i - 1
                 return entity, unpack(tuple)
             end
             return nil :: any
-        end   
+        end
     end
 
     function Observer.disconnect(self: _Observer)
@@ -519,11 +542,14 @@ local Observer = {} do
         local listener: (reg: Registry, entity: EntityId, value: unknown) -> ()
 
         local changed = self.changed
+        local targets = self.targets
         local includes = self.includes
         local excludes = self.excludes
 
         function listener(_, entity, value)
-            if filter(entity, includes, excludes) then return end
+            if includes and not hasAll(entity, includes) then return end
+            if excludes and not hasNone(entity, excludes) then return end
+            if not hasAll(entity, targets) then return end
             pool_set(changed, entity, value)
         end
 
@@ -540,14 +566,26 @@ local Observer = {} do
         pool_clear(self.changed)
     end
 
-    function Observer.exclude(self: _Observer, ...: ComponentId): _Observer
-        if self.listeners then self:disconnect() end
+    function Observer.include(self: _Observer, ...: unknown): _Observer
+        if not self.includes then self.includes = {} end
+        local includes = assert(self.includes)
 
-        local excludes = self.excludes or (function()
-            local t = {}
-            self.excludes = t
-            return t
-        end)()
+        local components = self.components
+
+        for i = 1, select("#", ...) do
+            local component = select(i, ...)
+            if components[component] == true then error("duplicate component included", 2) end
+            if components[component] == false then error("cannot include an already excluded component", 2) end
+            components[component] = true
+            table.insert(includes, self.registry:storage(component))
+        end
+
+        return self
+    end
+
+    function Observer.exclude(self: _Observer, ...: ComponentId): _Observer
+        if not self.excludes then self.excludes = {} end
+        local excludes = assert(self.excludes)
 
         local components = self.components
 
@@ -559,7 +597,6 @@ local Observer = {} do
             table.insert(excludes, self.registry:storage(component))
         end
 
-        self:reconnect()
         return self
     end
 
@@ -623,20 +660,22 @@ local function createComponent(): unknown
 end
 
 local function createRegistry(count: number?): Registry
-    local size = count or 1
+    local capacity = count or 1
 
-    local freeId: number = INVALID
-    local ids = alloc(size)
+    local registry = {}
 
-    local entities: Pool<nil> = pool_create(size)
-    local cpools: map<ComponentId, Pool<unknown>> = alloc(componentN)
+    local size: number = 0
+    local freeKey: number = INVALID
+    local ids = table.create(capacity)
 
-    local fireAddedEvent: map<ComponentId, (Registry, EntityId, unknown) -> ()> = alloc(componentN)
-    local fireChangedEvent: map<ComponentId, (Registry, EntityId, unknown) -> ()> = alloc(componentN)
-    local fireRemovingEvent: map<ComponentId, (Registry, EntityId, unknown) -> ()> = alloc(componentN)
-    local addedEvent: map<ComponentId, Signal<Registry, EntityId, unknown>> = alloc(componentN)
-    local changedEvent: map<ComponentId, Signal<Registry, EntityId, unknown>> = alloc(componentN)
-    local removingEvent: map<ComponentId, Signal<Registry, EntityId, unknown>> = alloc(componentN)
+    local cpools: map<ComponentId, Pool<unknown>> = table.create(componentN)
+
+    local fireAddedEvent: map<ComponentId, (Registry, EntityId, unknown) -> ()> = table.create(componentN)
+    local fireChangedEvent: map<ComponentId, (Registry, EntityId, unknown) -> ()> = table.create(componentN)
+    local fireRemovingEvent: map<ComponentId, (Registry, EntityId, unknown) -> ()> = table.create(componentN)
+    local addedEvent: map<ComponentId, Signal<Registry, EntityId, unknown>> = table.create(componentN)
+    local changedEvent: map<ComponentId, Signal<Registry, EntityId, unknown>> = table.create(componentN)
+    local removingEvent: map<ComponentId, Signal<Registry, EntityId, unknown>> = table.create(componentN)
 
     local function fireEvent<T>(
         events: map<ComponentId, (Registry, EntityId, unknown) -> ()>,
@@ -650,19 +689,39 @@ local function createRegistry(count: number?): Registry
 
     local function initIds()
         table.clear(ids)
-        freeId = 1
-        for i = 1, size - 1 do
+        freeKey = 1
+        for i = 1, capacity - 1 do
             ids[i] = id_encode(i + 1, INITIAL_VERSION)
         end
-        ids[size] = id_encode(INVALID, INITIAL_VERSION)
+        ids[capacity] = id_encode(INVALID, INITIAL_VERSION)
+    end
+
+    local function releaseAllEntities()
+        freeKey = 1
+        local n = #ids
+        for i = 1, n - 1 do
+            local ver = id_getVersion(ids[i])
+            ids[i] = id_encode(i + 1, ver + 1)
+        end
+        ids[n] = id_encode(INVALID, id_getVersion(ids[n]) + 1)
+    end
+
+    local function clearPool(component: ComponentId)
+        local pool = cpools[component]
+
+        for _, entity in next, pool.entities do
+            fireEvent(fireRemovingEvent, component, registry :: any, entity, nil)
+        end
+        
+        pool_clear(pool)
     end
 
     setmetatable(cpools, {
         __index = function(self, component: ComponentId): Pool<unknown>
             if type(component) ~= "number" or math.sign(component) ~= 1 then
-                error("Invalid component, component must be positive integer, got "..type(component), 2)
+                error("Invalid component, component must be positive integer, got "..tostring(component), 2)
             end
-            local pool = pool_create(size)
+            local pool = pool_create(capacity)
             self[component] = pool
             return pool
         end
@@ -670,33 +729,30 @@ local function createRegistry(count: number?): Registry
 
     initIds()
 
-    local registry = {}
-
     function registry:create(): EntityId
-        local entities = entities
-        local n = pool_size(entities) + 1
+        local n = size + 1
         if n > id_MASK_KEY then error("cannot create entity; registry is at max entity count ("..id_MASK_KEY..")", 2) end
 
-        if freeId ~= INVALID then
-            local id = id_setkey(ids[freeId], freeId)
-            pool_add_kn(entities, id, freeId, n)
-            local oldFreeId = freeId
-            freeId = id_getkey(ids[freeId])
-            ids[oldFreeId] = id
+        if freeKey ~= INVALID then
+            local id = id_setKey(ids[freeKey], freeKey)
+            local oldFreeKey = freeKey
+            freeKey = id_getKey(ids[freeKey])
+            ids[oldFreeKey] = id
+            size = n
             return id
         else
             local newId = id_encode(n, INITIAL_VERSION)
             table.insert(ids, newId)
-            pool_add_kn(entities, newId, n, n)
+            size = n
             return newId
         end
     end
 
     local function release(entity: EntityId)
-        local idx, ver = id_decode(entity)
-        ids[idx] = id_encode(freeId, ver + 1)
-        pool_remove(entities, entity)
-        freeId = idx
+        local key, ver = id_decode(entity)
+        ids[key] = id_encode(freeKey, ver + 1)
+        freeKey = key
+        size -= 1
     end
 
     function registry:release(entity: EntityId)
@@ -712,15 +768,15 @@ local function createRegistry(count: number?): Registry
     end
 
     function registry:valid(entity: EntityId): boolean
-        return ids[id_getkey(entity)] == entity
+        return ids[id_getKey(entity)] == entity
     end
 
     function registry:version(entity: EntityId): number
-        return id_getversion(entity)
+        return id_getVersion(entity)
     end
 
     function registry:current(entity: EntityId): number
-        return id_getversion(ids[id_getkey(entity)])
+        return id_getVersion(ids[id_getKey(entity)])
     end
 
     function registry:orphan(entity: EntityId): boolean
@@ -732,20 +788,20 @@ local function createRegistry(count: number?): Registry
 
     function registry:set(entity: EntityId, component: ComponentId, value: unknown)
         local pool = cpools[component]
-        local idx = id_getkey(entity)
-        local index = pool_map(pool, idx)
+        local key = id_getKey(entity)
+        local index = pool_mapKey(pool, key)
         
         if value ~= nil then
             if index then
-                pool_replace(pool, index, value)   
+                pool_replaceIndex(pool, index, value)   
                 fireEvent(fireChangedEvent, component, self, entity, value)
             else
-                pool_addk(pool, idx, entity, value)
+                pool_addKey(pool, key, entity, value)
                 fireEvent(fireAddedEvent, component, self, entity, value)
             end
         elseif index then
             fireEvent(fireRemovingEvent, component, self, entity, nil)
-            pool_erase(pool, idx, index)
+            pool_eraseKeyAtIndex(pool, key, index)
         end
     end
 
@@ -781,41 +837,35 @@ local function createRegistry(count: number?): Registry
     end
 
     function registry:remove(entity: EntityId, ...: ComponentId)
-        local idx = id_getkey(entity)
+        local key = id_getKey(entity)
         for i = 1, select("#", ...) do
             local component = select(i, ...)
             local pool = cpools[component]
-            local i = pool_map(pool, idx) :: number
-            if not i then return end
+            local index = pool_mapKey(pool, key) :: number
+            if not index then return end
             fireEvent(fireRemovingEvent, component, self, entity, nil)
-            pool_erase(pool, idx, i)
+            pool_eraseKeyAtIndex(pool, key, index)
         end
     end
 
     function registry:size(): number
-        return pool_size(entities)
+        return size
     end
 
     function registry:capacity(): number
-        return size
+        return capacity
     end
 
     function registry:clear(...: ComponentId)
         local argn = select("#", ...)
-        if argn > 0 then -- clear components
+        if argn > 0 then
             for i = 1, argn do
-                pool_clear(cpools[select(i, ...)])
+                clearPool(select(i, ...))
             end
-        else -- destroy all entities
-            pool_clear(entities)
-            initIds()
-            for _, pool in next, cpools do pool_clear(pool) end
+        else
+            for component in next, cpools do clearPool(component) end
+            releaseAllEntities()
         end 
-    end
-
-    function registry:reset()
-        registry:clear()
-        initIds()
     end
 
     function registry:view(...: ComponentId): View<...unknown>
@@ -831,11 +881,11 @@ local function createRegistry(count: number?): Registry
     end
 
     function registry:entities(): vector<EntityId>
-        return entities.entities
+        return ids
     end
 
     function registry:storage(component: ComponentId): Pool<unknown>
-        return component == 0 and entities or cpools[component]
+        return cpools[component]
     end
 
     function registry:added(component: ComponentId): Signal<unknown>
@@ -866,7 +916,7 @@ local function createRegistry(count: number?): Registry
     end
 
     setmetatable(registry, { __index = function(_, index)
-        error(tostring(index).." is not a valid member of registry", 2)    
+        error(tostring(index).." is not a valid member of Registry", 2)    
     end })
 
     return table.freeze(registry) :: any
@@ -883,5 +933,6 @@ return {
         remove = pool_remove,
         size = pool_size,
         clear = pool_clear
-    }
+    },
+    encode = id_encode
 }

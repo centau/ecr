@@ -308,20 +308,8 @@ end
 do
     local N = 1e6
 
-    do TITLE("View all entities")
-        BENCH("View all entities", function()
-            local reg = ecr.registry(N)
-            for i = 1, N do reg:create() end
-
-            local view = reg:view()
-
-            START(#view)
-            for entity in view do end
-        end)
-    end
-
     local function viewBench(reg: ecr.Registry)
-        local function getExactSize(view: ecr.View): number
+        local function getExactSize(view: ecr.View<...any>): number
             local i = 0
             for _ in view do
                 i += 1
@@ -416,22 +404,6 @@ do
 
         viewBench(reg)
     end
-end
-
-do TITLE("Releasing entities")
-    BENCH("Release entity", function()
-        local N = 1e6
-        local reg = ecr.registry()
-        local entities = table.create(N)
-
-        for i = 1, N do
-            entities[i] = reg:create()
-        end
-
-        for i = 1, START(N) do
-            reg:release(entities[i])
-        end
-    end)
 end
 
 do TITLE("Destroying entities")

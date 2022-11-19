@@ -31,12 +31,41 @@ $base06: #eeffff;
 $base07: #ffffff;
 $base08: #f07178;
 $base09: #f78c6c;
-$base0a: #ffcb6b;
+$base0a: #82aaff;
 $base0b: #c3e88d;
 $base0c: #89ddff;
 $base0d: #82aaff;
-$base0e: #c792ea;
+$base0e: #f76b1a;
 $base0f: #ff5370;
+
+$type-size-6: 0.95em; // codeblock text
+
+$x-large: 1680px;
+$max-width: $x-large; // max text screen width
+
+// header scales
+$h-size-1: 1.8em;
+$h-size-2: 1.5em;
+$h-size-3: 1.25em;
+$h-size-4: 1em;
+$h-size-5: 1em;
+$h-size-6: 1em;
 
 @import "minimal-mistakes/skins/{{ site.minimal_mistakes_skin | default: 'default' }}";
 @import "minimal-mistakes";
+
+html {
+    font-size: 12px;
+
+    @include breakpoint($medium) {
+      font-size: 14px; // change to whatever
+    }
+  
+    @include breakpoint($large) {
+      font-size: 16px; // change to whatever
+    }
+  
+    @include breakpoint($x-large) {
+      font-size: 18px; // change to whatever
+    }
+  }

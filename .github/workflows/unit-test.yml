@@ -1,4 +1,4 @@
-name: unit-tests
+name: unit-test
 on:
   push:
     paths:
@@ -9,7 +9,7 @@ on:
       - src/**
       - test/**
 jobs:
-  unit-tests:
+  unit-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
