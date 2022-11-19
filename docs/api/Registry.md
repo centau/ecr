@@ -35,9 +35,9 @@ Releases the entity identifier, removing the entity from the registy.
     ```
 
 - #### Details
-    
+
     [`Registry:release()`](Registry#release) is a faster alternative to [`Registry:destroy()`](Registry#destroy) when entities are considered a [orphan](Registry#details-4).
-    
+
     > ⚠️ [`Registry:release()`](Registry#release) does **not** remove any of it's entities components.
     > If you don't know if a entity has components but still want to remove it, use [`Registry:destroy()`](Registry#destroy) instead.
 
@@ -76,7 +76,7 @@ Returns the version of the given entity.
     ```lua
     function Registry:version(entity: Entity): number
     ```
-    
+
 - #### Details
 
     Not to be confused with [`Registry:current()`](Registry#current), [`Registry:version()`](Registry#version) will return the version encoded inside the entity. This is used to tell the difference between recycled entities.
@@ -116,11 +116,11 @@ Returns the current version of the given entity
     ```lua
     function Registry:current(entity: Entity): number
     ```
-    
+
 - #### Details
 
     Not to be confused with [`Registry:version()`](Registry#version), [`Registry:current()`](Registry#current) will return the latest version number of the entity. The version number is used to tell how many times a entity identifier has been recycled.
-    
+
 - #### Example
 
     ```lua
@@ -133,7 +133,7 @@ Returns the current version of the given entity
     print(registry:version(entityB)) -- prints 2
     print(registry:current(entityB)) -- prints 2
     ```
-    
+
 ---
 
 ### orphan()
@@ -145,7 +145,7 @@ Returns a boolean telling if the given entity is a orphan
     ```lua
     function Registry:orphan(entity: Entity): boolean
     ```
-    
+
 - #### Details
 
     A entity is considered a orphan if said entity has no components.
@@ -169,6 +169,7 @@ Returns a boolean telling if the given entity is a orphan
     ```
 
 ---
+
 ### set()
 
 Sets an entity's component value.
@@ -187,17 +188,19 @@ Sets an entity's component value.
     If `value` is `nil` then the component will be removed from the entity.
 
 ---
+
 ### has()
 
 Returns if a entity has all of the given components.
 
 - #### Type
-    
+
     ```lua
     function Registry:has<T...>(entity: Entity, components: T...): boolean
     ```
 
 ---
+
 ### get()
 
 Gets an entity's component value.
@@ -220,7 +223,7 @@ Gets an entity's component value.
 Removes the given components from a entity.
 
 - #### Type
-    
+
     ```lua
     function Registry:remove<T...>(entity: Entity, components: T...): ()
     ```
@@ -254,20 +257,30 @@ Creates a [`Observer`](Observer) which tracks any changes that happen to entitie
     ```lua
     function Registry:track<T, U...>(trackingComponent: T, U...) -> Observer<(T?, U...)>
     ```
-    
+
 - #### Details
 
     Trackers are used to track changes that happen to a given component inside systems and grants control over when to track, stop tracking and start tracking again.
-    
+
     Trackers should be created outside the system so they can track changes while the system isn't running.
+
+    Only changes made to the first argument specified are tracked, subsequent arguments are only included when iterating just like a `View`.
     
-    Trackers will track all changes, including when a component is added, removed and changed. Currently there is no way to tell when a component is first added inside a Tracker. Use [`Registry:added()`](Registry#added) instead to see when a component has been added to a entity.
-    
-    > ⚠️ Make sure to call [`Observer:clear()`](Observer#clear) on the Tracker when you are finished using said tracker.
-    > If you don't do this, you will iterate on the same changes again on the same component.
-    
-    > ⚠️ Trackers only report the latest change that has happened to a entity.
-    > If a entity has been changed multiple times before the tracker is iterated over, it will only report the latest change.
+    The observer will return entities that:
+
+    1. Are assigned the component when they previously did not own it.
+    2. Have the tracked component's value changed.
+    3. Have the tracked component removed (value will be returned as `nil` during iterations).
+
+    An entity must have **all** components specified to be included in the observer.
+
+    A history of changes is not kept, the observer will only return entities whose tracked components have been changed with their latest values.
+
+    When an observer is first created, it treats all current entities with the given component in the registry as newly changed.
+
+    > ⚠️ After iterating over an observer and processing the changes, call [`Observer:clear()`](Observer#clear) to clear all changes so you do not reprocess the same changes again.
+
+    > ⚠️ When tracking components for an entity that must have other components, e.g `Registry:track(A, B)`, if an entity contains `A` and then `B` is added, the entity will **not** be added to the tracker. The entity must have all components specified at the moment the *tracked* component `A` is changed.
 
 - #### Example
 
@@ -296,7 +309,7 @@ Creates a [`Observer`](Observer) which tracks any changes that happen to entitie
     end
     
     ```
- 
+
 ---
 
 ### entities()
@@ -304,7 +317,7 @@ Creates a [`Observer`](Observer) which tracks any changes that happen to entitie
 Returns a list containing every single entity id that is used by the Registry.
 
 - #### Type
-    
+
     ```lua
     function Registry:entities() -> {Entity}
     ```
@@ -324,7 +337,7 @@ Returns a [Pool](Pool) containing every entity that has the given component
 - #### Details
   
     > ⚠️ This function is not yet stable and it's return value will be changed to return something that is not a [Pool](Pool).
-    
+
 ---
 
 ### added()
@@ -336,7 +349,7 @@ Returns a [Signal](Signal) which will be fired whenever the given component is a
     ```lua
     function Registry:added<T>(component: T) -> Signal<Entity, T>
     ```
-    
+
 ---
 
 ### changed()
@@ -348,7 +361,7 @@ Returns a [Signal](Signal) which will be fired whenever the given component is c
     ```lua
     function Registry:changed<T>(component: T) -> Signal<Entity, T>
     ```
-    
+
 ---
 
 ### removing()
@@ -360,3 +373,5 @@ Returns a [Signal](Signal) which will be fired whenever the given component is r
     ```lua
     function Registry:removing<T>(component: T) -> Signal<Entity, T>
     ```
+
+---

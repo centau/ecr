@@ -10,10 +10,10 @@ title: Signal
 Connects the given function to a Signal and will be called whenever the Signal is fired.
 
 - #### Type
-	
-	```lua
-	function Signal:connect((...any): ()): ()
-	```
+
+    ```lua
+    function Signal:connect<T...>((T...) -> ()): ()
+    ```
 
 ---
 
@@ -23,7 +23,8 @@ Disconnects the given function from a Signal stopping them from being called whe
 
 - #### Type
   
-	```lua
-	function Signal:disconnect((...any): ()): ()
-	```
+    ```lua
+    function Signal:disconnect<T...>((T...) -> ()): ()
+    ```
 
+---
