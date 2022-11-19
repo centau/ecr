@@ -80,15 +80,18 @@ export type Signal<T...> = {
 ]]
 
 local id_MASK_KEY = 0x000FFFFF -- first 20 bits
-local _id_MASK_VERSION = 2^53-1 - id_MASK_KEY
+local id_MASK_VERSION = 2^53-1 - id_MASK_KEY
 
 local id_LSHIFT_VERSION = id_MASK_KEY + 1
 local id_RSHIFT_VERSION = 1/id_LSHIFT_VERSION
 
+local id_MAX_KEY = id_MASK_KEY
+local id_MAX_VERSION = id_MASK_VERSION * id_RSHIFT_VERSION
+
 -- encodes the given key and version into a single identifier
 local function id_encode(key: number, ver: number): number
-    --assert(key <= id_MASK_KEY)
-    --assert(ver <= id_MASK_VERSION)
+    --assert(key <= id_MAX_KEY)
+    --assert(ver <= id_MAX_VERSION)
     return ver * id_LSHIFT_VERSION + key
 end
 
@@ -177,15 +180,6 @@ local function pool_addKey<T>(self: Pool<T>, k: number, entity: EntityId, v: T)
     self.map[k] = n
     self.entities[n] = entity
     self.values[n] = v   
-end
-
--- adds the given entity key `k`
--- assumes the pool size `n`
--- undefined behavior if entity already exists in pool
-local function pool_addKeyWithoutValueForSize<T>(self: Pool<T>, k: number, entity: EntityId, n: number)
-    self.size = n
-    self.map[k] = n
-    self.entities[n] = entity
 end
 
 -- removes given entity key `k` at the given index from pool
@@ -750,7 +744,7 @@ local function createRegistry(count: number?): Registry
 
     local function release(entity: EntityId)
         local key, ver = id_decode(entity)
-        ids[key] = id_encode(freeKey, ver + 1)
+        ids[key] = id_encode(freeKey, ver < id_MAX_VERSION and ver + 1 or 1)
         freeKey = key
         size -= 1
     end
@@ -913,6 +907,11 @@ local function createRegistry(count: number?): Registry
             fireRemovingEvent[component] = fire
             return signal      
         end)()
+    end
+
+    -- internal test method
+    function registry:setEntityVersion(key: number, ver: number)
+        ids[key] = id_encode(key, ver)
     end
 
     setmetatable(registry, { __index = function(_, index)
