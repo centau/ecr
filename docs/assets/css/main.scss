@@ -38,17 +38,25 @@ $base0d: #82aaff;
 $base0e: #f76b1a;
 $base0f: #ff5370;
 
-$type-size-6: 0.95em; // codeblock text
-
 $x-large: 1680px;
 $max-width: $x-large; // max text screen width
+
+// text scales
+$type-size-1: 2.8em;
+$type-size-2: 2.5em;
+$type-size-3: 1.8em;
+$type-size-4: 1.4em;
+$type-size-5: 1.25em;
+$type-size-6: 1em;
+$type-size-7: 0.9em;
+$type-size-8: 0.8em;
 
 // header scales
 $h-size-1: 1.8em;
 $h-size-2: 1.5em;
 $h-size-3: 1.25em;
-$h-size-4: 1em;
-$h-size-5: 1em;
+$h-size-4: 1.2em;
+$h-size-5: 1.1em;
 $h-size-6: 1em;
 
 @import "minimal-mistakes/skins/{{ site.minimal_mistakes_skin | default: 'default' }}";
@@ -58,14 +66,67 @@ html {
     font-size: 12px;
 
     @include breakpoint($medium) {
-      font-size: 14px; // change to whatever
+        font-size: 14px;
     }
   
     @include breakpoint($large) {
-      font-size: 16px; // change to whatever
+        font-size: 16px;
     }
   
     @include breakpoint($x-large) {
-      font-size: 18px; // change to whatever
+        font-size: 18px;
     }
-  }
+}
+
+// table of contents
+.toc {
+    border: 1px solid $background-color;
+
+    .nav__title {
+        color: rgb(87, 87, 87);
+        font-size: $type-size-6;
+        background: $background-color;
+    }
+}
+
+.toc__menu {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    list-style: none;
+    font-size: $type-size-6;
+  
+    @include breakpoint($large) {
+      font-size: $type-size-7;
+    }
+  
+    a {
+        display: block;
+        padding: 0.25rem 0.75rem;
+        color: $muted-text-color;
+        font-weight: bold;
+        line-height: 1.5;
+        border-bottom: 1px solid $background-color;
+    
+        &:hover {
+            color: $text-color;
+        }
+    }
+}
+
+// topbar
+.masthead__menu-item {
+    display: l;
+    list-style-type: none;
+    white-space: nowrap;
+    font-size: $type-size-4;
+
+    &--lg {
+        padding-right: 2em;
+        font-weight: 700;
+    }
+}
+
+.site-logo img {
+    max-height: 3rem;
+}

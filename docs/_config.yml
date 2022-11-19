@@ -9,6 +9,7 @@ minimal_mistakes_skin: dark
 include: [api, docs]
 
 # customization settings
+subtitle: v0.1.0
 name: centau
 description: A fast entity component system (ECS) for Luau and Roblox.
 baseurl: /ecr
@@ -28,6 +29,8 @@ defaults:
     values:
       layout: single
       toc: true
+      toc_label: Contents
+      toc_icon: list
       toc_sticky: true
       sidebar:
         nav: api
@@ -38,6 +41,8 @@ defaults:
     values:
       layout: single
       toc: true
+      toc_label: Contents
+      toc_icon: list
       toc_sticky: true
       sidebar:
         nav: docs
