@@ -170,7 +170,6 @@ TEST("registry:version() and registry:current()", function()
         entity = reg:create()
         -- should overflow and reset back to 1
         CHECK(reg:version(entity) == 1)
-        print(reg:version(entity))
     end
 end)
 
@@ -288,9 +287,9 @@ TEST("registry:destroy()", function()
 end)
 
 TEST("registry:view()", function()
-    local reg = ecr.registry()
-
     local N = 1e3
+
+    local reg = ecr.registry(N)
 
     local entities = {}
     local As = {}
@@ -573,32 +572,43 @@ TEST("registry events", function()
 end)
 
 TEST("reg:track()", function()
-    local function flip() return math.random() > 0.5 end
+    local N = 1e3
 
-    local N = 1e2
     local reg = ecr.registry(N)
-
     local trackerA = reg:track(A)
     local trackerAB = reg:track(A, B)
+    local trackerABincC = reg:track(A, B):include(C)
+    local trackerAincBexcC = reg:track(A):include(B):exclude(C)
 
     local entities = {}
     local As = {}
+    local Bs = {}
+    local Cs = {}
+
+    local ABCs = {}
     local ABs = {}
-    local AnotBs = {}
+    local ABnotCs = {}
+
+    local function flip() return math.random() > 0.3 end
+
+    -- setup components
+    -- each component is given the value of the entity its assigned to
+    -- to check that the correct components are returned for a given entity
     for i = 1, N do
         local e = reg:create()
         entities[i] = e
+        local hasA, hasB, hasC = false, false, false
+        if flip() then reg:set(e, C, e); hasC = true end
+        if flip() then reg:set(e, B, e); hasB = true end
+        if flip() then reg:set(e, A, e); hasA = true end
 
-        local hasB = flip()
-        if hasB then
-            reg:set(e, B, e)
-            table.insert(ABs, e)
-        else
-            table.insert(AnotBs, e)
-        end
-    
-        reg:set(e, A, e)
-        table.insert(As, e)
+        if hasA then table.insert(As, e) end
+        if hasB then table.insert(Bs, e) end
+        if hasC then table.insert(Cs, e) end
+
+        if hasA and hasB and hasC then table.insert(ABCs, e) end
+        if hasA and hasB then table.insert(ABs, e) end
+        if hasA and hasB and not hasC then table.insert(ABnotCs, e) end
     end
 
     do CASE "Initial data treated as changed"
@@ -632,6 +642,59 @@ TEST("reg:track()", function()
         end
     end
 
+    do CASE "Track A for entities with B"
+        local viewed = {}
+
+        for entity, a, b in trackerAB:each() do
+            viewed[entity] = { a = a, b = b }
+        end
+
+        CHECK((next(viewed)))
+
+        for _, entity in ABs do
+            local v = viewed[entity]
+            CHECK(v)
+            if not v then continue end
+            CHECK(v.a == entity)
+            CHECK(v.b == entity)
+        end
+    end
+
+    do CASE "Track A for entities with B excluding C"
+        local viewed = {}
+
+        for entity, a, b in trackerABincC do
+            viewed[entity] = { a = a, b = b }
+        end
+
+        CHECK((next(viewed)))
+
+        for _, entity in ABCs do
+            local v = viewed[entity]
+            CHECK(v)
+            if not v then continue end
+            CHECK(v.a == entity)
+            CHECK(v.b == entity)
+        end
+    end
+
+    do CASE "Track a for entities including b excluding C"
+        local viewed = {}
+
+        for entity, a in trackerAincBexcC do
+            viewed[entity] = a
+        end
+
+        CHECK((next(viewed)))
+
+        for _, entity in ABnotCs do
+            local v = viewed[entity]
+            CHECK(v)
+            if not v then continue end
+            CHECK(v == entity)
+        end
+    end
+
     do CASE "Clear tracker"
         trackerA:clear()
         for _ in trackerA:each() do
@@ -662,31 +725,15 @@ TEST("reg:track()", function()
        end
     end
 
-    do CASE "Track A for entities with B"
-        local viewed = {}
-
-        for entity, a, b in trackerAB:each() do
-            viewed[entity] = { a = a, b = b }
-        end
-
-        CHECK((next(viewed)))
-
-        for _, entity in ABs do
-            CHECK(viewed[entity])
-            if not viewed[entity] then continue end
-            CHECK(viewed[entity].b == entity)
-        end
-    end
-
     do CASE "Track removal"
         trackerA:clear()
 
         local removed = {}
 
-        for i = 1, N do
+        for i, entity in As do
             if math.random() > 0.5 then continue end
             table.insert(removed, As[i])
-            reg:remove(As[i], A)
+            reg:remove(As[i], A)  
         end
 
         local viewed = {}

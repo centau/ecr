@@ -283,7 +283,7 @@ end
 local function hasNone(entity: EntityId, pools: vector<Pool<unknown>>): boolean
     local key = id_getKey(entity)
     for _, pool in next, pools do
-        if pool_has(pool, key) then return false end
+        if pool_hasKey(pool, key) then return false end
     end
     return true
 end
