@@ -302,13 +302,6 @@ TEST("registry:view()", function()
         if hasA and hasB then table.insert(ABs, e) end
         if hasA and hasB and not hasC then table.insert(ABnotCs, e) end
     end
-    
-    do CASE "View all entities"
-        local viewed = {}
-        for entity in reg:view() do viewed[entity] = true end
-        CHECK((next(viewed)))
-        for _, entity in entities do CHECK(viewed[entity]) end
-    end
 
     do CASE "View all entities for A"
         local viewed = {}
@@ -347,9 +340,10 @@ TEST("registry:view()", function()
     end
 
     do CASE "View all entities for AB and not C"
+        local count = 0
         local viewed = {}
-        for entity in reg:view(A, B):exclude(C) do viewed[entity] = true end
-        CHECK((next(viewed)))
+        for entity in reg:view(A, B):exclude(C) do count += 1; viewed[entity] = true end
+        CHECK(count == #ABnotCs)
         for _, entity in ABnotCs do 
             CHECK(viewed[entity])
         end
@@ -562,17 +556,17 @@ TEST("reg:track()", function()
     for i = 1, N do
         local e = reg:create()
         entities[i] = e
-    
-        reg:set(e, A, i)
-        table.insert(As, e)
 
         local hasB = flip()
         if hasB then
-            reg:set(e, B, i)
+            reg:set(e, B, e)
             table.insert(ABs, e)
         else
             table.insert(AnotBs, e)
         end
+    
+        reg:set(e, A, e)
+        table.insert(As, e)
     end
 
     do CASE "Initial data treated as changed"
@@ -587,7 +581,7 @@ TEST("reg:track()", function()
 
             for i, entity in As do
                 CHECK(viewed[entity])
-                CHECK(viewed[entity] == i)
+                CHECK(viewed[entity] == entity)
             end
         end
         do
@@ -601,7 +595,7 @@ TEST("reg:track()", function()
 
             for i, entity in ABs do
                 CHECK(viewed[entity])
-                CHECK(viewed[entity] == i)
+                CHECK(viewed[entity] == entity)
             end
         end
     end
@@ -640,7 +634,7 @@ TEST("reg:track()", function()
         local viewed = {}
 
         for entity, a, b in trackerAB:each() do
-            viewed[entity] = { a = entity, b = entity }
+            viewed[entity] = { a = a, b = b }
         end
 
         CHECK((next(viewed)))
@@ -648,7 +642,6 @@ TEST("reg:track()", function()
         for _, entity in ABs do
             CHECK(viewed[entity])
             if not viewed[entity] then continue end
-            CHECK(viewed[entity].a == entity)
             CHECK(viewed[entity].b == entity)
         end
     end
