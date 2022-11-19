@@ -21,6 +21,26 @@ Excludes entities with the given component from the view.
 
     Any entities encountered with **any** of the excluded components, will be skipped over in iteration.
 
+---
+
+### include()
+
+Only includes entities with the given components into the view.
+
+- ### Type
+
+    ```lua
+    function View:include<T...>(components: ...unknown): View<T...>
+    ```
+
+- ### Details
+
+    The method will return the same view that it was called on.
+    Any entities that do not have the given components will be skipped.
+    The given components will have to be manually accessed through [`Registry:get()`](Registry#get).
+    
+    This is useful for when dealing with for components that function as "tags" that
+    don't have any useful data stored inside.
 ## Iteration
 
 ### each()
