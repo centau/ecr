@@ -28,6 +28,8 @@ defaults:
     values:
       layout: single
       toc: true
+      toc_label: Contents
+      toc_icon: list
       toc_sticky: true
       sidebar:
         nav: api
@@ -38,6 +40,8 @@ defaults:
     values:
       layout: single
       toc: true
+      toc_label: Contents
+      toc_icon: list
       toc_sticky: true
       sidebar:
         nav: docs
