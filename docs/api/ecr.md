@@ -9,13 +9,13 @@ title: ecr
 
 Creates a new component type.
 
-- ### Type
+- #### Type
 
     ```lua
     function ecr.component(): unknown
     ```
 
-- ### Details
+- #### Details
 
     A *component* in `ECR` is actually just a unique integer identifier.
 
@@ -26,7 +26,7 @@ Creates a new component type.
     It is recommended to define all components before creating any `Registry` instances,
     so that registries can allocate the correct amount of memory for faster operations.
 
-- ### Example
+- #### Example
 
     ```lua
     local Health = ecr.component() :: number
@@ -40,13 +40,13 @@ Creates a new component type.
 
 Creates a new registry.
 
-- ### Type
+- #### Type
 
     ```lua
     function ecr.registry(size: number = 0): Registry
     ```
 
-- ### Details
+- #### Details
 
     The `size` parameter is not a strict limit,
     the amount of entities can exceed the specified size.

@@ -9,13 +9,13 @@ title: View
 
 Excludes entities with the given component from the view.
 
-- ### Type
+- #### Type
 
     ```lua
     function View:exclude<T...>(components: ...unknown): View<T...>
     ```
 
-- ### Details
+- #### Details
 
     The method will return the same view that it was called on.
 
@@ -27,13 +27,13 @@ Excludes entities with the given component from the view.
 
 Only includes entities with the given components into the view.
 
-- ### Type
+- #### Type
 
     ```lua
     function View:include<T...>(components: ...unknown): View<T...>
     ```
 
-- ### Details
+- #### Details
 
     The method will return the same view that it was called on.
     Any entities that do not have the given components will be skipped.
@@ -47,17 +47,17 @@ Only includes entities with the given components into the view.
 
 Returns a generator that can be used to iterate over all entities within the view.
 
-- ### Type
+- #### Type
 
     ```lua
     function View:each<T...>(): () -> (Entity, T...)
     ```
 
-- ### Details
+- #### Details
 
     The entity followed by its components (ordered the same as the argument list) is returned.
 
-- ### Example
+- #### Example
 
     ```lua
     for entity, health, position in registry:view(Health, Position):each() do
@@ -69,7 +69,7 @@ Returns a generator that can be used to iterate over all entities within the vie
 
 ### Generalized
 
-- ### Example
+- #### Example
 
     The need to call [`view:each()`](View#each) can be omitted.
     The following code functions identically to the previous example.

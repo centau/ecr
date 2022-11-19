@@ -9,7 +9,7 @@ title: Signal
 
 Connects the given function to a Signal and will be called whenever the Signal is fired.
 
-- ### Type
+- #### Type
 	
 	```lua
 	function Signal:connect((...any): ()): ()
@@ -21,7 +21,7 @@ Connects the given function to a Signal and will be called whenever the Signal i
 
 Disconnects the given function from a Signal stopping them from being called whenever the signal is fired.
 
-- ### Type
+- #### Type
   
 	```lua
 	function Signal:disconnect((...any): ()): ()
