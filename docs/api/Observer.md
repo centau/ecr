@@ -14,7 +14,7 @@ You can get this object through [`Registry:track()`](Registry#track).
 
 Disconnects the Observer stopping any new changes from being tracked
 
-- ### Type
+- #### Type
 	
 	```lua
 	function Observer:disconnect(): ()
@@ -26,7 +26,7 @@ Disconnects the Observer stopping any new changes from being tracked
 
 Reconnects the Observer and allows it to start tracking changes again
 
-- ### Type
+- #### Type
 
 	```lua
 	function Observer:reconnect(): ()
@@ -38,12 +38,12 @@ Reconnects the Observer and allows it to start tracking changes again
 
 Clears all tracked changes and starts tracking new changes
 
-- ### Type
+- #### Type
 	
 	```lua
 	function Observer:clear(): ()
 	```
 
-- ### Details
+- #### Details
 	
 	When this is called, all currently recorded changes will be discarded. Make sure to call this everytime you finish with the currently recorded changes, as not calling this will keep changes you've already processed.
