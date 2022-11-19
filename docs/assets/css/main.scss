@@ -113,3 +113,21 @@ html {
         }
     }
 }
+
+
+// topbar
+.masthead__menu-item {
+    display: l;
+    list-style-type: none;
+    white-space: nowrap;
+    font-size: $type-size-4;
+
+    &--lg {
+        padding-right: 2em;
+        font-weight: 700;
+    }
+}
+
+.site-logo img {
+    max-height: 3rem;
+}
