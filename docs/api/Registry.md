@@ -189,6 +189,33 @@ Sets an entity's component value.
 
 ---
 
+### patch()
+
+Patches a entity's component value 
+
+- **Type**
+
+    ```lua
+    function Registry:patch<T>(entity: Entity, component: T, patcher: (old: T) -> T?)
+    ```
+    
+- **Details**
+
+    Behaves similar to [`Registry:set()`](Registry#set) but instead of directly setting a value,
+    you'll have to pass a function which will use the previous value to get a new value.
+    
+    This has the exact same behavior as `Registry:set()` and will remove components if `value` is `nil`.
+    
+- **Example**
+
+    ```lua
+    registry:patch(entity, Heatlh :: number, function(oldValue)
+        return oldValue - 10
+    end)
+    ```
+    
+---
+
 ### has()
 
 Returns if a entity has all of the given components.

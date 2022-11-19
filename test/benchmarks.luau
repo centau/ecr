@@ -115,6 +115,87 @@ do TITLE("Setting components")
     end
 end
 
+do TITLE("Patching components")
+    local N = 1e6
+
+    local function setup()
+        local reg = ecr.registry(N)
+        local ids = table.create(N)
+        for i = 1, N do
+            ids[i] = reg:create()
+            reg:set(i, A, 0)
+            reg:set(i, B, 0)
+            reg:set(i, C, 0)
+            reg:set(i, D, 0)
+        end
+        return reg, ids
+    end
+    
+    local function patcher(v: number)
+        return v
+    end
+    
+    do
+        local reg, ids = setup()
+        BENCH("Patch 1 non-existing component", function()
+            for i = 1, START(N) do
+                local e = ids[i]
+                reg:patch(e, A :: number, patcher)
+            end
+        end)
+        
+        BENCH("Patch 1 existing component", function()
+            for i = 1, START(N) do
+                local e = ids[i]
+                reg:patch(e, A :: number, patcher)
+            end
+        end)
+    end
+    
+    do
+        local reg, ids = setup()
+        BENCH("Patch 2 non-existing components", function()
+            for i = 1, START(N) do
+                local e = ids[i]
+                reg:patch(e, A :: number, patcher)
+                reg:patch(e, B :: number, patcher)
+            end
+        end)
+        
+        BENCH("Patch 2 existing components", function()
+            for i = 1, START(N) do
+                local e = ids[i]
+                reg:patch(e, A :: number, patcher)
+                reg:patch(e, B :: number, patcher)
+            end
+        end)
+    end
+    
+    do
+        local reg, ids = setup()
+        BENCH("Patch 4 non-existing components", function()
+            for i = 1, START(N) do
+                local e = ids[i]
+                reg:patch(e, A :: number, patcher)
+                reg:patch(e, B :: number, patcher)
+                reg:patch(e, C :: number, patcher)
+                reg:patch(e, D :: number, patcher)
+            end
+        end)
+        
+        BENCH("Patch 4 existing components", function()
+            for i = 1, START(N) do
+                local e = ids[i]
+                reg:patch(e, A :: number, patcher)
+                reg:patch(e, B :: number, patcher)
+                reg:patch(e, C :: number, patcher)
+                reg:patch(e, D :: number, patcher)
+            end
+        end)
+    end
+    
+end
+
 do TITLE("Has components")
     local N = 1e6
 
