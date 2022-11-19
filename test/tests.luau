@@ -233,6 +233,30 @@ TEST("registry:get() and registry:set()", function()
     end
 end)
 
+TEST("registry:get() and registry:patch()", function()
+    local reg = ecr.registry()
+    local e = reg:create()
+    
+    do CASE "Old value is nil in patcher when entity lacks component"
+        local value
+        reg:patch(e, A, function(v)
+            value = v == nil
+            return 1
+        end)
+        
+        CHECK(value)
+    end
+    
+    do CASE "Patcher adds 1"
+        reg:patch(e, A :: number, function(v)
+            return v + 1
+        end)
+        
+        CHECK(reg:get(e, A) == 2)
+    end
+    
+end)
+
 TEST("registry:remove()", function()
     local reg = ecr.registry()
 

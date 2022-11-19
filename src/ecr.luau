@@ -21,6 +21,7 @@ export type Registry = {
 
     orphan: (Registry, entity: Entity) -> boolean,
     set: <T>(Registry, entity: Entity, component: T, value: T?) -> (),
+    patch: <T>(Registry, entity: Entity, component: T, patcher: (oldValue: T) -> T?) -> (),
     has: <T...>(Registry, entity: Entity, T...) -> boolean,
     get: <T...>(Registry, entity: Entity, T...) -> T...,
     remove: <T...>(Registry, entity: Entity, T...) -> (),
@@ -797,6 +798,11 @@ local function createRegistry(count: number?): Registry
             fireEvent(fireRemovingEvent, component, self, entity, nil)
             pool_eraseKeyAtIndex(pool, key, index)
         end
+    end
+    
+    function registry:patch(entity: EntityId, component: ComponentId, patcher: (oldValue: unknown) -> unknown)
+        local old = pool_get(cpools[component], entity)
+        self:set(entity, component, patcher(old))
     end
 
     function registry:has(entity: EntityId, ...: ComponentId): boolean
