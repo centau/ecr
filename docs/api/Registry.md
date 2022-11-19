@@ -9,13 +9,13 @@ title: Registry
 
 Creates a new entity and returns the entity's identifier.
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:create(): Entity
     ```
 
-- #### Details
+- **Details**
 
     Identifiers are (mostly) guaranteed to be unique.
 
@@ -28,13 +28,13 @@ Creates a new entity and returns the entity's identifier.
 
 Releases the entity identifier, removing the entity from the registy.
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:release(entity: Entity): ()
     ```
 
-- #### Details
+- **Details**
 
     [`Registry:release()`](Registry#release) is a faster alternative to [`Registry:destroy()`](Registry#destroy) when entities are considered a [orphan](Registry#details-4).
 
@@ -47,7 +47,7 @@ Releases the entity identifier, removing the entity from the registy.
 
 Releases the entity identifier and removes all of it's existing components.
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:destroy(entity: Entity): ()
@@ -59,7 +59,7 @@ Releases the entity identifier and removes all of it's existing components.
 
 Returns if the given value is a entity inside the Registry
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:valid(possibleEntity: any): boolean
@@ -71,17 +71,17 @@ Returns if the given value is a entity inside the Registry
 
 Returns the version of the given entity.
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:version(entity: Entity): number
     ```
 
-- #### Details
+- **Details**
 
     Not to be confused with [`Registry:current()`](Registry#current), [`Registry:version()`](Registry#version) will return the version encoded inside the entity. This is used to tell the difference between recycled entities.
 
-- #### Example
+- **Example**
 
      ```lua
     local entityA = registry:create()
@@ -111,17 +111,17 @@ Returns the version of the given entity.
 
 Returns the current version of the given entity
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:current(entity: Entity): number
     ```
 
-- #### Details
+- **Details**
 
     Not to be confused with [`Registry:version()`](Registry#version), [`Registry:current()`](Registry#current) will return the latest version number of the entity. The version number is used to tell how many times a entity identifier has been recycled.
 
-- #### Example
+- **Example**
 
     ```lua
     local entityA = registry:create()
@@ -140,17 +140,17 @@ Returns the current version of the given entity
 
 Returns a boolean telling if the given entity is a orphan
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:orphan(entity: Entity): boolean
     ```
 
-- #### Details
+- **Details**
 
     A entity is considered a orphan if said entity has no components.
 
-- #### Example
+- **Example**
 
     ```lua
     
@@ -174,13 +174,13 @@ Returns a boolean telling if the given entity is a orphan
 
 Sets an entity's component value.
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:set<T>(entity: Entity, component: T, value: T?)
     ```
 
-- #### Details
+- **Details**
 
     Will add the component to the entity with the given value
     if the entity does not already have the component.
@@ -193,7 +193,7 @@ Sets an entity's component value.
 
 Returns if a entity has all of the given components.
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:has<T...>(entity: Entity, components: T...): boolean
@@ -205,13 +205,13 @@ Returns if a entity has all of the given components.
 
 Gets an entity's component value.
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:get<T...>(entity: Entity, components: T...): T...
     ```
 
-- #### Details
+- **Details**
 
     Will return the value of each of the specified components.
     Will return `nil` if the entity does not own the component.
@@ -222,7 +222,7 @@ Gets an entity's component value.
 
 Removes the given components from a entity.
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:remove<T...>(entity: Entity, components: T...): ()
@@ -232,13 +232,13 @@ Removes the given components from a entity.
 
 Creates a new registry view.
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:view<T...>(components: T...): View<T...>
     ```
 
-- #### Details
+- **Details**
 
     Creates a new view with the specified components.
 
@@ -252,13 +252,13 @@ Creates a new registry view.
 
 Creates a [`Observer`](Observer) which tracks any changes that happen to entities with the given component.
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:track<T, U...>(trackingComponent: T, U...) -> Observer<(T?, U...)>
     ```
 
-- #### Details
+- **Details**
 
     Trackers are used to track changes that happen to a given component inside systems and grants control over when to track, stop tracking and start tracking again.
 
@@ -282,7 +282,7 @@ Creates a [`Observer`](Observer) which tracks any changes that happen to entitie
 
     > ⚠️ When tracking components for an entity that must have other components, e.g `Registry:track(A, B)`, if an entity contains `A` and then `B` is added, the entity will **not** be added to the tracker. The entity must have all components specified at the moment the *tracked* component `A` is changed.
 
-- #### Example
+- **Example**
 
     ```lua
     local Health = ecr.component() :: number
@@ -316,7 +316,7 @@ Creates a [`Observer`](Observer) which tracks any changes that happen to entitie
 
 Returns a list containing every single entity id that is used by the Registry.
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:entities() -> {Entity}
@@ -328,13 +328,13 @@ Returns a list containing every single entity id that is used by the Registry.
 
 Returns a [Pool](Pool) containing every entity that has the given component
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:storage<T>(component: T) -> Pool<T>
     ```
 
-- #### Details
+- **Details**
   
     > ⚠️ This function is not yet stable and it's return value will be changed to return something that is not a [Pool](Pool).
 
@@ -344,7 +344,7 @@ Returns a [Pool](Pool) containing every entity that has the given component
 
 Returns a [Signal](Signal) which will be fired whenever the given component is added to a entity.
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:added<T>(component: T) -> Signal<Entity, T>
@@ -356,7 +356,7 @@ Returns a [Signal](Signal) which will be fired whenever the given component is a
 
 Returns a [Signal](Signal) which will be fired whenever the given component is changed of a entity inside the Registry
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:changed<T>(component: T) -> Signal<Entity, T>
@@ -368,7 +368,7 @@ Returns a [Signal](Signal) which will be fired whenever the given component is c
 
 Returns a [Signal](Signal) which will be fired whenever the given component is removed of a entity inside the Registry
 
-- #### Type
+- **Type**
 
     ```lua
     function Registry:removing<T>(component: T) -> Signal<Entity, T>

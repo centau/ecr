@@ -27,6 +27,8 @@ defaults:
       type: pages
     values:
       layout: single
+      toc: true
+      toc_sticky: true
       sidebar:
         nav: api
   # docs
@@ -35,5 +37,7 @@ defaults:
       type: pages
     values:
       layout: single
+      toc: true
+      toc_sticky: true
       sidebar:
         nav: docs
