@@ -121,9 +121,6 @@ TEST("registry:create()", function()
             cache[entity] = true
         end
     end
-
-    do CASE "Version overflow"
-    end
 end)
 
 TEST("registry:valid() and registry:release()", function()
@@ -145,17 +142,36 @@ TEST("registry:valid() and registry:release()", function()
 end)
 
 TEST("registry:version() and registry:current()", function()
-    local reg = ecr.registry()
+    do CASE "Returns correct version"
+        local reg = ecr.registry()
 
-    local e1 = reg:create()
-    local e2 = reg:create()
-    reg:destroy(e1)
-    local e3 = reg:create()
+        local e1 = reg:create()
+        local e2 = reg:create()
+        reg:destroy(e1)
+        local e3 = reg:create()
 
-    CHECK(reg:version(e1) == 1)
-    CHECK(reg:current(e1) == 2)
-    CHECK(reg:version(e3) == 2)
-    CHECK(reg:version(e2) == 1)
+        CHECK(reg:version(e1) == 1)
+        CHECK(reg:current(e1) == 2)
+        CHECK(reg:version(e3) == 2)
+        CHECK(reg:version(e2) == 1)
+    end
+
+    do CASE "Version overflow"
+        local MAX_VER = 2^33 - 1
+        local reg = ecr.registry()
+
+        ;(reg :: any):setEntityVersion(1, MAX_VER)
+
+        -- verify version was set to max correctly
+        local entity = reg:create()
+        CHECK(reg:version(entity) == MAX_VER)
+        -- trigger version increaes
+        reg:destroy(entity)
+        entity = reg:create()
+        -- should overflow and reset back to 1
+        CHECK(reg:version(entity) == 1)
+        print(reg:version(entity))
+    end
 end)
 
 TEST("registry:orphan()", function()
@@ -178,6 +194,7 @@ TEST("registry:has() and registry:set()", function()
         reg:set(e1, A, true)
         reg:set(e2, A, true)
         reg:set(e2, B, true)
+        CHECK(true)
     end
 
     do CASE "Has components"
@@ -286,6 +303,9 @@ TEST("registry:view()", function()
 
     local function flip() return math.random() > 0.3 end
 
+    -- setup components
+    -- each component is given the value of the entity its assigned to
+    -- to check that the correct components are returned for a given entity
     for i = 1, N do
         local e = reg:create()
         entities[i] = e
@@ -303,49 +323,61 @@ TEST("registry:view()", function()
         if hasA and hasB and not hasC then table.insert(ABnotCs, e) end
     end
 
-    do CASE "View all entities for A"
+    do CASE "View all entities with A"
         local viewed = {}
-        for entity in reg:view(A) do viewed[entity] = true end
+        for entity, a in reg:view(A) do viewed[entity] = a end
         CHECK((next(viewed)))
-        for _, entity in As do CHECK(viewed[entity]) end
+        for _, entity in As do CHECK(viewed[entity] == entity) end
     end
 
-    do CASE "View all entities for B"
+    do CASE "View all entities with B"
         local viewed = {}
-        for entity in reg:view(B) do viewed[entity] = true end
+        for entity, b in reg:view(B) do viewed[entity] = b end
         CHECK((next(viewed)))
-        for _, entity in Bs do CHECK(viewed[entity]) end
+        for _, entity in Bs do CHECK(viewed[entity] == entity) end
     end
 
-    do CASE "View all entities for ABC"
+    do CASE "View all entities with ABC"
         local viewed = {}
-        for entity in reg:view(A, B, C) do viewed[entity] = true end
+        for entity, a, b, c in reg:view(A, B, C) do viewed[entity] = { a, b, c } end
         CHECK((next(viewed)))
         for _, entity in ABCs do
-            CHECK(viewed[entity])
-            --CHECK(viewed[entity] == entity) -- check if entity and corresponding component matches
+            local v = viewed[entity]
+            CHECK(v)
+            if not v then continue end
+            CHECK(v[1] == entity)
+            CHECK(v[2] == entity)
+            CHECK(v[3] == entity)
         end
     end
 
-    do CASE "View all entities and values for ABC"
+    do CASE "View all entities with ABC (using View:include())"
         local viewed = {}
-        for entity, a, b, c in reg:view(A, B, C):each() do viewed[entity] = { a, b, c } end
+        for entity, b in reg:view(B):include(A, C) do viewed[entity] = b end
         CHECK((next(viewed)))
         for _, entity in ABCs do
-            CHECK(viewed[entity])
-            CHECK(viewed[entity][1] == entity) -- check if entity and corresponding component matches
-            CHECK(viewed[entity][2] == entity)
-            CHECK(viewed[entity][3] == entity)
+            CHECK(viewed[entity] == entity)
         end
     end
 
-    do CASE "View all entities for AB and not C"
+    do CASE "View all entities with AB and not C"
         local count = 0
         local viewed = {}
         for entity in reg:view(A, B):exclude(C) do count += 1; viewed[entity] = true end
         CHECK(count == #ABnotCs)
         for _, entity in ABnotCs do 
             CHECK(viewed[entity])
+        end
+    end
+
+    do CASE "View all entities with B including A and not C"
+        local count = 0
+        local viewed = {}
+        for entity, b in reg:view(B):include(A):exclude(C) do count += 1; viewed[entity] = b end
+        CHECK(count == #ABnotCs)
+        for _, entity in ABnotCs do 
+            CHECK(viewed[entity])
+            CHECK(viewed[entity] == entity)
         end
     end
 
