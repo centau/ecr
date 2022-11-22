@@ -76,6 +76,10 @@ There are a few examples of how this makes assigning components easier:
 
 > Alternatively we could have `registry:add()` calls with components with no default value instead default to assigning `true` (default default values??).
 
+- Using a default value callback which returns `nil` will result in undefined behavior.
+
+> Again, this could be changed to error instead on `Registry:add()` at the cost of slight performance.
+
 ## Drawbacks
 
 None (?) asides from minor increase in API complexity.
