@@ -6,7 +6,8 @@ end
 
 local ecr = require "src/ecr"
 
-local A, B, C, D = ecr.component(), ecr.component(), ecr.component(), ecr.component()
+local function rtrue() return true end
+local A, B, C, D = ecr.component(rtrue), ecr.component(rtrue), ecr.component(rtrue), ecr.component(rtrue)
 local E, F, G, H = ecr.component(), ecr.component(), ecr.component(), ecr.component()
 
 do TITLE "Entity creation and release"
@@ -44,6 +45,49 @@ do TITLE "Entity creation and release"
     end)
 end
 
+do TITLE "Adding components"
+    local N = 1e6
+
+    local function setup()
+        local reg = ecr.registry(N)
+        local ids = table.create(N)
+        for i = 1, N do
+            ids[i] = reg:create()
+        end
+        return reg, ids
+    end
+
+    do
+        local reg, ids = setup()
+
+        BENCH("Add 1 component", function()
+            for i = 1, START(N) do
+                reg:add(ids[i], A)
+            end
+        end)
+    end
+
+    do
+        local reg, ids = setup()
+
+        BENCH("Add 2 components", function()
+            for i = 1, START(N) do
+                reg:add(ids[i], A, B)
+            end
+        end)
+    end
+
+    do
+        local reg, ids = setup()
+
+        BENCH("Add 4 components", function()
+            for i = 1, START(N) do
+                reg:add(ids[i], A, B, C, D)
+            end
+        end)
+    end
+end
+
 
 do TITLE "Setting components"
     local N = 1e6
@@ -60,7 +104,7 @@ do TITLE "Setting components"
     do
         local reg, ids = setup()
 
-        BENCH("Add 1 new component", function()
+        BENCH("Add 1 component", function()
             for i = 1, START(N) do
                 reg:set(ids[i], A, true)
             end
@@ -82,7 +126,7 @@ do TITLE "Setting components"
     do
         local reg, ids = setup()
 
-        BENCH("Add 2 new components", function()
+        BENCH("Add 2 components", function()
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:set(e, A, true)
@@ -109,7 +153,7 @@ do TITLE "Setting components"
 
     do
         local reg, ids = setup()
-        BENCH("Add 4 new components", function()
+        BENCH("Add 4 components", function()
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:set(e, A, true)
