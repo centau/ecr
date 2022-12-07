@@ -7,6 +7,8 @@ local INVALID = 0
 local INITIAL_VERSION = 1
 local MAX_ENTITIES = 0x000FFFFF -- must be a ^2 - 1
 
+assert(bit32.band(MAX_ENTITIES, 0xFFFF_FFFF) == MAX_ENTITIES, "max entities must be one less than power of 2")
+
 type vector<T> = { [number]: T }
 type map<T, U> = { [T]: U }
 
@@ -455,7 +457,7 @@ local Observer = {} do
             excludes = nil,
             tracking = toTrack,
             changed = changed,
-            connections = {}
+            connections = nil
         }, Observer) :: any
 
         self:reconnect()
@@ -624,8 +626,8 @@ local createSignal: <T...>() -> (Signal<T...>, (T...) -> ()) do
         local pool = pool_create()
         local signal = setmetatable({ pool = pool, count = 0 }, Signal)
 
+        local listeners = pool.values
         local function fire(...: any)
-            local listeners = pool.values
             for i = pool_size(pool), 1, -1 do
                 listeners[i](...)
             end
@@ -684,6 +686,7 @@ local function createRegistry(cap: number?): Registry
         end
         ids[n] = id_encode(INVALID, id_version(ids[n]) + 1)
         freeKey = 1
+        size = 0
     end
 
     local function fireSignal<T>(
@@ -784,18 +787,15 @@ local function createRegistry(cap: number?): Registry
         if value ~= nil then
             if index then
                 pool_changeIndex(pool, index, value)
+                fireSignal(changed, component, entity, value)
             else
                 pool_add(pool, key, entity, value)
+                fireSignal(added, component, entity, value)
             end
-            fireSignal(changed, component, entity, value)
         elseif index then
             fireSignal(removing, component, entity, nil)
             pool_eraseIndex(pool, index, key)
         end
-    end
-
-    function registry:replace(entity: EntityId, component: ComponentId, value: unknown)
-        pool_change(cpools[component], entity, value)
     end
     
     function registry:patch(entity: EntityId, component: ComponentId, patcher: (unknown) -> unknown)
@@ -925,7 +925,7 @@ local function createRegistry(cap: number?): Registry
 
     -- internal test method
     function registry:setEntityVersion(key: number, ver: number)
-        ids[key] = id_encode(key, ver)
+        ids[key] = id_encode(id_key(ids[key]), ver)
     end
 
     setmetatable(registry, { __index = function(_, index)
@@ -951,5 +951,6 @@ return {
         size = pool_size,
         clear = pool_clear
     },
+    signal = createSignal,
     encode = id_encode
 }

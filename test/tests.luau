@@ -26,13 +26,13 @@ TEST("pool - basic tests", function()
     local p = pool.create()
 
     do CASE "Set new value"
-        pool.set(p, 1)
+        pool.set(p, 1, 1)
         CHECK(pool.has(p, 1))
         CHECK(pool.get(p, 1) == nil)
     end
 
     do CASE "Set existing value"
-        pool.set(p, 1, true)
+        pool.set(p, 1, 1, true)
         CHECK(pool.get(p, 1) == true)
     end
 
@@ -46,7 +46,7 @@ TEST("pool - basic tests", function()
     end
 
     do CASE "Set then check another value"
-        pool.set(p, 3, true)
+        pool.set(p, 3, 3, true)
         CHECK(pool.has(p, 3))
         CHECK(not pool.has(p, 2))
         CHECK(pool.get(p, 3) == true)
@@ -56,14 +56,14 @@ TEST("pool - basic tests", function()
     do CASE "Clear then check size and old values were cleared"
         pool.clear(p)
         CHECK(pool.size(p) == 0)
-        CHECK(pool.has(p, 1) == false)
+        CHECK(not pool.has(p, 1))
         CHECK(pool.get(p, 1) == nil)
     end
 
     do CASE "Set old values again"
-        pool.set(p, 1, 1)
-        pool.set(p, 2, 2)
-        pool.set(p, 3, 3)
+        pool.set(p, 1, 1, 1)
+        pool.set(p, 2, 2, 2)
+        pool.set(p, 3, 3, 3)
         CHECK(pool.get(p, 1) == 1)
         CHECK(pool.get(p, 2) == 2)
         CHECK(pool.get(p, 3) == 3)
@@ -72,7 +72,7 @@ TEST("pool - basic tests", function()
     do CASE "Remove value, confirm removal and check association"
         pool.remove(p, 1)
         CHECK(pool.get(p, 1) == nil)
-        CHECK(pool.has(p, 1) == false)
+        CHECK(not pool.has(p, 1))
 
         CHECK(pool.get(p, 2) == 2)
         CHECK(pool.get(p, 3) == 3)
@@ -82,40 +82,38 @@ TEST("pool - basic tests", function()
         pool.remove(p, 3)
         CHECK(pool.get(p, 2) == 2)
         CHECK(pool.get(p, 3) == nil)
-        CHECK(pool.has(p, 3) == false)
+        CHECK(not pool.has(p, 3))
     end
 end)
 
 TEST("registry:create()", function()
     local N = 1e3
 
-    do CASE "New ids are unique"
+    do CASE "New ids unique"
         local reg = ecr.registry()
         local cache = {}
 
         for i = 1, N do
-            local entity = reg:create()
-            CHECK(not cache[entity])
-            cache[entity] = true
+            local e = reg:create()
+            CHECK(not cache[e])
+            cache[e] = true
         end
     end
 
-    do CASE "Reused ids are unique"
-        -- create N entities, destroy all then recreate N entities
-        -- indexes will be reused, check if identifier remains unique
-        local reg = ecr.registry(N)
+    do CASE "Reused ids unique"
+        local reg = ecr.registry()
         local cache = {}
 
-        for i = 1, N do
-            local entity = reg:create()
-            cache[entity] = true
+        for i = 1, N do -- create entities
+            local e = reg:create()
+            cache[e] = true
         end
 
-        for entity in cache do
-            reg:release(entity)
+        for e in cache do -- release all entities
+            reg:release(e)
         end
 
-        for i = 1, N do
+        for i = 1, N do -- reuse all ids
             local entity = reg:create()
             CHECK(not cache[entity])
             cache[entity] = true
@@ -123,191 +121,296 @@ TEST("registry:create()", function()
     end
 end)
 
-TEST("registry:valid() and registry:release()", function()
+TEST("registry:release()", function()
+    local reg = ecr.registry()
+    local e = reg:create()
+    reg:release(e)
+
+    do CASE "Released entities are no longer valid"
+        CHECK(not reg:valid(e))
+    end
+
+    do CASE "Releases entity keys can be reused"
+        local e2 = reg:create()
+        CHECK(bit32.band(e, 0xF) == bit32.band(e2, 0xF))
+    end
+end)
+
+TEST("registry:valid()", function()
     local reg = ecr.registry()
 
-    local e1 = reg:create()
-    local e2 = reg:create()
+    local e = reg:create()
 
-    reg:release(e1)
+    do CASE "New entity valid"
+        CHECK(reg:valid(e))
+    end
 
-    CHECK(not reg:valid(e1))
-    CHECK(reg:valid(e2))
+    reg:release(e)
 
-    -- e3 will reuse e1's index
-    -- check things function as expected
-    local e3 = reg:create()
-    CHECK(not reg:valid(e1))
-    CHECK(reg:valid(e3))
+    do CASE "Released entity invalid"
+        CHECK(not reg:valid(e))
+    end
+
+    do CASE "Reused entity key valid"
+        e = reg:create()
+        CHECK(reg:valid(e))
+    end
+
+    do CASE "Integer key invalid"
+        CHECK(not reg:valid(1))
+    end
 end)
 
-TEST("registry:version() and registry:current()", function()
-    do CASE "Returns correct version"
-        local reg = ecr.registry()
+TEST("registry:version()", function()
+    local reg = ecr.registry()
 
-        local e1 = reg:create()
-        local e2 = reg:create()
-        reg:destroy(e1)
-        local e3 = reg:create()
+    do CASE "Gets correct version"
+        local e = reg:create()
+        CHECK(reg:version(e) == 1)
+    end
 
-        CHECK(reg:version(e1) == 1)
-        CHECK(reg:current(e1) == 2)
-        CHECK(reg:version(e3) == 2)
-        CHECK(reg:version(e2) == 1)
+    do CASE "Version increments on reuse"
+        local e_old = reg:create()
+        CHECK(reg:version(e_old) == 1)
+        reg:destroy(e_old)
+        local e_new = reg:create()
+        CHECK(reg:version(e_old) == 1) -- check old still shows old version
+        CHECK(reg:version(e_new) == 2)
     end
 
     do CASE "Version overflow"
-        local MAX_VER = 2^33 - 1
         local reg = ecr.registry()
+        local MAX_VER = 2^33 - 1
 
-        ;(reg :: any):setEntityVersion(1, MAX_VER)
+        (reg :: any):setEntityVersion(1, MAX_VER)
 
         -- verify version was set to max correctly
         local entity = reg:create()
         CHECK(reg:version(entity) == MAX_VER)
         -- trigger version increaes
         reg:destroy(entity)
-        entity = reg:create()
+        
         -- should overflow and reset back to 1
+        entity = reg:create()
         CHECK(reg:version(entity) == 1)
     end
 end)
 
-TEST("registry:orphan()", function()
+TEST("registry:current()", function()
     local reg = ecr.registry()
-    local e = reg:create()
-    CHECK(reg:orphan(e))
-    reg:set(e, A, true)
-    CHECK(not reg:orphan(e))
-    reg:remove(e, A)
-    CHECK(reg:orphan(e))
-end)
+    local e_old = reg:create()
+    reg:release(e_old)
+    local e_new = reg:create()
 
-TEST("registry:has() and registry:set()", function()
-    local reg = ecr.registry()
-
-    local e1 = reg:create()
-    local e2 = reg:create()
-
-    do CASE "Set components"
-        reg:set(e1, A, true)
-        reg:set(e2, A, true)
-        reg:set(e2, B, true)
-        CHECK(true)
+    do CASE "Gets current version"
+        CHECK(reg:version(e_old) == 1)
+        CHECK(reg:current(e_old) == 2)
     end
 
-    do CASE "Has components"
-        CHECK(reg:has(e1, A))
-        CHECK(not reg:has(e1, B))
-        CHECK(not reg:has(e1, A, B))
-
-        CHECK(reg:has(e2, A))
-        CHECK(reg:has(e2, B))
-        CHECK(reg:has(e2, A, B))
-        CHECK(not reg:has(e2, A, B, C))
+    do CASE "Version increments on release"
+        reg:release(e_new)
+        CHECK(reg:current(e_new) == 3)
     end
 end)
 
-TEST("registry:get() and registry:set()", function()
+TEST("registry:set()", function()
     local reg = ecr.registry()
     local e = reg:create()
-    reg:set(e, A, 1)
-    reg:set(e, B, 2)
-    reg:set(e, C, 3)
 
-    do CASE "Get single component"
+    do CASE "Add component"
+        reg:set(e, A, 1)
         CHECK(reg:get(e, A) == 1)
-        CHECK(reg:get(e, B) == 2)
-        CHECK(reg:get(e, C) == 3)
     end
 
-    do CASE "Get multiple components"
-        local a, b, c = reg:get(e, A, B, C)
-        CHECK(a == 1)
-        CHECK(b == 2 and c == 3)
-    end
-
-    do CASE "Change component and get"
-        reg:set(e, A, 4)
-        CHECK(reg:get(e, A) == 4)
-    end
-end)
-
-TEST("registry:get() and registry:patch()", function()
-    local reg = ecr.registry()
-    local e = reg:create()
-    
-    do CASE "Old value is nil in patcher when entity lacks component"
-        local value
-        reg:patch(e, A, function(v)
-            value = v == nil
-            return 1
-        end)
-        
-        CHECK(value)
-    end
-    
-    do CASE "Patcher adds 1"
-        reg:patch(e, A :: number, function(v)
-            return v + 1
-        end)
-        
+    do CASE "Change component"
+        reg:set(e, A, 2)
         CHECK(reg:get(e, A) == 2)
     end
     
+    do CASE "Remove component"
+        reg:set(e, A, nil)
+        CHECK(reg:get(e, A) == nil)
+        CHECK(not reg:has(e, A))
+    end
+end)
+
+TEST("registry:get()", function()
+    local reg = ecr.registry()
+    local e = reg:create()
+
+    do CASE "Get component"
+        reg:set(e, A, true)
+        CHECK(reg:get(e, A) == true)
+    end
+
+    do CASE "Get nil component"
+        reg:remove(e, A)
+        CHECK(reg:get(e, A) == nil)
+    end
+end)
+
+TEST("registry:has()", function()
+    local reg = ecr.registry()
+    local e = reg:create()
+
+    do CASE "Has component"
+        reg:set(e, A, true)
+        CHECK(reg:has(e, A) == true)
+    end
+
+    do CASE "Does not have component"
+        reg:set(e, A, nil)
+        CHECK(reg:has(e, A) == false)
+    end
+end)
+
+TEST("registry:patch()", function()
+    local reg = ecr.registry()
+    local e = reg:create()
+    reg:set(e, A, 0)
+
+    do CASE "Change component"
+        reg:patch(e, A, function(cur)
+            CHECK(cur == 0)
+            return cur + 1
+        end)
+        CHECK(reg:get(e, A) == 1)
+    end
+
+    do CASE "Remove component"
+        reg:patch(e, A, function(cur)
+            CHECK(cur == 1)
+            return nil
+        end)
+        CHECK(reg:has(e, A) == false)
+    end
 end)
 
 TEST("registry:remove()", function()
     local reg = ecr.registry()
+    local e = reg:create()
+    reg:set(e, A, 1)
+    reg:set(e, B, 1)
+    reg:set(e, C, 1)
 
+    local e2 = reg:create()
+    reg:set(e2, A, 2)
+
+    do CASE "Remove single component"
+        reg:remove(e, A)
+        CHECK(reg:has(e, A) == false)
+        CHECK(reg:get(e2, A) == 2) -- check swap removal maintains associativity
+    end
+
+    do CASE "Remove multiple components"
+        reg:remove(e, B, C)
+        CHECK(reg:has(e, B) == false)
+        CHECK(reg:has(e, C) == false)
+    end
+end)
+
+TEST("registry:clear()", function()
+    local reg = ecr.registry()
     local e1 = reg:create()
     local e2 = reg:create()
 
     reg:set(e1, A, 1)
     reg:set(e2, A, 2)
 
-    do CASE "Remove component"
-        reg:remove(e1, A)
+    reg:set(e1, B, 1)
+    reg:set(e2, B, 2)
+
+    reg:set(e1, C, 1)
+    reg:set(e2, C, 2)
+
+    do CASE "Clear A"
+        reg:clear(A)
         CHECK(reg:has(e1, A) == false)
-        -- check removal does not break association (due to swap and pop)
-        CHECK(reg:get(e2, A) == 2)
+        CHECK(reg:has(e2, A) == false)
     end
 
-    do CASE "Remove last component"
-        reg:remove(e2, A)
-        CHECK(not reg:has(e2, A))
+    do CASE "Clear B and C"
+        reg:clear(B, C)
+        CHECK(reg:has(e1, B) == false)
+        CHECK(reg:has(e2, B) == false)
+        CHECK(reg:has(e1, C) == false)
+        CHECK(reg:has(e2, C) == false)
+    end
+
+    do CASE "Clear entities"
+        reg:clear()
+        CHECK(reg:valid(e1) == false)
+        CHECK(reg:valid(e2) == false)
     end
 end)
 
-TEST("registry:size() registry:clear()", function()
+TEST("registry:orphan()", function()
     local reg = ecr.registry()
-
-    CHECK(reg:size() == 0)
     local e = reg:create()
-    CHECK(reg:size() == 1)
-    reg:destroy(e)
-    CHECK(reg:size() == 0)
 
-    local N = 1e3
-    for i = 1, N do reg:create() end
-    CHECK(reg:size() == N)
-    reg:clear()
-    CHECK(not reg:valid(e))
+    do CASE "New entity is orphan"
+        CHECK(reg:orphan(e))
+    end
+
+    reg:set(e, B, 1)
+
+    do CASE "No longer orphan after assigning component"
+        CHECK(not reg:orphan(e))
+    end
+
+    reg:set(e, B, nil)
+
+    do CASE "Orphan after removing last component"
+        CHECK(reg:orphan(e))
+    end
 end)
 
 TEST("registry:destroy()", function()
-    
     local reg = ecr.registry()
-
     local e = reg:create()
+
     reg:set(e, A, 1)
-    reg:set(e, B, 2)
+    reg:set(e, B, 1)
 
     reg:destroy(e)
 
-    CHECK(reg:get(e, A) == nil)
-    CHECK(reg:get(e, B) == nil)
-    CHECK(not reg:valid(e))
+    do CASE "Destroyed entity is released"
+        CHECK(not reg:valid(e))
+    end
+
+    -- TODO: verify component was removed
+end)
+
+TEST("registry:size()", function()
+    local reg = ecr.registry(100) -- check if preallocating will cause problems
+
+    do CASE "Initial registry size is 0"
+        CHECK(reg:size() == 0)
+    end
+
+    local e = reg:create()
+
+    do CASE "Size after entity creation"
+        CHECK(reg:size() == 1)
+    end
+
+    reg:release(e)
+
+    do CASE "Size after entity release"
+        CHECK(reg:size() == 0)
+    end
+
+    for i = 1, 100 do reg:create() end
+
+    do CASE "Mass creation"
+        CHECK(reg:size() == 100)
+    end
+
+    reg:clear()
+
+    do CASE "Size after clear"
+        CHECK(reg:size() == 0)
+    end
 end)
 
 TEST("registry:view()", function()
@@ -319,27 +422,22 @@ TEST("registry:view()", function()
     local As = {}
     local Bs = {}
     local Cs = {}
-
     local ABCs = {}
     local ABs = {}
     local ABnotCs = {}
 
     local function flip() return math.random() > 0.3 end
+    local function empty(t) return next(t) == nil end
 
     -- setup components
-    -- each component is given the value of the entity its assigned to
-    -- to check that the correct components are returned for a given entity
+    -- each component value is the id of the entity it is assigned to
     for i = 1, N do
         local e = reg:create()
         entities[i] = e
         local hasA, hasB, hasC = false, false, false
-        if flip() then reg:set(e, A, e); hasA = true end
-        if flip() then reg:set(e, B, e); hasB = true end
-        if flip() then reg:set(e, C, e); hasC = true end
-
-        if hasA then table.insert(As, e) end
-        if hasB then table.insert(Bs, e) end
-        if hasC then table.insert(Cs, e) end
+        if flip() then reg:set(e, A, e); hasA = true; table.insert(As, e) end
+        if flip() then reg:set(e, B, e); hasB = true; table.insert(Bs, e) end
+        if flip() then reg:set(e, C, e); hasC = true; table.insert(Cs, e) end
 
         if hasA and hasB and hasC then table.insert(ABCs, e) end
         if hasA and hasB then table.insert(ABs, e) end
@@ -349,21 +447,21 @@ TEST("registry:view()", function()
     do CASE "View all entities with A"
         local viewed = {}
         for entity, a in reg:view(A) do viewed[entity] = a end
-        CHECK((next(viewed)))
+        CHECK(not empty(viewed))
         for _, entity in As do CHECK(viewed[entity] == entity) end
     end
 
     do CASE "View all entities with B"
         local viewed = {}
         for entity, b in reg:view(B) do viewed[entity] = b end
-        CHECK((next(viewed)))
+        CHECK(not empty(viewed))
         for _, entity in Bs do CHECK(viewed[entity] == entity) end
     end
 
     do CASE "View all entities with ABC"
         local viewed = {}
         for entity, a, b, c in reg:view(A, B, C) do viewed[entity] = { a, b, c } end
-        CHECK((next(viewed)))
+        CHECK(not empty(viewed))
         for _, entity in ABCs do
             local v = viewed[entity]
             CHECK(v)
@@ -374,43 +472,61 @@ TEST("registry:view()", function()
         end
     end
 
-    do CASE "View all entities with ABC (using View:include())"
+    do CASE "View all entities with B including A and C"
         local viewed = {}
         for entity, b in reg:view(B):include(A, C) do viewed[entity] = b end
-        CHECK((next(viewed)))
+        CHECK(not empty(viewed))
         for _, entity in ABCs do
             CHECK(viewed[entity] == entity)
         end
     end
 
     do CASE "View all entities with AB and not C"
-        local count = 0
         local viewed = {}
-        for entity in reg:view(A, B):exclude(C) do count += 1; viewed[entity] = true end
-        CHECK(count == #ABnotCs)
+        for entity in reg:view(A, B):exclude(C) do viewed[entity] = entity end
+        CHECK(not empty(viewed))
         for _, entity in ABnotCs do 
-            CHECK(viewed[entity])
+            CHECK(viewed[entity] == entity)
         end
     end
 
     do CASE "View all entities with B including A and not C"
         local count = 0
         local viewed = {}
-        for entity, b in reg:view(B):include(A):exclude(C) do count += 1; viewed[entity] = b end
-        CHECK(count == #ABnotCs)
+        for entity, b in reg:view(B):include(A):exclude(C) do viewed[entity] = b end
+        CHECK(not empty(viewed))
         for _, entity in ABnotCs do 
+            CHECK(viewed[entity] == entity)
+        end
+    end
+
+    do CASE "Component addition during view iteration"
+        -- set of new entities
+        local newcache = {}
+
+        local viewed = {}
+        for entity, c in reg:view(C) do
+            -- check that newly added entities+components are not included in iterations
+            CHECK(not newcache[entity])
+            if flip() then -- create new entity+component
+                local new = reg:create()
+                reg:set(new, C, true)
+                newcache[new] = true
+            end
+            viewed[entity] = c
+        end
+        CHECK(not empty(viewed))
+        for _, entity in Cs do
             CHECK(viewed[entity])
             CHECK(viewed[entity] == entity)
         end
     end
 
-    do CASE "Destroy keeps component association"
+    do CASE "Removes keeps component association"
         for i = 1, 2e2 do
             local n = #ABs
-            local toRemove = math.random(1, n)
-            local entity = ABs[toRemove]
-            ABs[toRemove] = ABs[n]
-            ABs[n] = nil
+            local entity = table.remove(ABs, math.random(1, n))
+            assert(entity)
             reg:destroy(entity)
         end
 
@@ -418,7 +534,7 @@ TEST("registry:view()", function()
         for entity, a, b in reg:view(A, B):each() do
             viewed[entity] = { a, b }   
         end
-        CHECK((next(viewed)))
+        CHECK(not empty(viewed))
         for _, entity in ABs do
             CHECK(viewed[entity][1] == entity)
             CHECK(viewed[entity][2] == entity)
@@ -426,176 +542,129 @@ TEST("registry:view()", function()
     end
 
     do CASE "Component removal during view iteration"
-        local visited = {}
+        local viewed = {}
         for entity in reg:view(A, B) do
             if flip() then
                 reg:remove(entity, A)
             end
-            visited[entity] = true
-        end
-
-        for _, entity in ABs do -- check that an entity isnt skipped
-            CHECK(visited[entity])
-        end
-    end
-end)
-
-TEST("Removal during iterations", function()
-    do CASE("Remove during view iteration")
-        local reg = ecr.registry()
-        local entities = {}
-        for i = 1, 1e3 do
-            entities[i] = reg:create()
-            reg:set(entities[i], A, 1)
-            reg:set(entities[i], B, 2)
-            reg:set(entities[i], C, 3)
-        end
-
-        -- 1. all entities are iterated over
-        -- 2. no entity is iterated twice
-        local viewed = {}
-        for entity, a in reg:view(A, B, C) do
-            CHECK(not viewed[entity])
             viewed[entity] = true
-            reg:remove(entity, A, B, C)
         end
-
-        for _, entity in entities do
+        CHECK(not empty(viewed))
+        for _, entity in ABs do -- check that an entity isn't skipped
             CHECK(viewed[entity])
         end
     end
 end)
 
-TEST("registry:entities()", function()
-    local N = 1e3
-
-    local reg = ecr.registry(N)
-    local cache = table.create(N)
-    for i = 1, N do cache[i] = reg:create() end
-    
-    local entities = reg:entities()
-
-    for i, entity in cache do
-        CHECK(entity == entities[i])
-    end
-end)
-
-TEST("registry:storage()", function()
+TEST("registry:added()", function()
     local reg = ecr.registry()
+    local e = reg:create()
 
-    local e1 = reg:create()
-        reg:set(e1, A, 1)
-    local e2 = reg:create()
-        reg:set(e2, A, true)
-        reg:set(e2, B, true)
-    
-    local a = reg:storage(A)
-    CHECK(a.entities[1] == e1)
-    CHECK(a.values[1] == 1)
+    -- runcount, reg, entity, value
+    local cc, cr, ce, cv = 0, nil, nil, nil
 
-    CHECK(a.entities[2] == e2)
-    CHECK(a.values[2] == true)
+    local function fn(...)
+        cc += 1
+        cr, ce, cv = ...
+    end
 
-    local b = reg:storage(B)
-    CHECK(b.entities[1] == e2)
+    local con = reg:added(A):connect(fn)
+
+    CASE "Adding triggers"
+    reg:set(e, A, true)
+    CHECK(cc == 1)
+    CHECK(cr == reg)
+    CHECK(ce == e)
+    CHECK(cv == true)
+
+    CASE "Changing does not trigger"
+    reg:set(e, A, false)
+    CHECK(cc == 1)
+
+    CASE "Removing then adding triggers"
+    reg:set(e, A, nil)
+    reg:set(e, A, true)
+    CHECK(cc == 2)
+
+    con:disconnect()
+
+    CASE "Adding after disconnect does not trigger"
+    reg:set(e, A, nil)
+    reg:set(e, A, true)
+    CHECK(cc == 2)
 end)
 
-TEST("registry events", function()
+TEST("registry:changed()", function()
     local reg = ecr.registry()
+    local e = reg:create()
 
-    do CASE "registry:added()"
-        local e1 = reg:create()
+    local cc, cr, ce, cv = 0, nil, nil, nil
 
-        -- runcount, reg, entity, value
-        local cc, cr, ce, cv = 0, nil, nil, nil
-
-        local fn = function(...)
-            cr, ce, cv = ...
-            cc += 1
-        end
-
-        reg:added(A):connect(fn)
-
-        reg:set(e1, A, true)
-        CHECK(cc == 1)
-        CHECK(cr == reg)
-        CHECK(ce == e1)
-        CHECK(cv == true)
-
-        reg:set(e1, A, 2)
-        CHECK(cc == 1)
-
-        reg:changed(A):disconnect(fn)
-        reg:set(e1, A, true)
-        CHECK(cc == 1)
+    local function fn(...)
+        cc += 1
+        cr, ce, cv = ...
     end
 
-    do CASE "registry:changed()"
-        local e1 = reg:create()
+    local con = reg:changed(A):connect(fn)
 
-        -- runcount, reg, entity, value
-        local cc, cr, ce, cv = 0, nil, nil, nil
+    CASE "Adding does not trigger"
+    reg:set(e, A, true)
+    CHECK(cc == 0)
 
-        local fn = function(...)
-            cr, ce, cv = ...
-            cc += 1
-        end
+    CASE "Changing triggers"
+    reg:set(e, A, false)
+    CHECK(cc == 1)
+    CHECK(cr == reg)
+    CHECK(ce == e)
+    CHECK(cv == false)
 
-        reg:set(e1, A, true)
+    CASE "Removing does not trigger"
+    reg:set(e, A, nil)
+    CHECK(cc == 1)
 
-        reg:changed(A):connect(fn)
+    con:disconnect()
 
-        reg:set(e1, A, true)
-        CHECK(cc == 1)
-        CHECK(cr == reg)
-        CHECK(ce == e1)
-        CHECK(cv == true)
-
-        reg:set(e1, A, 2)
-        CHECK(cc == 2)
-        CHECK(cr == reg)
-        CHECK(ce == e1)
-        CHECK(cv == 2)
-
-        reg:changed(A):disconnect(fn)
-        reg:set(e1, A, true)
-        CHECK(cc == 2)
-    end
-
-    do CASE "registry:removing()"
-        local e1 = reg:create()
-
-        local cc, cr, ce = 0, nil, nil
-
-        local fn = function(...)
-            cr, ce = ...
-            cc += 1
-        end
-
-        reg:set(e1, B, true)
-
-        reg:removing(B):connect(fn)
-
-        reg:remove(e1, B)
-        CHECK(cc == 1)
-        CHECK(cr == reg)
-        CHECK(ce == e1)
-
-        reg:set(e1, B, true)
-        reg:destroy(e1)
-        CHECK(cc == 2)
-        CHECK(cr == reg)
-        CHECK(ce == e1)
-
-        local e2 = reg:create()
-        reg:set(e2, B, true)
-        reg:removing(B):disconnect(fn)
-        reg:remove(e2, B)
-        CHECK(cc == 2)
-    end
+    CASE "Changing after disconnect does not trigger"
+    reg:set(e, A, true) -- add
+    reg:set(e, A, false) -- change
+    CHECK(cc == 1)
 end)
 
-TEST("reg:track()", function()
+TEST("registry:removing()", function()
+    local reg = ecr.registry()
+    local e = reg:create()
+
+    local cc, cr, ce, cv, lv = 0, nil, nil, nil, nil
+
+    local function fn(...)
+        cc += 1
+        lv = reg:get(e, A) -- get current value
+        cr, ce, cv = ...
+    end
+
+    local con = reg:removing(A):connect(fn)
+
+    reg:set(e, A, true)
+
+    CASE "Removing triggers"
+    reg:set(e, A, nil)
+    CHECK(cc == 1)
+    CHECK(cr == reg)
+    CHECK(ce == e)
+    CHECK(cv == nil)
+    CHECK(lv == true)
+
+    con:disconnect()
+
+    CASE "Removing after disconnect does not trigger"
+    reg:set(e, A, true) -- add
+    reg:set(e, A, nil) -- remove
+    CHECK(cc == 1)
+end)
+
+
+-- TODO: revise tests
+TEST("registry:track()", function()
     local N = 1e3
 
     local reg = ecr.registry(N)
@@ -783,5 +852,4 @@ TEST("ecr:component()", function()
 end)
 
 local success = FINISH()
-
 if not success then error "Test failed" end
