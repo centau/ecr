@@ -213,6 +213,46 @@ TEST("registry:current()", function()
     end
 end)
 
+TEST("registry:add()", function()
+    local reg = ecr.registry()
+
+    local ADD_A = ecr.component(function() return true end)
+    local ADD_B = ecr.component(function() return false end)
+    local ADD_C = ecr.component(function() end)
+
+    do CASE "Add components"
+        local e = reg:create()
+        reg:add(e, ADD_A, ADD_B)
+        CHECK(reg:has(e, ADD_A))
+        CHECK(reg:has(e, ADD_B))
+    end
+
+    do CASE "Attempt to add an already-owned component errors"
+        local ok = pcall(function()
+            local e = reg:create()
+            reg:set(e, ADD_A, true)
+            reg:add(e, ADD_A)
+        end)
+        CHECK(not ok)
+    end
+
+    do CASE "Add a component with no default value specified errors"
+        local ok = pcall(function()
+            local e = reg:create()
+            reg:add(e, A)
+        end)
+        CHECK(not ok)
+    end
+
+    do CASE "Add a component with no returned value errors"
+        local ok = pcall(function()
+            local e = reg:create()
+            reg:add(e, ADD_C)
+        end)
+        CHECK(not ok)
+    end
+end)
+
 TEST("registry:set()", function()
     local reg = ecr.registry()
     local e = reg:create()
