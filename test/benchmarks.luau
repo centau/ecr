@@ -401,6 +401,20 @@ do
             START(getExactSize(view))
             for entity, a, b, c, d, e, f, g, h in view do end
         end)
+
+        BENCH("View 1 component, include 1 component", function()
+            local view = reg:view(A):include(B)
+
+            START(getExactSize(view))
+            for entity, a in view do end
+        end)
+
+        BENCH("View 1 component, include 3 components", function()
+            local view = reg:view(A):include(B, C, D)
+
+            START(getExactSize(view))
+            for entity, a in view do end
+        end)
     end
 
     do TITLE("View all entities with ordered components")
