@@ -26,6 +26,7 @@ export type Registry = {
     current: (Registry, entity: Entity) -> number,
 
     orphan: (Registry, entity: Entity) -> boolean,
+    add: <T...>(Registry, entity: Entity, T...) -> (),
     set: <T>(Registry, entity: Entity, component: T, value: T?) -> (),
     change: <T>(Registry, entity: Entity, component: T, value: T) -> (),
     patch: <T>(Registry, entity: Entity, component: T, patcher: (oldValue: T) -> T?) -> (),
@@ -518,9 +519,6 @@ local Observer = {} do
         local listener: (reg: Registry, entity: EntityId, value: unknown) -> ()
 
         local changed = self.changed
-        local targets = self.targets
-        local includes = self.includes
-        local excludes = self.excludes
 
         function listener(_, entity, value)
             local key = id_key(entity)
@@ -639,10 +637,12 @@ end
 ----------------------------------------------------------------------
 
 local componentN = 0
-local function createComponent(): unknown
+local componentDefault: map<ComponentId, ((() -> unknown)?)> = {}
+local createComponent = function(default: (() -> unknown)?): unknown
     componentN += 1
+    componentDefault[componentN] = default
     return componentN
-end
+end :: (<T>(default: () -> T) -> T) & (() -> unknown)
 
 ----------------------------------------------------------------------
 -- Registry
@@ -774,6 +774,20 @@ local function createRegistry(cap: number?): Registry
             if pool_has(pool, key) then return false end
         end
         return true
+    end
+
+    function registry:add(entity: EntityId, ...: ComponentId)
+        local key = id_key(entity)
+        for i = 1, select("#", ...) do
+            local component = select(i, ...)
+            local pool = cpools[component]
+            local index = pool_has(pool, key) :: number
+            if index then error("entity already owns component", 2) end
+            local default = componentDefault[component] or error("no default value given", 2)
+            local value = default()
+            if value == nil then error("default value cannot be nil", 2) end
+            pool_add(pool, key, entity, value)
+        end
     end
 
     function registry:set(entity: EntityId, component: ComponentId, value: unknown)
