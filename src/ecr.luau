@@ -524,9 +524,6 @@ local Observer = {} do
 
         function listener(_, entity, value)
             local key = id_key(entity)
-            if includes and not hasAll(includes, key) then return end
-            if excludes and not hasNone(excludes, key) then return end
-            if not hasAll(targets, key) then return end
             pool_set(changed, key, entity, value)
         end
 
