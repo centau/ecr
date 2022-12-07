@@ -68,21 +68,15 @@ There are a few examples of how this makes assigning components easier:
 
 ### Misusage
 
-- Using `registry:add(entity, A)` on an entity that already owns `A` would result in undefined behavior.
-
-> Should it throw an error instead? This would require checking if the entity first owns the component before assigning it which adds a small performance penalty.
+- Using `registry:add(entity, A)` on an entity that already owns `A` would result in an error.
 
 - Using `registry:add(entity, A)` when `A` was defined without specifying a callback `local A = ecr.component()` would result in an error.
 
-> Alternatively we could have `registry:add()` calls with components with no default value instead default to assigning `true` (default default values??).
-
-- Using a default value callback which returns `nil` will result in undefined behavior.
-
-> Again, this could be changed to error instead on `Registry:add()` at the cost of slight performance.
+- Using a default value callback which returns `nil` will result in ab error.
 
 ## Drawbacks
 
-None (?) asides from minor increase in API complexity.
+Minor increase in API complexity.
 
 ## Alternatives
 
