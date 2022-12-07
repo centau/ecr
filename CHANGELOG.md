@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Method `View:include()` and `Observer:include()`.
 - Method `Registry:change()`.
 - Method `Registry:patch()`.
+- Method `Registry:add()` and optional default parameter for `ecr.component()`.
 
 ### Changed
 
