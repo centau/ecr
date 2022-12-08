@@ -29,7 +29,7 @@ export type Registry = {
     add: <T...>(Registry, entity: Entity, T...) -> (),
     set: <T>(Registry, entity: Entity, component: T, value: T?) -> (),
     change: <T>(Registry, entity: Entity, component: T, value: T) -> (),
-    patch: <T>(Registry, entity: Entity, component: T, patcher: (oldValue: T) -> T?) -> (),
+    patch: <T>(Registry, entity: Entity, component: T, patcher: (current: T) -> T?) -> (),
     has: <T...>(Registry, entity: Entity, T...) -> boolean,
     get: <T...>(Registry, entity: Entity, T...) -> T...,
     remove: <T...>(Registry, entity: Entity, T...) -> (),
