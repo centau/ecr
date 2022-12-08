@@ -6,7 +6,7 @@ end
 
 local ecr = require "src/ecr"
 
-local function rtrue() return true end
+local function rtrue() return true :: any end
 local A, B, C, D = ecr.component(rtrue), ecr.component(rtrue), ecr.component(rtrue), ecr.component(rtrue)
 local E, F, G, H = ecr.component(), ecr.component(), ecr.component(), ecr.component()
 
@@ -403,6 +403,64 @@ do TITLE("Removing components")
             local e = ids[i]
             reg:remove(e, A, B, C, D, E, F, G, H)
         end
+    end)
+end
+
+do TITLE "Clear components"
+    local N = 1e6
+
+    local function setup()
+        local reg = ecr.registry(N)
+        local ids = table.create(N)
+        for i = 1, N do
+            local e = reg:create()
+            ids[i] = e
+            reg:set(e, A, true)
+            reg:set(e, B, true)
+            reg:set(e, C, true)
+            reg:set(e, D, true)
+            reg:set(e, E, true)
+            reg:set(e, F, true)
+            reg:set(e, G, true)
+            reg:set(e, H, true)
+        end
+        return reg, ids
+    end
+
+    BENCH("Clear 1 component", function()
+        local reg = setup()
+
+        START(N)
+        reg:clear(A)
+    end)
+
+    BENCH("Clear 2 components", function()
+        local reg = setup()
+
+        START(N)
+        reg:clear(A, B)
+    end)
+
+    BENCH("Clear 4 components", function()
+        local reg = setup()
+
+        START(N)
+        reg:clear(A, B, C, D)
+    end)
+
+    BENCH("Clear 8 components", function()
+        local reg = setup()
+
+        START(N)
+        reg:clear(A, B, C, D, E, F, G, H)
+    end)
+
+    BENCH("Clear all entities (no components)", function()
+        local reg = ecr.registry()
+        for i = 1, N do reg:create() end
+
+        START(N)
+        reg:clear()
     end)
 end
 

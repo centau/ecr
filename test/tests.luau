@@ -179,20 +179,20 @@ TEST("registry:version()", function()
     end
 
     do CASE "Version overflow"
-        local reg = ecr.registry()
+        local reg2 = ecr.registry()
         local MAX_VER = 2^33 - 1
 
-        (reg :: any):setEntityVersion(1, MAX_VER)
+        (reg2 :: any):setEntityVersion(1, MAX_VER)
 
         -- verify version was set to max correctly
-        local entity = reg:create()
-        CHECK(reg:version(entity) == MAX_VER)
+        local entity = reg2:create()
+        CHECK(reg2:version(entity) == MAX_VER)
         -- trigger version increaes
-        reg:destroy(entity)
+        reg2:destroy(entity)
         
         -- should overflow and reset back to 1
-        entity = reg:create()
-        CHECK(reg:version(entity) == 1)
+        entity = reg2:create()
+        CHECK(reg2:version(entity) == 1)
     end
 end)
 
@@ -218,7 +218,7 @@ TEST("registry:add()", function()
 
     local ADD_A = ecr.component(function() return true end)
     local ADD_B = ecr.component(function() return false end)
-    local ADD_C = ecr.component(function() end)
+    local ADD_C = ecr.component(function() return nil end)
 
     do CASE "Add components"
         local e = reg:create()
@@ -312,7 +312,7 @@ TEST("registry:patch()", function()
     do CASE "Change component"
         reg:patch(e, A, function(cur)
             CHECK(cur == 0)
-            return cur + 1
+            return cur :: number + 1
         end)
         CHECK(reg:get(e, A) == 1)
     end
@@ -531,7 +531,6 @@ TEST("registry:view()", function()
     end
 
     do CASE "View all entities with B including A and not C"
-        local count = 0
         local viewed = {}
         for entity, b in reg:view(B):include(A):exclude(C) do viewed[entity] = b end
         CHECK(not empty(viewed))
