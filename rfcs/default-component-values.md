@@ -1,7 +1,7 @@
 # Default Component Values
 
 - Date - 2022/11/22
-- Status - Under review
+- Status - Implemented
 
 ## Summary
 
