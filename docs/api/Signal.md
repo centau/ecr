@@ -3,28 +3,40 @@ permalink: api/Signal
 title: Signal
 ---
 
+`ECR` Signal class.
+
 ## Methods
 
 ### connect()
 
-Connects the given function to a Signal and will be called whenever the Signal is fired.
+Connects a given function to a signal to be called whenever the signal is fired.
 
 - **Type**
 
     ```lua
-    function Signal:connect<T...>((T...) -> ()): ()
+    function Signal:connect<T...>((T...) -> ()): Connection
     ```
+
+- **Details**
+
+    New connections made within a listener callback will not be ran until the next time the signal is fired.
 
 ---
 
+## Connection
+
 ### disconnect()
 
-Disconnects the given function from a Signal stopping them from being called whenever the signal is fired.
+Disconnects a listener from a signal.
 
 - **Type**
   
     ```lua
-    function Signal:disconnect<T...>((T...) -> ()): ()
+    function Connection:disconnect()
     ```
+
+- **Details**
+
+    > ⚠️ Disconnecting connections within connections while firing recursively may result in *undefined behavior*.
 
 ---

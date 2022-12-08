@@ -48,13 +48,13 @@ A *component* is a type of data associated with an entity.
 
 Components can be freely added, changed and removed from entities on the fly.
 
-Components in `ECR` are simply unique identifiers that you can create by doing:
+Components in `ECR` are simply unique integer identifiers that you can create by doing:
 
 ```lua
 local component = ecr.component()
 ```
 
-Each call to `ecr.component()` will return a new unique identifier.
+Each call to `ecr.component()` will return a new unique integer identifier.
 All components should be defined within a single file that any file can require to use that component.
 
 `ECR` is designed around the typechecking feature of Luau to write more organised code.

@@ -17,16 +17,19 @@ Creates a new entity and returns the entity's identifier.
 
 - **Details**
 
-    Identifiers are (mostly) guaranteed to be unique.
+    Identifiers are composed internally of two parts, a key and version.
 
-    The only case where identifiers may be repeated is if overflow
-    occurs after an identifier is reused 2^33 times.
+    Keys can be reused to save memory while versions will be incremented to keep the
+    overall identifier unique.
+
+    The version can be incremented to a max value of `2^33 - 1` before it will overflow and reset back to 1.
+    This means that ids returned are guaranteed to be unique unless a key has been reused `8,589,934,592` times.
 
 ---
 
 ### release()
 
-Releases the entity identifier, removing the entity from the registy.
+Releases the entity identifier, allowing the identifier to be reused.
 
 - **Type**
 
@@ -36,16 +39,16 @@ Releases the entity identifier, removing the entity from the registy.
 
 - **Details**
 
-    [`Registry:release()`](Registry#release) is a faster alternative to [`Registry:destroy()`](Registry#destroy) when entities are considered a [orphan](Registry#details-4).
+    > ⚠️ This method does **not** remove any of the entity's components.
+    > If it is not known that an entity has components, use [`Registry:destroy()`](Registry#destroy) instead.
 
-    > ⚠️ [`Registry:release()`](Registry#release) does **not** remove any of it's entities components.
-    > If you don't know if a entity has components but still want to remove it, use [`Registry:destroy()`](Registry#destroy) instead.
+    > ⚠️ Using this method on an entity that still has components will result in *undefined behavior*.
 
 ---
 
 ### destroy()
 
-Releases the entity identifier and removes all of it's existing components.
+Releases the entity identifier and removes all of its components.
 
 - **Type**
 
@@ -57,19 +60,23 @@ Releases the entity identifier and removes all of it's existing components.
 
 ### valid()
 
-Returns if the given value is a entity inside the Registry
+Checks if the given entity is a valid entity identifier.
 
 - **Type**
 
     ```lua
-    function Registry:valid(possibleEntity: any): boolean
+    function Registry:valid(entity: Entity): boolean
     ```
+
+- **Details**
+
+    Released identifiers are **not** valid.
 
 ---
 
 ### version()
 
-Returns the version of the given entity.
+Probes the given identifier and returns the encoded version.
 
 - **Type**
 
@@ -77,39 +84,11 @@ Returns the version of the given entity.
     function Registry:version(entity: Entity): number
     ```
 
-- **Details**
-
-    Not to be confused with [`Registry:current()`](Registry#current), [`Registry:version()`](Registry#version) will return the version encoded inside the entity. This is used to tell the difference between recycled entities.
-
-- **Example**
-
-     ```lua
-    local entityA = registry:create()
-    
-    -- Will print 1, because this is the first version of the
-    -- entity.
-    print(registry:version(entityA))
-    
-    -- We release the entity, causing the id to be freed allowing
-    -- it to be used again.
-    registry:release(entityA)
-    
-    -- We create a new entity, which will now use the recycled id
-    local entityB = registry:create()
-    
-    -- Will print 2, because this is the second version of this
-    -- entity as the last version has been released.
-    print(registry:version(entityB))
-    -- Will still print 1, because this is from the first version
-    -- of the entity
-    print(registry:version(entityA))
-    ```
-
 ---
 
 ### current()
 
-Returns the current version of the given entity
+Returns the current version of the given identifier.
 
 - **Type**
 
@@ -119,26 +98,13 @@ Returns the current version of the given entity
 
 - **Details**
 
-    Not to be confused with [`Registry:version()`](Registry#version), [`Registry:current()`](Registry#current) will return the latest version number of the entity. The version number is used to tell how many times a entity identifier has been recycled.
-
-- **Example**
-
-    ```lua
-    local entityA = registry:create()
-    registry:release()
-    local entityB = registry:create()
-    
-    print(registry:version(entityA)) -- prints 1
-    print(registry:current(entityA)) -- prints 2
-    print(registry:version(entityB)) -- prints 2
-    print(registry:current(entityB)) -- prints 2
-    ```
+    Not to be confused with [`Registry:version()`](Registry#version). This method will return the latest version of the given identifer.
 
 ---
 
 ### orphan()
 
-Returns a boolean telling if the given entity is a orphan
+Checks if the given entity is an orphan (has no components).
 
 - **Type**
 
@@ -148,25 +114,29 @@ Returns a boolean telling if the given entity is a orphan
 
 - **Details**
 
-    A entity is considered a orphan if said entity has no components.
+    A entity is considered a orphan if it has no components.
 
-- **Example**
+---
 
+### add()
+
+Adds components with default values to an entity.
+
+- **Type**
+  
     ```lua
-    
-    local A = ecr.component() :: number
-    
-    local entity = registry:create()
-    
-    print(registry:orphan(entity)) -- Will print true
-    
-    registry:set(entity, A, 1) -- We give the entity a component
-    print(registry:orphan(entity)) -- Will print false
-    
-    registry:remove(entity, A) -- Remove the component from the entity
-    print(registry:orphan(entity)) -- Will print true
-    
+    function Registry:add<T...>(entity: Entity, components: T...)
     ```
+
+- **Details**
+
+    Adds the given components to the entity with default values.
+
+    The value assigned is the value returned by the function given when defining the component.
+
+    > ⚠️ Attempting to add components with this method that do not have default values will throw an error.
+
+    > ⚠️ Attempting to add a component to an entity that already has the component will throw an error.
 
 ---
 
@@ -182,43 +152,47 @@ Sets an entity's component value.
 
 - **Details**
 
-    Will add the component to the entity with the given value
+    Adds the component to the entity with the given value
     if the entity does not already have the component.
 
-    If `value` is `nil` then the component will be removed from the entity.
+    Changes the component's value for the given entity if the entity already owns the component.
+
+    Removes the component from the entity if value is `nil`.
 
 ---
 
 ### patch()
 
-Patches a entity's component value 
+Updates an entity's component value.
 
 - **Type**
 
     ```lua
-    function Registry:patch<T>(entity: Entity, component: T, patcher: (old: T) -> T?)
+    function Registry:patch<T>(entity: Entity, component: T, patcher: (T) -> T?)
     ```
-    
+
 - **Details**
 
-    Behaves similar to [`Registry:set()`](Registry#set) but instead of directly setting a value,
-    you'll have to pass a function which will use the previous value to get a new value.
-    
-    This has the exact same behavior as `Registry:set()` and will remove components if `value` is `nil`.
-    
+    Takes a callback which is given the current component value as the only argument.
+    The value returned by the callback is then set as the new value.
+
+    If the value returned is `nil` then the component is removed from the entity.
+
+    > ⚠️ Attempting to patch a component that an entity does not have will result in *undefined behavior*.
+
 - **Example**
 
     ```lua
-    registry:patch(entity, Heatlh :: number, function(oldValue)
-        return oldValue - 10
+    registry:patch(entity, Health, function(health)
+        return health - 10
     end)
     ```
-    
+
 ---
 
 ### has()
 
-Returns if a entity has all of the given components.
+Checks if a entity has all of the given components.
 
 - **Type**
 
@@ -226,11 +200,15 @@ Returns if a entity has all of the given components.
     function Registry:has<T...>(entity: Entity, components: T...): boolean
     ```
 
+- **Details**
+
+    If multiple components are given, it is checked if the entity has **every** component given.
+
 ---
 
 ### get()
 
-Gets an entity's component value.
+Gets an entity's components.
 
 - **Type**
 
@@ -240,14 +218,15 @@ Gets an entity's component value.
 
 - **Details**
 
-    Will return the value of each of the specified components.
+    Will return the value of each of the given components.
+
     Will return `nil` if the entity does not own the component.
 
 ---
 
 ### remove()
 
-Removes the given components from a entity.
+Removes the given components from an entity.
 
 - **Type**
 
@@ -255,9 +234,15 @@ Removes the given components from a entity.
     function Registry:remove<T...>(entity: Entity, components: T...): ()
     ```
 
+- **Details**
+
+    Will do nothing if the entity does not own the given component.
+
+---
+
 ### view()
 
-Creates a new registry view.
+Creates a [`view`](View) to see all entities with the specified components.
 
 - **Type**
 
@@ -267,9 +252,9 @@ Creates a new registry view.
 
 - **Details**
 
-    Creates a new view with the specified components.
+    Creates a new view with the given components.
 
-    Entities in the view are guaranteed to have *at least* all of the specified components.
+    Entities in the view are guaranteed to have *at least all* of the specified components.
 
     Views are relatively cheap to create so it is encouraged to construct and throw them away after iteration on the fly.
 
@@ -277,22 +262,20 @@ Creates a new registry view.
 
 ### track()
 
-Creates a [`Observer`](Observer) which tracks any changes that happen to entities with the given component.
+Creates an [`observer`](Observer) which tracks any changes that happen for a given component.
 
 - **Type**
 
     ```lua
-    function Registry:track<T, U...>(trackingComponent: T, U...) -> Observer<(T?, U...)>
+    function Registry:track<T, U...>(totrack: T, includes: U...): Observer<T?, U...>
     ```
 
 - **Details**
 
-    Trackers are used to track changes that happen to a given component inside systems and grants control over when to track, stop tracking and start tracking again.
-
-    Trackers should be created outside the system so they can track changes while the system isn't running.
+    Observers are used to track changes that happen to a given component and grants control over when to track, stop tracking and start tracking again.
 
     Only changes made to the first argument specified are tracked, subsequent arguments are only included when iterating just like a `View`.
-    
+
     The observer will return entities that:
 
     1. Are assigned the component when they previously did not own it.
@@ -317,22 +300,23 @@ Creates a [`Observer`](Observer) which tracks any changes that happen to entitie
     local tracker = registry:track(Health)
     local entity = registry:create()
     
-    -- When the entity's health component is set to 100
-    -- The tracker will record that.
+    -- when the entity's health component is set to 100
+    -- the tracker will record that.
     registry:set(entity, Health, 100) 
+
     for id, health in tracker:each() do
         print(health) -- will print 100
     end
     
-    -- We clear the currently recorded changes as we have no use
-    -- For them anymore.
+    -- we clear the currently recorded changes as we have no use
+    -- for them anymore.
     tracker:clear()
     
-    -- We remove the component from the entity which will also
-    -- Be tracked
+    -- we remove the component from the entity which will also be tracked
     registry:set(entity, Health) 
+
     for id, health in tracker:each() do
-        print(health) -- Will print nil
+        print(health) -- will print nil
     end
     
     ```
@@ -341,64 +325,89 @@ Creates a [`Observer`](Observer) which tracks any changes that happen to entitie
 
 ### entities()
 
-Returns a list containing every single entity id that is used by the Registry.
+Direct access to the list of entities in a registry.
 
 - **Type**
 
     ```lua
-    function Registry:entities() -> {Entity}
+    function Registry:entities(): Array<Entity>
+    ```
+
+- **Details**
+
+    This list contains both valid and released entities.
+
+    Modifying this array will cause *undefined behavior*.
+
+- **Example**
+
+    ```lua
+    for i, entity in registry:entities() do
+        if not registry:valid(entity) then continue end
+        print(entity, "is a valid entity")
+    end
     ```
 
 ---
 
 ### storage()
 
-Returns a [Pool](Pool) containing every entity that has the given component
+Returns a [pool](Pool) containing every entity and corresponding value for a given component
 
 - **Type**
 
     ```lua
-    function Registry:storage<T>(component: T) -> Pool<T>
+    function Registry:storage<T>(component: T): Pool<T>
     ```
 
 - **Details**
   
-    > ⚠️ This function is not yet stable and it's return value will be changed to return something that is not a [Pool](Pool).
+    The returned pool is direct access to the underlying datastructures the registry uses
+    to store entities and components.
+
+    Modifying the returned pool may result in *undefined behavior*.
 
 ---
 
 ### added()
 
-Returns a [Signal](Signal) which will be fired whenever the given component is added to a entity.
+Returns a [signal](Signal) which is fired whenever the given component is added to an entity.
 
 - **Type**
 
     ```lua
-    function Registry:added<T>(component: T) -> Signal<Entity, T>
+    function Registry:added<T>(component: T): Signal<Registry, Entity, T>
     ```
 
 ---
 
 ### changed()
 
-Returns a [Signal](Signal) which will be fired whenever the given component is changed of a entity inside the Registry
+Returns a [signal](Signal) which is fired whenever the given component's value is changed for an entity.
 
 - **Type**
 
     ```lua
-    function Registry:changed<T>(component: T) -> Signal<Entity, T>
+    function Registry:changed<T>(component: T): Signal<Registry, Entity, T>
     ```
 
 ---
 
 ### removing()
 
-Returns a [Signal](Signal) which will be fired whenever the given component is removed of a entity inside the Registry
+Returns a [signal](Signal) which is fired whenever the given component is being removed from an entity.
 
 - **Type**
 
     ```lua
-    function Registry:removing<T>(component: T) -> Signal<Entity, T>
+    function Registry:removing<T>(component: T): Signal<Registry, Entity, nil>
     ```
+
+- **Details**
+
+    The signal is fired *before* the component is actually removed. You can retrieve the component value within the signal listener.
+
+    > ⚠️ Manually removing the component within the signal listener will result in *undefined behavior*.
+
 
 ---

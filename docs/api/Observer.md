@@ -3,16 +3,19 @@ permalink: /api/Observer
 title: Observer
 ---
 
-Observers are used to track changes on components and iterate through these changes inside ecr.
+Observers are used to track component changes.
 
-Inherits from [View](View)<br>
-You can get this object through [`Registry:track()`](Registry#track).
+Extends the [View](View) class.
+
+Returned by [`registry:track()`](Registry#track).
+
+The observer stores an internal pool of changed components that can be iterated over and cleared at will.
 
 ## Methods
 
 ### disconnect()
 
-Disconnects the Observer stopping any new changes from being tracked
+Disconnects the observer, stopping any new changes from being tracked
 
 - **Type**
 
@@ -24,7 +27,7 @@ Disconnects the Observer stopping any new changes from being tracked
 
 ### reconnect()
 
-Reconnects the Observer and allows it to start tracking changes again
+Reconnects the Observer and allows it to track future changes again.
 
 - **Type**
 
@@ -36,7 +39,7 @@ Reconnects the Observer and allows it to start tracking changes again
 
 ### clear()
 
-Clears all tracked changes and starts tracking new changes
+Clears all recorded changes.
 
 - **Type**
 
@@ -46,6 +49,6 @@ Clears all tracked changes and starts tracking new changes
 
 - **Details**
 
-    When this is called, all currently recorded changes will be discarded. Make sure to call this everytime you finish with the currently recorded changes, as not calling this will keep changes you've already processed.
+    Use to clear all recorded changes after they have been processed to avoid reprocessing the same changes again later.
 
 ---

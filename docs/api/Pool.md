@@ -3,68 +3,52 @@ permalink: /api/Pool
 title: Pool
 ---
 
-> ⚠️ Pools are currently unstable and may change in a coming update to ecr.
->  
-> As of now they're only intended for internal usage, while you can retrieve a Pool by using [`Registry:storage()`](Registry#storage), pools might be changed
+The datastructure used internally to store all entities and values for a single component.
 
 ## Properties
 
-### map
-
-A lookup table which is used to get the index of a entity inside a pool.
-
-- **Type**
-
-    ```lua
-    Pool.map: {[Entity]: number}
-    ```
-
-- **Details**
-
-    The value from this can be plugged into [`Pool.values`](Pool#values) to get the value of a component
-
----
-
-### entities
-
-A lookup table which is used to get the id of a Entity
-
-- **Type**
-  
-    ```lua
-    Pool.entities: {[number]: Entity}
-    ```
-
-- **Details**
-
-    The index/key used to get the associated entity can also be used to get the component value from [`Pool.values`](Pool#values)
-
----
-
-### values
-
-A table containing a list of values associated with components of entities.
-
-- **Type**
-  
-    ```lua
-    Pool.values: {[number]: T}
-    ```
-
-- **Details**
-
-    The index/key used to access the value of a entity can also be used to get the Entity id from [`Pool.entities`](Pool#entities)
-
----
-
 ### size
 
-A number containing the amount of indexes or entities exist inside the pool.
+The amount of entities contained in the pool.
 
 - **Type**
 
     ```lua
     Pool.size: number
     ```
+
+---
+
+### entities
+
+An array of all entities with the given component.
+
+- **Type**
+  
+    ```lua
+    Pool.entities: Array<entity>
+    ```
+
+- **Details**
+
+    This array is sorted in the same order as [`Pool.values`](Pool#values).
+
+    - `entities[n]`'s component value is located at `values[n]`.
+
+---
+
+### values
+
+An array of all values for the given component.
+
+- **Type**
+  
+    ```lua
+    Pool.values: Array<T>
+    ```
+
+- **Details**
+
+    This array is sorted in the same order as [`Pool.entities`](Pool#entities).
 
 ---
