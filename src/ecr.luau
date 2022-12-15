@@ -192,9 +192,9 @@ local function pool_set<T>(self: Pool<T>, k: number, entity: EntityId, v: T)
 end
 
 -- change value for key (undefined if key is not in pool)
-local function pool_change<T>(self: Pool<T>, k: number, v: T)
-    self.values[self.map[k] :: number] = v
-end
+-- local function pool_change<T>(self: Pool<T>, k: number, v: T)
+--     self.values[self.map[k] :: number] = v
+-- end
 
 -- removes key from pool (does nothing if already not in pool)
 local function pool_remove<T>(self: Pool<T>, k: number)
@@ -215,6 +215,14 @@ end
 -- gets size of pool
 local function pool_size<T>(self: Pool<T>): number
     return self.size
+end
+
+local function pool_entities<T>(self: Pool<T>): vector<EntityId>
+    return self.entities
+end
+
+local function pool_values<T>(self: Pool<T>): vector<T>
+    return self.values
 end
 
 -- empties pool and sets size to 0
@@ -262,21 +270,7 @@ end
 -- Views
 ----------------------------------------------------------------------
 
-local function hasNone(pools: vector<Pool<unknown>>, key: number): boolean
-    for _, pool in next, pools do
-        if pool_has(pool, key) then return false end
-    end
-    return true
-end
-
-local function hasAll(pools: vector<Pool<unknown>>, key: number): boolean
-    for _, pool in next, pools do
-        if not pool_has(pool, key) then return false end
-    end
-    return true
-end
-
-local View = {} do
+local View, Observer do
     type _View = View<...unknown> & {
         registry: Registry,
         components: map<ComponentId, boolean>,
@@ -285,6 +279,84 @@ local View = {} do
         excludes: vector<Pool<unknown>>?
     }
 
+    type _Observer = _View & Observer<...unknown> & {
+        tracking: ComponentId,
+        changed: Pool<unknown>,
+        connections: vector<Connection>?   
+    }
+
+    local function hasNone(pools: vector<Pool<unknown>>, key: number): boolean
+        for _, pool in next, pools do
+            if pool_has(pool, key) then return false end
+        end
+        return true
+    end
+    
+    local function hasAll(pools: vector<Pool<unknown>>, key: number): boolean
+        for _, pool in next, pools do
+            if not pool_has(pool, key) then return false end
+        end
+        return true
+    end
+
+    local function getSmallestPool(...: vector<Pool<unknown>>?): Pool<unknown>
+        local smallest: Pool<unknown>?
+
+        for i = 1, select("#", ...) do
+            local pools = select(i, ...)
+            if pools == nil then continue end
+
+            for _, pool in next, pools do
+                if smallest then
+                    if pool_size(pool) < pool_size(smallest) then
+                        smallest = pool
+                    end
+                else
+                    smallest = pool
+                end
+            end
+        end
+
+        assert(smallest, "no pools given")
+
+        return smallest
+    end
+
+    local function include(self: _View, ...: unknown): _View
+        if not self.includes then self.includes = {} end
+        local includes = assert(self.includes)
+
+        local components = self.components
+
+        for i = 1, select("#", ...) do
+            local component = select(i, ...)
+            if components[component] == true then error("duplicate component included", 2) end
+            if components[component] == false then error("cannot include an already excluded component", 2) end
+            components[component] = true
+            table.insert(includes, self.registry:storage(component))
+        end
+
+        return self
+    end
+
+    local function exclude(self: _View, ...: unknown): _View
+        if not self.excludes then self.excludes = {} end
+        local excludes = assert(self.excludes)
+
+        local components = self.components
+
+        for i = 1, select("#", ...) do
+            local component = select(i, ...)
+            if components[component] == true then error("cannot exclude an already included component", 2) end
+            if components[component] == false then error ("duplicate component excluded", 2) end
+            components[component] = false
+            table.insert(excludes, self.registry:storage(component))
+        end
+
+        return self
+    end
+
+    View = {}
     View.__index = View
 
     function View.new(reg: Registry, ...: ComponentId): View<...unknown>
@@ -308,54 +380,78 @@ local View = {} do
         }, View) :: any
     end
 
-    -- sorts through targets and optional includes and returns the smallest pool
-    local function getSmallestPool(targets: vector<Pool<unknown>>, includes: vector<Pool<unknown>>?): Pool<unknown>
-        local smallest = targets[1]
-
-        if smallest == nil then error("no pools given", 2) end
-
-        local function check(pool)
-            if pool_size(pool) < pool_size(smallest) then
-                smallest = pool
-            end
-        end
-
-        for _, pool in next, targets, 1 do check(pool) end
-        if includes then
-            for _, pool in next, includes do check(pool) end
-        end
-
-        return smallest
-    end
-
-    local function iter(self: _View): () -> (EntityId, ...unknown)
+    function View.__iter(self: _View): () -> (EntityId, ...unknown)
         local targets = self.targets
         local includes = self.includes
         local excludes = self.excludes
 
-        local spool = getSmallestPool(targets, includes)
-        local entities = spool.entities
-        local values = spool.values
+        local function single<A>(source: Pool<A>): () -> (EntityId, A)
+            local n = pool_size(source)
+            local entities = pool_entities(source)
+            local values = pool_values(source)
     
-        local tuple = table.create(#targets)
-
-        local iu = pool_size(spool)
-        return if #targets == 1 and not includes and not excludes then -- pure single view
-                function()
-                    local i = iu; iu = i - 1
-                    return entities[i], values[i]
+            return function()
+                local i = n; n = i - 1
+                return entities[i], values[i]
+            end
+        end
+    
+        local function double<A, B>(a: Pool<A>, b: Pool<B>): () -> (EntityId, A, B)
+            local na, nb = pool_size(a), pool_size(b)
+    
+            if na <= nb then
+                local n = na
+                local entities = pool_entities(a)
+                local values = pool_values(a)
+    
+                return function()
+                    local i = n
+                    while i > 0 do
+                        local entity = entities[i]
+                        local vb = pool_get(b, id_key(entity)) :: B
+                        if vb == nil then i -= 1; continue end
+                        n = i - 1
+                        return entity, values[i], vb
+                    end
+                    return nil :: any, nil :: any, nil :: any
                 end
-            else function() -- general view
-                local i = iu
+            else
+                local n = nb
+                local entities = pool_entities(b)
+                local values = pool_values(b)
+    
+                return function()
+                    local i = n
+                    while i > 0 do
+                        local entity = entities[i]
+                        local va = pool_get(a, id_key(entity)) :: A
+                        if va == nil then i -= 1; continue end
+                        n = i - 1
+                        return entity, va, values[i]
+                    end
+                    return nil :: any, nil :: any, nil :: any
+                end
+            end
+        end
+    
+        local function multi(targets: vector<Pool<unknown>>, includes: vector<Pool<unknown>>?, excludes: vector<Pool<unknown>>?)
+            local source = getSmallestPool(targets, includes)
+    
+            local n = pool_size(source)
+            local entities = pool_entities(source)
+            local tuple = table.create(#targets)
+    
+            return function()
+                local i = n
                 while i > 0 do
                     local entity = entities[i]
                     local key = id_key(entity)
-
+                    
                     if 
                         includes and not hasAll(includes, key) or
                         excludes and not hasNone(excludes, key)
                     then i -= 1; continue end
-
+    
                     local missing = false
                     for ii, target in next, targets do
                         local index = pool_has(target, key) :: number
@@ -363,110 +459,46 @@ local View = {} do
                         tuple[ii] = pool_getIndex(target, index)
                     end
                     if missing then i -= 1; continue end
-
-                    iu = i - 1
+    
+                    n = i - 1
                     return entity, unpack(tuple)
                 end
                 return nil :: any
             end
-    end
-
-    function View.include(self: _View, ...: unknown): _View
-        if not self.includes then self.includes = {} end
-        local includes = assert(self.includes)
-
-        local components = self.components
-
-        for i = 1, select("#", ...) do
-            local component = select(i, ...)
-            if components[component] == true then error("duplicate component included", 2) end
-            if components[component] == false then error("cannot include an already excluded component", 2) end
-            components[component] = true
-            table.insert(includes, self.registry:storage(component))
         end
 
-        return self
-    end
-
-    function View.exclude(self: _View, ...: unknown): _View
-        if not self.excludes then self.excludes = {} end
-        local excludes = assert(self.excludes)
-
-        local components = self.components
-
-        for i = 1, select("#", ...) do
-            local component = select(i, ...)
-            if components[component] == true then error("cannot exclude an already included component", 2) end
-            if components[component] == false then error ("duplicate component excluded", 2) end
-            components[component] = false
-            table.insert(excludes, self.registry:storage(component))
-        end
-
-        return self
-    end
-
-    function View.each(self: _View): () -> (EntityId, ...unknown)
-        return iter(self) 
-    end
-
-    function View.__iter(self: _View): () -> (EntityId, ...unknown)
-        return iter(self)
+        return if #targets == 1 and not includes and not excludes then -- pure single view
+                single(targets[1])
+            elseif #targets == 2 and not includes and not excludes then 
+                double(targets[1], targets[2])
+            else
+                multi(targets, includes, excludes)
     end
 
     function View.__len(self: _View): number
-        return pool_size((getSmallestPool(self.targets, self.includes)))
+        return pool_size(getSmallestPool(self.targets, self.includes))
     end
-end
 
-----------------------------------------------------------------------
--- Observer
-----------------------------------------------------------------------
+    View.each = View.__iter
+    View.include = include
+    View.exclude = exclude
 
-local Observer = {} do
-    type _Observer = Observer<...unknown> & {
-        registry: Registry,
-        components: map<ComponentId, boolean>,
-        targets: vector<Pool<unknown>>,
-        includes: vector<Pool<unknown>>?,
-        excludes: vector<Pool<unknown>>?,
-
-        tracking: ComponentId,
-        changed: Pool<unknown>,
-        connections: vector<Connection>?
-    }
-
+    Observer = {}
     Observer.__index = Observer
 
-    function Observer.new(reg: Registry, toTrack: ComponentId , ...: ComponentId)
-        local argn = select("#", ...)
+    function Observer.new(reg: Registry, toTrack: ComponentId, ...: ComponentId)
+        local self = View.new(reg, ...) :: _Observer
+        setmetatable(self, Observer)
 
-        local components, targets = {}, {}
-        local changed = pool_clone(reg:storage(toTrack))
-
-        for i = 1, argn do
-            local component = select(i, ...)
-            if components[component] then error("duplicate component included", 3) end
-            components[component] = true
-            targets[i] = reg:storage(component)
-        end
-
-        local self: _Observer = setmetatable({
-            registry = reg,
-            components = components,
-            targets = targets,
-            includes = nil,
-            excludes = nil,
-            tracking = toTrack,
-            changed = changed,
-            connections = nil
-        }, Observer) :: any
+        self.tracking = toTrack
+        self.changed = pool_clone(reg:storage(toTrack))
 
         self:reconnect()
 
         return self
     end
 
-    local function iter(self: _Observer): () -> (EntityId, ...unknown)
+    function Observer.__iter(self: _Observer): () -> (EntityId, ...unknown)
         local changed = self.changed
         local targets = self.targets
         local includes = self.includes
@@ -478,7 +510,7 @@ local Observer = {} do
         local tuple = table.create(#targets + 1)
 
         local iu = pool_size(changed)
-        return function() -- general view
+        return function()
             local i = iu
             while i > 0 do
                 local entity = entities[i]
@@ -539,51 +571,13 @@ local Observer = {} do
         pool_clear(self.changed)
     end
 
-    function Observer.include(self: _Observer, ...: unknown): _Observer
-        if not self.includes then self.includes = {} end
-        local includes = assert(self.includes)
-
-        local components = self.components
-
-        for i = 1, select("#", ...) do
-            local component = select(i, ...)
-            if components[component] == true then error("duplicate component included", 2) end
-            if components[component] == false then error("cannot include an already excluded component", 2) end
-            components[component] = true
-            table.insert(includes, self.registry:storage(component))
-        end
-
-        return self
-    end
-
-    function Observer.exclude(self: _Observer, ...: ComponentId): _Observer
-        if not self.excludes then self.excludes = {} end
-        local excludes = assert(self.excludes)
-
-        local components = self.components
-
-        for i = 1, select("#", ...) do
-            local component = select(i, ...)
-            if components[component] == true then error("cannot exclude an already included component", 2) end
-            if components[component] == false then error ("duplicate component excluded", 2) end
-            components[component] = false
-            table.insert(excludes, self.registry:storage(component))
-        end
-
-        return self
-    end
-
-    function Observer.each(self: _Observer): () -> (EntityId, ...unknown)
-        return iter(self)    
-    end
-
-    function Observer.__iter(self: _Observer): () -> (EntityId, ...unknown)
-        return iter(self)
-    end
-
     function Observer.__len(self: _Observer): number
         return pool_size(self.changed)
     end
+
+    Observer.each = Observer.__iter
+    Observer.include = include
+    Observer.exclude = exclude
 end
 
 ----------------------------------------------------------------------

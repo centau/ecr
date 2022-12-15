@@ -498,6 +498,19 @@ TEST("registry:view()", function()
         for _, entity in Bs do CHECK(viewed[entity] == entity) end
     end
 
+    do CASE "View all entities with AB"
+        local viewed = {}
+        for entity, a, b in reg:view(A, B) do viewed[entity] = { a, b } end
+        CHECK(not empty(viewed))
+        for _, entity in ABs do
+            local v = viewed[entity]
+            CHECK(v)
+            if not v then continue end
+            CHECK(v[1] == entity)
+            CHECK(v[2] == entity)
+        end
+    end
+
     do CASE "View all entities with ABC"
         local viewed = {}
         for entity, a, b, c in reg:view(A, B, C) do viewed[entity] = { a, b, c } end
