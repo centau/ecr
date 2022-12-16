@@ -75,6 +75,19 @@ export type Connection = {
     disconnect: (Connection) -> ()
 }
 
+-- assert but stack trace will always start at the callsite of library functions outside of this file
+local lassert = function<T>(v: T, msg: string)
+    if v then return end
+
+    local stack = 1
+    
+    while debug.info(stack, "s") == debug.info(1, "s") do
+        stack += 1    
+    end
+
+    error(msg, stack)
+end :: typeof(assert)
+
 ----------------------------------------------------------------------
 -- Entity Id
 ----------------------------------------------------------------------
@@ -322,7 +335,7 @@ local View, Observer do
         return smallest
     end
 
-    local function include(self: _View, ...: unknown): _View
+    local function include(self: _View, ...: ComponentId): _View
         if not self.includes then self.includes = {} end
         local includes = assert(self.includes)
 
@@ -330,8 +343,8 @@ local View, Observer do
 
         for i = 1, select("#", ...) do
             local component = select(i, ...)
-            if components[component] == true then error("duplicate component included", 2) end
-            if components[component] == false then error("cannot include an already excluded component", 2) end
+            lassert(components[component] ~= true, "duplicate component included")
+            lassert(components[component] ~= false, "cannot include an already excluded component")
             components[component] = true
             table.insert(includes, self.registry:storage(component))
         end
@@ -339,7 +352,7 @@ local View, Observer do
         return self
     end
 
-    local function exclude(self: _View, ...: unknown): _View
+    local function exclude(self: _View, ...: ComponentId): _View
         if not self.excludes then self.excludes = {} end
         local excludes = assert(self.excludes)
 
@@ -347,8 +360,8 @@ local View, Observer do
 
         for i = 1, select("#", ...) do
             local component = select(i, ...)
-            if components[component] == true then error("cannot exclude an already included component", 2) end
-            if components[component] == false then error ("duplicate component excluded", 2) end
+            lassert(components[component] ~= false, "duplicate component excluded")
+            lassert(components[component] ~= true, "cannot exclude an already included component")
             components[component] = false
             table.insert(excludes, self.registry:storage(component))
         end
@@ -366,7 +379,7 @@ local View, Observer do
 
         for i = 1, argn do
             local component = select(i, ...)
-            if components[component] then error("duplicate component included", 3) end
+            lassert(not components[component], "duplicate component included")
             components[component] = true
             targets[i] = reg:storage(component)
         end
@@ -597,7 +610,7 @@ local createSignal: <T...>() -> (Signal<T...>, (T...) -> ()) do
     Connection.__index = Connection
 
     function Connection.disconnect(self: _Connection)
-        assert(self.id, "connection already disconnected")
+        lassert(self.id, "connection already disconnected")
         pool_remove(self.signal.pool, self.id)
         self.id = nil
     end
@@ -702,9 +715,7 @@ local function createRegistry(cap: number?): Registry
 
     setmetatable(cpools, {
         __index = function(self, component: ComponentId): Pool<unknown>
-            if type(component) ~= "number" or math.sign(component) ~= 1 then
-                error("Invalid component, component must be positive integer, got "..tostring(component), 2)
-            end
+            lassert(type(component) == "number", "invalid component type")
             local pool = pool_create(capacity)
             self[component] = pool
             return pool
