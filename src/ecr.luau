@@ -706,8 +706,12 @@ local function createRegistry(cap: number?): Registry
     local function clearPool(component: ComponentId)
         local pool = cpools[component]
 
-        for _, entity in next, pool.entities do
-            fireSignal(removing, component, entity, nil)
+        local fire = removing[component]
+
+        if fire then
+            for _, entity in next, pool.entities do
+                fire(registry, entity)
+            end
         end
         
         pool_clear(pool)
