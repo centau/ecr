@@ -350,37 +350,55 @@ TEST("registry:remove()", function()
 end)
 
 TEST("registry:clear()", function()
-    local reg = ecr.registry()
-    local e1 = reg:create()
-    local e2 = reg:create()
+    do
+        local reg = ecr.registry()
+        local e1 = reg:create()
+        local e2 = reg:create()
 
-    reg:set(e1, A, 1)
-    reg:set(e2, A, 2)
+        reg:set(e1, A, 1)
+        reg:set(e2, A, 2)
 
-    reg:set(e1, B, 1)
-    reg:set(e2, B, 2)
+        reg:set(e1, B, 1)
+        reg:set(e2, B, 2)
 
-    reg:set(e1, C, 1)
-    reg:set(e2, C, 2)
+        reg:set(e1, C, 1)
+        reg:set(e2, C, 2)
 
-    do CASE "Clear A"
-        reg:clear(A)
-        CHECK(reg:has(e1, A) == false)
-        CHECK(reg:has(e2, A) == false)
-    end
+        do CASE "Clear A"
+            reg:clear(A)
+            CHECK(reg:has(e1, A) == false)
+            CHECK(reg:has(e2, A) == false)
+        end
 
-    do CASE "Clear B and C"
-        reg:clear(B, C)
-        CHECK(reg:has(e1, B) == false)
-        CHECK(reg:has(e2, B) == false)
-        CHECK(reg:has(e1, C) == false)
-        CHECK(reg:has(e2, C) == false)
+        do CASE "Clear B and C"
+            reg:clear(B, C)
+            CHECK(reg:has(e1, B) == false)
+            CHECK(reg:has(e2, B) == false)
+            CHECK(reg:has(e1, C) == false)
+            CHECK(reg:has(e2, C) == false)
+        end
     end
 
     do CASE "Clear entities"
+        local N = 1e3
+        local reg = ecr.registry()
+        local entities = {}
+
+        for i = 1, N do
+            entities[i] = reg:create()
+        end
+
         reg:clear()
-        CHECK(reg:valid(e1) == false)
-        CHECK(reg:valid(e2) == false)
+
+        local entities2 = {}
+
+        for i = 1, N do
+            entities2[i] = reg:create()
+        end
+
+        for i = 1, N do
+            CHECK(reg:version(entities[i]) + 1 == reg:version(entities2[i]))
+        end
     end
 end)
 
@@ -683,35 +701,60 @@ TEST("registry:changed()", function()
 end)
 
 TEST("registry:removing()", function()
-    local reg = ecr.registry()
-    local e = reg:create()
+    do
+        local reg = ecr.registry()
+        local e = reg:create()
 
-    local cc, cr, ce, cv, lv = 0, nil, nil, nil, nil
+        local cc, cr, ce, cv, lv = 0, nil, nil, nil, nil
 
-    local function fn(...)
-        cc += 1
-        lv = reg:get(e, A) -- get current value
-        cr, ce, cv = ...
+        local function fn(...)
+            cc += 1
+            lv = reg:get(e, A) -- get current value
+            cr, ce, cv = ...
+        end
+
+        local con = reg:removing(A):connect(fn)
+
+        reg:set(e, A, true)
+
+        CASE "Removing triggers"
+        reg:set(e, A, nil)
+        CHECK(cc == 1)
+        CHECK(cr == reg)
+        CHECK(ce == e)
+        CHECK(cv == nil)
+        CHECK(lv == true)
+
+        con:disconnect()
+
+        CASE "Removing after disconnect does not trigger"
+        reg:set(e, A, true) -- add
+        reg:set(e, A, nil) -- remove
+        CHECK(cc == 1)
     end
 
-    local con = reg:removing(A):connect(fn)
+    do CASE "Clearing components fires removing event"
+        local reg = ecr.registry()
 
-    reg:set(e, A, true)
+        local entities = {}
 
-    CASE "Removing triggers"
-    reg:set(e, A, nil)
-    CHECK(cc == 1)
-    CHECK(cr == reg)
-    CHECK(ce == e)
-    CHECK(cv == nil)
-    CHECK(lv == true)
+        for i = 1, 1e3 do
+            entities[i] = reg:create()
+            reg:set(entities[i], A, true)
+        end
 
-    con:disconnect()
+        local cache = {}
 
-    CASE "Removing after disconnect does not trigger"
-    reg:set(e, A, true) -- add
-    reg:set(e, A, nil) -- remove
-    CHECK(cc == 1)
+        reg:removing(A):connect(function(reg, entity)
+            cache[entity] = true
+        end)
+
+        reg:clear(A)
+
+        for _, entity in entities do
+            CHECK(cache[entity])
+        end
+    end
 end)
 
 
