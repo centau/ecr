@@ -212,15 +212,13 @@ for entity, position, model in changedPosition do
 end
 ```
 
-`Registry:track()` will track changes for the first component specified, while ensuring the entity also has all other components specified.
+`Registry:track()` will track changes for the first component specified, while ensuring the entity also has all other components specified at the time of iteration.
 
 As the observer has the same interface as views, you can also use `:include()` and `:exclude()` which follow the same rules.
 
 Observers also track component removal, in which case `nil` will be returned for the tracked component.
 
 It is important to note that the observer only returns entities once, with their latest component values, no matter how many times their tracked component has been changed since the last time the observer was cleared.
-
-The observer also only tracks entities that have *all* of the specified components at the moment that their tracked component is changed. If the tracked component was changed for an entity that did not have all other specified components at that time, it will not appear during iteration later.
 
 ## Multithreading
 

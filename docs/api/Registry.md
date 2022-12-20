@@ -282,15 +282,13 @@ Creates an [`observer`](Observer) which tracks any changes that happen for a giv
     2. Have the tracked component's value changed.
     3. Have the tracked component removed (value will be returned as `nil` during iterations).
 
-    An entity must have **all** components specified to be included in the observer.
+    An entity must have **all** components specified at the time of iteration to be returned during iteration.
 
     A history of changes is not kept, the observer will only return entities whose tracked components have been changed with their latest values.
 
     When an observer is first created, it treats all current entities with the given component in the registry as newly changed.
 
     > ⚠️ After iterating over an observer and processing the changes, call [`Observer:clear()`](Observer#clear) to clear all changes so you do not reprocess the same changes again.
-
-    > ⚠️ When tracking components for an entity that must have other components, e.g `Registry:track(A, B)`, if an entity contains `A` and then `B` is added, the entity will **not** be added to the tracker. The entity must have all components specified at the moment the *tracked* component `A` is changed.
 
 - **Example**
 

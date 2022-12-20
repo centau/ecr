@@ -11,7 +11,7 @@ include: [api, tut]
 # customization settings
 subtitle: v0.2.0
 name: centau
-description: A fast entity component system (ECS) for Luau and Roblox.
+description: A fast ECS library for Luau.
 baseurl: /ecr
 url: http://centau.github.io
 repository: centau/ecr
