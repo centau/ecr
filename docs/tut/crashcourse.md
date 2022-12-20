@@ -1,83 +1,68 @@
 ---
-permalink: /docs/introduction
-title: Introduction
+permalink: /tut/crashcourse
+title: Crash Course
 ---
 
-`ECR` is a fast and lightweight entity component system written in Luau.
+`ECR` is a fast entity component system written in Luau.
 
-Design is heavily based on the popular `EnTT` C++ ECS library.
+The design is heavily based on the popular `EnTT` C++ ECS library.
 
-`ECR` is designed to act just as a container, like a vector or hashmap.
-It covers the *entity* and *component* in ECS, but does not attempt to impose any sort of control over the codebase with system scheduling, instead, the *system* is left up to the user to implement, either as plain functions or through a custom scheduler.
+`ECR` is designed to just act as a container, like a vector or hashmap. It covers the *entity* and *component* in ECS,
+but does not attempt to impose any sort of control over the codebase with system scheduling.
+Instead, the *system* is left up to the user to implement, either as plain functions or through a custom scheduler.
 
 ## Pools
 
-`ECR` uses not an archetype design, but a sparse-set design for organizing entities and components.
-
-A *pool* refers to a collection of entities and their associated component values, and is implemented as a sort of specialized sparse-set.
-There is a single pool for each component in the registry.
+A *pool* refers to a collection of entities and their associated component values.
+There is a single pool for each component type in the registry.
 
 All pools keep their entities and components packed contiguously in memory for fast iteration.
 
-> This is just nice-to-know information, not necessary for using the library.
+## Components
+
+Components are types of data and are represenented by unique integer identifiers that you can create by doing:
+
+```lua
+local component = ecr.component()
+```
+
+Each call to `ecr.component()` will return a new component identifier.
+
+Much like composition in OOP, entities can be given components with each entity having its own value for that component.
+
+Components can be freely added, changed and removed from entities on the fly.
 
 ## The Registry
 
-The registry stores and manages entities and their components.
-
-A registry is used to create and destroy entities.
+The registry stores and manages entities and components.
 
 ```lua
--- instantiate registry
+-- create a new registry
 local registry = ecr.registry()
 
--- create a new entity with no components, returns the entity
+-- create a new entity with no components
 local entity = registry:create()
 
 -- releases an entity and removes all its components
 registry:destroy(entity)
 ```
 
-The value returned by `registry:create()` is just an identifier used to refer to an entity. This identifier is usually just referred to as the "entity".
+The value returned by `Registry:create()` is an identifier representing an entity. This identifier is usually just referred to as the "entity".
 
 `registry:destroy(entity)` will probe all pools for the given entity and remove it if present before releasing the identifier. If it is known that an entity has no components, it is more efficient to call `registry:release(entity)` which will release the identifier without having to probe any pools.
 
-## Components
-
-A *component* is a type of data associated with an entity.
-
-Components can be freely added, changed and removed from entities on the fly.
-
-Components in `ECR` are simply unique integer identifiers that you can create by doing:
+Components are added to entities by specifying the component type followed by the value to set.
 
 ```lua
-local component = ecr.component()
+local Health = ecr.component()
+
+registry:set(entity, Health, 100)
 ```
 
-Each call to `ecr.component()` will return a new unique integer identifier.
-All components should be defined within a single file that any file can require to use that component.
+The behavior of `Registry:set()` is similar to a Luau table. Any amount of components can be added to an entity and changed.
+Likewise, setting a component value to `nil` will remove the component from the entity.
 
-`ECR` is designed around the typechecking feature of Luau to write more organised code.
-When a component is defined, it is recommended to cast the return value to the type the component will hold. Doing this will allow you to utilize type inference with `Registry` methods.
-
-A practical example of defining components would look like:
-
-```lua
--- components.luau
-
-return {
-    Health = ecr.component() :: number
-    Name = ecr.component() :: string
-}
-```
-
-You can add or change a component of an entity by doing the following:
-
-```lua
-registry:set(entity, component, true)
-```
-
-Components can be removed by either setting the value to `nil` or by calling `registry:remove()`.
+Alternatively, multiple components can be removed in one go using `Registry:remove()`.
 
 ```lua
 -- both are equivalent
@@ -85,7 +70,7 @@ registry:set(entity, Health, nil)
 registry:remove(entity, Health)
 ```
 
-You can get components added to entity with the following:
+You can get components added to an entity with the following:
 
 ```lua
 -- get a single component
@@ -95,15 +80,15 @@ local health = registry:get(entity, Health)
 local health, name, model = registry:get(entity, Health, Name, Model)
 ```
 
-`registry:get()` will return `nil` if the entity does not have the component.
+`Registry:get()` will return `nil` if the entity does not have the component.
 
-If you don't care about the value you can check if they have a component using `Registry:has()` which will return a boolean indicating if they have the component or not.
+If you do not care about the value of a component, you can check if an entity only has a component using `Registry:has()`, which will return a boolean indicating if it has the component or not.
 
 ```lua
-local hasHealthn = registry:has(entity, Health)
+local hasHealth = registry:has(entity, Health)
 ```
 
-You can check if an entity has multiple components as well:
+You can check if an entity has multiple components in one go as well.
 
 ```lua
 -- will return true if the entity has EVERY component, else will return false
@@ -124,14 +109,14 @@ You can also check the amount of entities contained in a single-view with the `#
 
 ### Multi-type View
 
-These views are slower than single-type views (but still fast overall).
+This view slower than a single-type view (but still fast overall).
 They iterate only entities that contain **all** of the specified components.
 
 These views cannot iterate directly over a single pool, it performs checks in multiple pools per iteration to check if an entity has all of the specified components.
 
 You cannot accurately check the amount of entities contained in a multi-type view without actually iterating through it.
 The `#` len operator will however give an *estimate* of the amount of entities contained in it.
-The actual amount of entities in a view will always be `<=` the estimated amount.
+The actual amount of entities in a view will not be greater than the estimated amount.
 
 ### Usage
 
@@ -209,14 +194,14 @@ These events are useful for queuing entities that have had specific components c
 
 ## Observers
 
-The `Observer` class extends the `View` class.
+Observers have the same interface as views as well as a few extra features.
 
 On top of all the functionalities of views, observers also:
 
 1. Store their own internal pools of components, which can be cleared at will.
 2. Can be disconnected and reconnected to registries for when you want to temporarily stop tracking changes.
 
-An observer can be created using the `registry:track()` method.
+An observer can be created using the `Registry:track()` method.
 
 ```lua
 local changedPosition = registry:track(Position, Model)
@@ -227,15 +212,15 @@ for entity, position, model in changedPosition do
 end
 ```
 
-`registry:track()` will track changes for the first component specified, while ensuring the entity also has all other components specified.
+`Registry:track()` will track changes for the first component specified, while ensuring the entity also has all other components specified.
 
-As the observer extends views, you can also use `:include()` and `:exclude()` which follow the same rules.
+As the observer has the same interface as views, you can also use `:include()` and `:exclude()` which follow the same rules.
 
-Observers can also track component removal, in which case `nil` will be returned for the tracked component.
+Observers also track component removal, in which case `nil` will be returned for the tracked component.
 
-It is important to note that the observer only returns entities once with their latest component values, no matter how many times their tracked component has been changed since the last time the observer was cleared.
+It is important to note that the observer only returns entities once, with their latest component values, no matter how many times their tracked component has been changed since the last time the observer was cleared.
 
-The observer also only tracks entities that have *all* of the specified components at the moment that their tracked component is changed.
+The observer also only tracks entities that have *all* of the specified components at the moment that their tracked component is changed. If the tracked component was changed for an entity that did not have all other specified components at that time, it will not appear during iteration later.
 
 ## Multithreading
 
@@ -243,7 +228,43 @@ The registry is generally not thread-safe.
 However, views (with some restrictions) can be used concurrently.
 
 1. A thread can iterate over and modify components as long as it is the only thread doing so with those components.
-2. A single set of components can be iterated over by multiple threads concurrently as long as those components are not being modified at the same time.
+2. A single set of components can be iterated over and read by multiple threads concurrently as long as those components are not being modified at the same time.
+
+## Example Usage
+
+All components should be defined within a single file that any file can require to use that component.
+
+`ECR` is designed around the typechecking feature of Luau to write more organised code.
+When a component is defined, it is recommended to cast the return value to the type the component will hold. Doing this will allow you to utilize type inference.
+
+A simple example of defining components and creating a system:
+
+```lua
+-- component.luau
+
+return {
+    Health = ecr.component() :: number
+    MaxHealth = ecr.component() :: number
+    Position = ecr.component() :: Vector3
+    Name = ecr.component() :: string
+}
+```
+
+```lua
+-- regenHealth.luau
+
+return function(world: ecr.Registry)
+    for entity, health, maxHealth in world:view(Health, MaxHealth) do
+        local new = health + 10
+
+        if new > maxHealth then
+            new = maxHealth
+        end
+
+        world:set(entity, Health, new)
+    end
+end
+```
 
 ## End
 

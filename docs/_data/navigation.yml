@@ -1,16 +1,16 @@
 main:
-  - title: Docs
-    url: /docs/introduction
+  - title: Tutorials
+    url: /tut/crashcourse
   - title: API
     url: /api/ecr
   - title: GitHub
     url: https://github.com/centau/ecr
 
-docs:
-  - title: Docs
+tut:
+  - title: Tutorials
     children:
-      - title: Introduction
-        url: /docs/introduction
+      - title: Crash Course
+        url: /tut/crashcourse
 
 api:
   - title: API

@@ -37,6 +37,6 @@ Disconnects a listener from a signal.
 
 - **Details**
 
-    > ⚠️ Disconnecting connections within connections while firing recursively may result in *undefined behavior*.
+    > ⚠️ Disconnecting other listeners from within a listener will result in *undefined behavior*.
 
 ---

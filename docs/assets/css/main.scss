@@ -25,17 +25,17 @@ $base00: #27292b; // background
 $base01: #2e3c43;
 $base02: #314549;
 $base03: #546e7a;
-$base04: #b2ccd6;
-$base05: #eeffff;
-$base06: #eeffff;
-$base07: #ffffff;
+$base04: #70757a; // comment
+$base05: #eeffff; // text
+$base06: #3ac5c5;
+$base07: #c02a2a;
 $base08: #f07178;
-$base09: #f78c6c;
-$base0a: #82aaff;
-$base0b: #c3e88d;
-$base0c: #89ddff;
-$base0d: #82aaff;
-$base0e: #f76b1a;
+$base09: #86d4d4; // number literal
+$base0a: #82aaff; // function definition (class)
+$base0b: #86d4d4; // string literal
+$base0c: #f7721a; // operator
+$base0d: #82aaff; // function definition (function)
+$base0e: #f7721a; // keyword
 $base0f: #ff5370;
 
 $x-large: 1680px;
@@ -47,7 +47,7 @@ $type-size-2: 2.5em;
 $type-size-3: 1.8em;
 $type-size-4: 1.4em;
 $type-size-5: 1.25em;
-$type-size-6: 1em;
+$type-size-6: 0.9em; // codeblock text size
 $type-size-7: 0.9em;
 $type-size-8: 0.8em;
 

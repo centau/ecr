@@ -379,6 +379,8 @@ Returns a [signal](Signal) which is fired whenever the given component is added 
     function Registry:added<T>(component: T): Signal<Registry, Entity, T>
     ```
 
+    > ⚠️ Removing a component of a given type from within a listener connected to the same type will result in *undefined behavior*.
+
 ---
 
 ### changed()
@@ -390,6 +392,8 @@ Returns a [signal](Signal) which is fired whenever the given component's value i
     ```lua
     function Registry:changed<T>(component: T): Signal<Registry, Entity, T>
     ```
+
+    > ⚠️ Removing a component of a given type from within a listener connected to the same type will result in *undefined behavior*.
 
 ---
 
@@ -407,7 +411,8 @@ Returns a [signal](Signal) which is fired whenever the given component is being 
 
     The signal is fired *before* the component is actually removed. You can retrieve the component value within the signal listener.
 
-    > ⚠️ Manually removing the component within the signal listener will result in *undefined behavior*.
+    > ⚠️ Adding or removing a component of a given type from within a listener connected to the same type will result in
+    > *undefined behavior*. This type of listener is intended to allow users to perform cleanup and nothing else.
 
 
 ---

@@ -6,7 +6,7 @@ plugins:
   - jekyll-include-cache
 minimal_mistakes_skin: dark
 
-include: [api, docs]
+include: [api, tut]
 
 # customization settings
 subtitle: v0.2.0
@@ -16,7 +16,7 @@ baseurl: /ecr
 url: http://centau.github.io
 repository: centau/ecr
 logo: /assets/images/logo.svg
-breadcrumbs: true
+breadcrumbs: false
 search: true
 lunr:
   search_within_pages: true
@@ -34,9 +34,9 @@ defaults:
       toc_sticky: true
       sidebar:
         nav: api
-  # docs
+  # tut
   - scope:
-      path: /docs/*
+      path: /tut/*
       type: pages
     values:
       layout: single
@@ -45,4 +45,4 @@ defaults:
       toc_icon: list
       toc_sticky: true
       sidebar:
-        nav: docs
+        nav: tut
