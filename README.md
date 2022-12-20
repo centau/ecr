@@ -1,13 +1,9 @@
 <div align="center">
-    <img src="docs/assets/images/logo.svg" width="500" />
-    <br><br>
-    A fast entity component system for Luau.
+    <h3>
+        <font size = "+2">A fast ECS library for Luau.</font>
+        <br><br>
+        <a style="text-decoration: none" href="https://centau.github.io/ecr/"><strong>Get started</strong></a>
+        <br><br><br>
+        <img src="docs/assets/images/logo.svg" width="500" />
+    </h3>
 </div>
-
-<br>
-
-`ECR` is a pure, lightweight Luau library designed for the ECS architecture.
-
-This library covers the *entity* and the *component* in ECS - the *system* is left up to the user.
-
-[**Find out more &rarr;**](https://centau.github.io/ecr)
