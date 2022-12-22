@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Added
+
+- Overload for `Registry:create()` to create an entity with a given identifier.
+
+### Changed
+
+- Method `Registry:entities()` now creates and returns an array of only valid entities.
+
+- Method `ecr.registry()` can no longer pre-allocate memory.
+
+### Removed
+
+- Method `Registry:capacity()`.
+
 ### Improved
 
 - Double-type view iteration speed by ~100%.
