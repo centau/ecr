@@ -13,7 +13,7 @@ local E, F, G, H = ecr.component(), ecr.component(), ecr.component(), ecr.compon
 do TITLE "Entity creation and release"
     BENCH("Entity creation", function()
         local N = 1e6
-        local reg = ecr.registry(N)
+        local reg = ecr.registry()
 
         for i = 1, START(N) do
             reg:create()
@@ -31,7 +31,7 @@ do TITLE "Entity creation and release"
 
     BENCH("Entity release", function()
         local N = 1e6
-        local reg = ecr.registry(N)
+        local reg = ecr.registry()
 
         local id = table.create(N)
 
@@ -43,13 +43,30 @@ do TITLE "Entity creation and release"
             reg:release(id[i])
         end
     end)
+
+    BENCH("Entity creation with desired id", function()
+        local N = 1e6
+        local sreg = ecr.registry()
+        
+        local id = table.create(N)
+
+        for i = 1, N do
+            id[i] = sreg:create()
+        end
+
+        local reg = ecr.registry()
+
+        for i = 1, START(N) do
+            reg:create(id[i])
+        end
+    end)
 end
 
 do TITLE "Adding components"
     local N = 1e6
 
     local function setup()
-        local reg = ecr.registry(N)
+        local reg = ecr.registry()
         local ids = table.create(N)
         for i = 1, N do
             ids[i] = reg:create()
@@ -93,7 +110,7 @@ do TITLE "Setting components"
     local N = 1e6
 
     local function setup()
-        local reg = ecr.registry(N)
+        local reg = ecr.registry()
         local ids = table.create(N)
         for i = 1, N do
             ids[i] = reg:create()
@@ -189,7 +206,7 @@ do TITLE "Patching components"
     local N = 1e6
 
     local function setup()
-        local reg = ecr.registry(N)
+        local reg = ecr.registry()
         local ids = table.create(N)
         for i = 1, N do
             local e = reg:create()
@@ -258,7 +275,7 @@ end
 do TITLE "Has components"
     local N = 1e6
 
-    local reg = ecr.registry(N)
+    local reg = ecr.registry()
     local ids = table.create(N)
 
     for i = 1, N do
@@ -293,7 +310,7 @@ end
 do TITLE("Getting components")
     local N = 1e6
 
-    local reg = ecr.registry(N)
+    local reg = ecr.registry()
     local ids = table.create(N)
 
     for i = 1, N do
@@ -341,7 +358,7 @@ do TITLE("Removing components")
     local N = 1e6
 
     local function setup()
-        local reg = ecr.registry(N)
+        local reg = ecr.registry()
         local ids = table.create(N)
         for i = 1, N do
             local e = reg:create()
@@ -410,7 +427,7 @@ do TITLE "Clear components"
     local N = 1e6
 
     local function setup()
-        local reg = ecr.registry(N)
+        local reg = ecr.registry()
         local ids = table.create(N)
         for i = 1, N do
             local e = reg:create()
@@ -520,7 +537,7 @@ do
     end
 
     do TITLE("View all entities with ordered components")
-        local reg = ecr.registry(N)
+        local reg = ecr.registry()
 
         for i = 1, N do
             local entity = reg:create()
@@ -538,7 +555,7 @@ do
     end
 
     do TITLE("View all entities with random components (50% distr.)")
-        local reg = ecr.registry(N)
+        local reg = ecr.registry()
 
         local function flip() return math.random() > 0.5 end
 
@@ -564,7 +581,7 @@ do
             This guarantees that when iterating over this 8th component, all
             entities iterated will also contain the other 7.
         ]]
-        local reg = ecr.registry(N)
+        local reg = ecr.registry()
 
         local function flip() return math.random() > 0.5 end
 
@@ -681,7 +698,7 @@ end
 do TITLE("Valid and version checking")
     BENCH("registry::valid", function()
         local N = 1e6
-        local reg = ecr.registry(N)
+        local reg = ecr.registry()
         local entities = table.create(N)
         for i = 1, N do
             entities[i] = reg:create()
@@ -696,7 +713,7 @@ do TITLE("Valid and version checking")
 
     BENCH("registry::version", function()
         local N = 1e6
-        local reg = ecr.registry(N)
+        local reg = ecr.registry()
         local entities = table.create(N)
         for i = 1, N do
             entities[i] = reg:create()
@@ -713,7 +730,7 @@ end
 do TITLE ("Registry signals")
     local N = 1e6
 
-    local reg = ecr.registry(N)
+    local reg = ecr.registry()
     local entities = table.create(N)
 
     for i = 1, N do

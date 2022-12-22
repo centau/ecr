@@ -119,6 +119,71 @@ TEST("registry:create()", function()
             cache[entity] = true
         end
     end
+
+    do CASE "tmp"
+        local entities = {}
+
+        local sreg = ecr.registry()
+
+        local e1 = sreg:create()
+        local e2 = sreg:create()
+        local e3 = sreg:create()
+        local e4 = sreg:create()
+
+        local reg = ecr.registry()
+
+        reg:create(e2)
+
+        reg:create(e1)
+
+        for i = 1, N do
+            CHECK(reg:valid(e1))
+            CHECK(reg:valid(e1))
+            CHECK(reg:valid(e1))
+
+        end
+    end
+
+    do CASE "Create entity with identifier"
+        local entities = {}
+
+        local sreg = ecr.registry()
+
+        for i = 1, N do
+            entities[i] = sreg:create()   
+        end
+
+        local reg = ecr.registry()
+
+        local mixed = table.clone(entities)
+        for i = 1, N do
+            local a = math.random(1, N)
+            local b = math.random(1, N)
+            mixed[a], mixed[b] = mixed[b], mixed[a]
+        end
+
+        for i = 1, N do
+            reg:create(mixed[i])
+        end
+
+        for i = 1, N do
+            CHECK(reg:valid(entities[i]))
+        end
+    end
+
+    do CASE "Error if identifier is already in use"
+        local sreg = ecr.registry()
+        local e1 = sreg:create()
+
+        local reg = ecr.registry()
+        reg:create()
+
+        local ok = pcall(function()
+            reg:create(e1)
+        end)
+
+        CHECK(not ok)
+    end
 end)
 
 TEST("registry:release()", function()
@@ -181,6 +246,8 @@ TEST("registry:version()", function()
     do CASE "Version overflow"
         local reg2 = ecr.registry()
         local MAX_VER = 2^33 - 1
+        
+        reg2:release( reg2:create() ); -- ensure id exists
 
         (reg2 :: any):setEntityVersion(1, MAX_VER)
 
@@ -440,7 +507,7 @@ TEST("registry:destroy()", function()
 end)
 
 TEST("registry:size()", function()
-    local reg = ecr.registry(100) -- check if preallocating will cause problems
+    local reg = ecr.registry()
 
     do CASE "Initial registry size is 0"
         CHECK(reg:size() == 0)
@@ -471,10 +538,43 @@ TEST("registry:size()", function()
     end
 end)
 
+TEST("registry:entities()", function()
+    local N = 1e3
+
+    local reg = ecr.registry()
+
+    local entities = {}
+
+    for i = 1, N do
+        entities[i] = reg:create()
+    end
+
+    for i = 1, N do
+        if math.random() > 0.5 then
+            reg:destroy(entities[i])
+            entities[i] = nil
+        end
+    end
+
+    do CASE "All entities are valid"
+        local list = reg:entities()
+
+        local map = {}
+
+        for _, entity in list do
+            map[entity] = true
+        end
+
+        for _, entity in entities do
+            CHECK(map[entity])
+        end
+    end
+end)
+
 TEST("registry:view()", function()
     local N = 1e3
 
-    local reg = ecr.registry(N)
+    local reg = ecr.registry()
 
     local entities = {}
     local As = {}
@@ -762,7 +862,7 @@ end)
 TEST("registry:track()", function()
     local N = 1e3
 
-    local reg = ecr.registry(N)
+    local reg = ecr.registry()
     local trackerA = reg:track(A)
     local trackerAB = reg:track(A, B)
     local trackerABincC = reg:track(A, B):include(C)

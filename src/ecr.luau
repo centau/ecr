@@ -17,7 +17,8 @@ type EntityId = number
 export type Entity = EntityId
 
 export type Registry = {
-    create: (Registry) -> Entity,
+    create: 
+        ( (Registry, Id: Entity?) -> Entity ),
     release: (Registry, entity: Entity) -> (),
     destroy: (Registry, entity: Entity) -> (),
 
@@ -35,7 +36,6 @@ export type Registry = {
     remove: <T...>(Registry, entity: Entity, T...) -> (),
 
     size: (Registry) -> number,
-    capacity: (Registry) -> number,
     clear: <T...>(Registry, T...) -> (),
 
     view: <T...>(Registry, T...) -> View<T...>,
@@ -655,23 +655,12 @@ end :: (<T>(default: () -> T) -> T) & (() -> unknown)
 -- Registry
 ----------------------------------------------------------------------
 
-local function createRegistry(cap: number?): Registry
-    local capacity = cap or 1
-
+local function createRegistry(): Registry
     local registry = {} :: any
 
     local size = 0
     local freeKey = INVALID
-    local ids = table.create(capacity) :: vector<EntityId>
-
-    do -- initialize ids
-        table.clear(ids)
-        for i = 1, capacity - 1 do
-            ids[i] = id_encode(i + 1, INITIAL_VERSION)
-        end
-        ids[capacity] = id_encode(INVALID, INITIAL_VERSION)
-        freeKey = 1
-    end
+    local ids = table.create(1) :: vector<EntityId>
 
     local cpools: map<ComponentId, Pool<unknown>> = table.create(componentN)
 
@@ -720,28 +709,70 @@ local function createRegistry(cap: number?): Registry
     setmetatable(cpools, {
         __index = function(self, component: ComponentId): Pool<unknown>
             lassert(type(component) == "number", "invalid component type")
-            local pool = pool_create(capacity)
+            local pool = pool_create(1)
             self[component] = pool
             return pool
         end
     })
 
-    function registry:create(): EntityId
-        local n = size + 1
-        if n > id_MAX_KEY then error("cannot create entity; registry is at max entity count ("..id_MAX_KEY..")", 2) end
-
-        local free = freeKey
+    local function create(ids: vector<EntityId>, free: number, size: number): EntityId
         if free ~= INVALID then
             local newid, nextFree = id_rekey(ids[free], free)
-            size = n
             freeKey = nextFree
             ids[free] = newid
             return newid
         else
-            local newid = id_encode(n, INITIAL_VERSION)
-            size = n
-            ids[n] = newid
+            local newid = id_encode(size, INITIAL_VERSION)
+            ids[size] = newid
             return newid
+        end  
+    end
+
+    local function createWith(id: EntityId, ids: vector<EntityId>, free: number, size: number): EntityId
+        local key = id_key(id)
+
+        local n = #ids
+
+        if key > n + 1 then -- if ids have not been created yet
+            for i = n+1, key-2 do
+                ids[i] = id_encode(i + 1, INITIAL_VERSION)
+            end
+            ids[key-1] = id_encode(free, INITIAL_VERSION)
+            freeKey = n+1
+        elseif key <= n then -- if id has been created before
+            lassert(free ~= INVALID and id_key(ids[key]) ~= key, "could not create entity with the given identifier")   
+
+            if free == key then -- if desired id is at head
+                local nextFree = id_key(ids[free])
+                freeKey = nextFree
+            else -- desired id is somewhere along list
+                local previous = free
+                while true do -- find element before desired id
+                    local next = id_key(ids[previous])
+                    if next == key then break end
+                    previous = next
+                end
+
+                ids[previous] = id_rekey(ids[previous], id_key(ids[key]))
+            end
+        end
+
+        ids[key] = id -- set desired id
+
+        return id
+    end
+
+    function registry:create(entity: EntityId?): EntityId
+        local n = size + 1
+        if n > id_MAX_KEY then error("cannot create entity; registry is at max entity count ("..id_MAX_KEY..")", 2) end
+        size = n
+
+        local free = freeKey
+
+        if entity == nil then
+            return create(ids, free, n)
+        else
+            return createWith(entity, ids, free, n)
         end
     end
 
@@ -884,10 +915,6 @@ local function createRegistry(cap: number?): Registry
         return size
     end
 
-    function registry:capacity(): number
-        return capacity
-    end
-
     function registry:clear(...: ComponentId)
         local argn = select("#", ...)
         if argn > 0 then
@@ -909,7 +936,15 @@ local function createRegistry(cap: number?): Registry
     end
 
     function registry:entities(): vector<EntityId>
-        return ids
+        local entities = table.create(size)
+
+        for i, id in next, ids do
+            if id_key(id) == i then
+                table.insert(entities, id)
+            end
+        end
+
+        return entities
     end
 
     function registry:storage(component: ComponentId): Pool<unknown>

@@ -13,6 +13,7 @@ Creates a new entity and returns the entity's identifier.
 
     ```lua
     function Registry:create(): Entity
+    function Registry:create(id: Entity): Entity
     ```
 
 - **Details**
@@ -23,7 +24,9 @@ Creates a new entity and returns the entity's identifier.
     overall identifier unique.
 
     The version can be incremented to a max value of `2^33 - 1` before it will overflow and reset back to 1.
-    This means that ids returned are guaranteed to be unique unless a key has been reused `8,589,934,592` times.
+    This means that ids returned are guaranteed to be unique unless a key has been reused `8,589,934,592` times or an old ID was given as an argument.
+
+    Can specify a pre-existing entity ID to use. Will error if the registry is unable to create a new entity with the given ID.
 
 ---
 
@@ -321,29 +324,26 @@ Creates an [`observer`](Observer) which tracks any changes that happen for a giv
 
 ---
 
+### size()
+
+Returns the current amount of entities in the registry.
+
+- **Type**
+
+    ```lua
+    function Registry:size(): number
+    ```
+
+---
+
 ### entities()
 
-Direct access to the list of entities in a registry.
+Creates an array with all valid entities in the registry.
 
 - **Type**
 
     ```lua
     function Registry:entities(): Array<Entity>
-    ```
-
-- **Details**
-
-    This list contains both valid and released entities.
-
-    Modifying this array will cause *undefined behavior*.
-
-- **Example**
-
-    ```lua
-    for i, entity in registry:entities() do
-        if not registry:valid(entity) then continue end
-        print(entity, "is a valid entity")
-    end
     ```
 
 ---
