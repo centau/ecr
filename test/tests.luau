@@ -857,181 +857,114 @@ TEST("registry:removing()", function()
     end
 end)
 
-
--- TODO: revise tests
 TEST("registry:track()", function()
     local N = 1e3
 
     local reg = ecr.registry()
-    local trackerA = reg:track(A)
-    local trackerAB = reg:track(A, B)
-    local trackerABincC = reg:track(A, B):include(C)
-    local trackerAincBexcC = reg:track(A):include(B):exclude(C)
 
-    local entities = {}
+    local changedA = reg:track(A)
+    local changedABC = reg:track(A)
+    local changedAincBexcC = reg:track(A):include(B):exclude(C)
+
     local As = {}
-    local Bs = {}
-    local Cs = {}
-
     local ABCs = {}
-    local ABs = {}
-    local ABnotCs = {}
+    local AincBexcCs = {}
 
     local function flip() return math.random() > 0.3 end
 
-    -- setup components
-    -- each component is given the value of the entity its assigned to
-    -- to check that the correct components are returned for a given entity
     for i = 1, N do
         local e = reg:create()
-        entities[i] = e
+  
         local hasA, hasB, hasC = false, false, false
         if flip() then reg:set(e, C, e); hasC = true end
         if flip() then reg:set(e, B, e); hasB = true end
         if flip() then reg:set(e, A, e); hasA = true end
 
         if hasA then table.insert(As, e) end
-        if hasB then table.insert(Bs, e) end
-        if hasC then table.insert(Cs, e) end
-
         if hasA and hasB and hasC then table.insert(ABCs, e) end
-        if hasA and hasB then table.insert(ABs, e) end
-        if hasA and hasB and not hasC then table.insert(ABnotCs, e) end
+        if hasA and hasB and not hasC then table.insert(AincBexcCs, e) end
     end
 
-    do CASE "Initial data treated as changed"
-        do
-            local tracker = reg:track(A)
-            local viewed = {}
-            for entity, value in tracker:each() do
-                viewed[entity] = value
-            end
+    do CASE "Initial components treated as changed"
+        local changed = reg:track(A)
 
-            CHECK((next(viewed)))
-
-            for i, entity in As do
-                CHECK(viewed[entity])
-                CHECK(viewed[entity] == entity)
-            end
-        end
-        do
-            local tracker = reg:track(A, B)
-            local viewed = {}
-            for entity, value in tracker:each() do
-                viewed[entity] = value
-            end
-
-            CHECK((next(viewed)))
-
-            for i, entity in ABs do
-                CHECK(viewed[entity])
-                CHECK(viewed[entity] == entity)
-            end
-        end
-    end
-
-    do CASE "Track A for entities with B"
         local viewed = {}
 
-        for entity, a, b in trackerAB:each() do
-            viewed[entity] = { a = a, b = b }
+        for entity, value in changed:each() do
+            viewed[entity] = value
         end
 
         CHECK((next(viewed)))
 
-        for _, entity in ABs do
-            local v = viewed[entity]
-            CHECK(v)
-            if not v then continue end
-            CHECK(v.a == entity)
-            CHECK(v.b == entity)
+        for _, entity in As do
+            CHECK(viewed[entity])
         end
     end
 
-    do CASE "Track A for entities with B excluding C"
+    do CASE "A tracked"
         local viewed = {}
 
-        for entity, a, b in trackerABincC do
-            viewed[entity] = { a = a, b = b }
+        for entity, value in changedA:each() do
+            viewed[entity] = value
+        end
+
+        CHECK((next(viewed)))
+
+        for _, entity in As do
+            CHECK(viewed[entity])
+        end
+    end
+
+    do CASE "ABCs tracked"
+        local viewed = {}
+
+        for entity, value in changedABC:each() do
+            viewed[entity] = value
         end
 
         CHECK((next(viewed)))
 
         for _, entity in ABCs do
-            local v = viewed[entity]
-            CHECK(v)
-            if not v then continue end
-            CHECK(v.a == entity)
-            CHECK(v.b == entity)
+            CHECK(viewed[entity])
         end
     end
 
-    do CASE "Track a for entities including b excluding C"
+    do CASE "A including B excluding Cs tracked"
         local viewed = {}
 
-        for entity, a in trackerAincBexcC do
-            viewed[entity] = a
+        for entity, value in changedAincBexcC:each() do
+            viewed[entity] = value
         end
 
         CHECK((next(viewed)))
 
-        for _, entity in ABnotCs do
-            local v = viewed[entity]
-            CHECK(v)
-            if not v then continue end
-            CHECK(v == entity)
+        for _, entity in AincBexcCs do
+            CHECK(viewed[entity])
         end
     end
 
-    do CASE "Clear tracker"
-        trackerA:clear()
-        for _ in trackerA:each() do
-            CHECK(false) -- check this loop does not run
-        end
-        CHECK(true)
-    end
-
-    do CASE "Tracker tracks future changes"
-       local changed = {}
-       for _, entity in entities do
-            if flip() then
-                reg:set(entity, A, 0)
-                changed[entity] = 0    
-            end
-       end
-
-       local tracked = {}
-       for entity, value in trackerA:each() do
-            tracked[entity] = value
-       end
-
-       CHECK((next(tracked)))
-
-       for entity, value in changed do
-            CHECK(tracked[entity])
-            CHECK(tracked[entity] == value)
-       end
-    end
-
-    do CASE "Track removal"
-        trackerA:clear()
-
+    do CASE "Removed components are not returned"
         local removed = {}
 
-        for i, entity in As do
-            if math.random() > 0.5 then continue end
-            table.insert(removed, As[i])
-            reg:remove(As[i], A)  
+        for _, entity in As do
+            if flip() then
+                reg:remove(entity, A)
+                removed[entity] = true
+            end
         end
 
-        local viewed = {}
-        for entity in trackerA:each() do
-            viewed[entity] = true
-        end
+        CHECK((next(removed)))
 
-        for _, rentity in removed do
-            CHECK(viewed[rentity])
+        for entity in changedA:each() do
+            CHECK(not removed[entity])
         end
+    end
+
+    do CASE "Clear observer"
+        changedA:clear()
+
+        CHECK(true)
+        for _ in changedA:each() do CHECK(false) end
     end
 end)
 
