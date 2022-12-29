@@ -39,7 +39,7 @@ export type Registry = {
     clear: <T...>(Registry, T...) -> (),
 
     view: <T...>(Registry, T...) -> View<T...>,
-    track: <T, U...>(Registry, T, U...) -> Observer<(T?, U...)>,
+    track: <T, U...>(Registry, T, U...) -> Observer<(T, U...)>,
 
     entities: <T>(Registry) -> vector<EntityId>,
     storage: <T>(Registry, component: T) -> Pool<T>,
@@ -205,9 +205,9 @@ local function pool_set<T>(self: Pool<T>, k: number, entity: EntityId, v: T)
 end
 
 -- change value for key (undefined if key is not in pool)
--- local function pool_change<T>(self: Pool<T>, k: number, v: T)
---     self.values[self.map[k] :: number] = v
--- end
+local function pool_change<T>(self: Pool<T>, k: number, v: T)
+    self.values[self.map[k] :: number] = v
+end
 
 -- removes key from pool (does nothing if already not in pool)
 local function pool_remove<T>(self: Pool<T>, k: number)
@@ -523,31 +523,35 @@ local View, Observer do
         local tuple = table.create(#targets + 1)
 
         local iu = pool_size(changed)
-        return function()
-            local i = iu
-            while i > 0 do
-                local entity = entities[i]
-                local key = id_key(entity)
+        return if #targets == 0 and not includes and not excludes then function()
+                local i = iu; iu = i - 1
 
-                if 
-                    includes and not hasAll(includes, key) or
-                    excludes and not hasNone(excludes, key)
-                then i -= 1; continue end
+                return entities[i], values[i]
+            end else function()
+                local i = iu
+                while i > 0 do
+                    local entity = entities[i]
+                    local key = id_key(entity)
 
-                tuple[1] = values[i]
-                local missing = false
-                for ii, target in next, targets do
-                    local index = pool_has(target, key) :: number
-                    if index == nil then missing = true; break end
-                    tuple[ii + 1] = pool_getIndex(target, index)
+                    if 
+                        includes and not hasAll(includes, key) or
+                        excludes and not hasNone(excludes, key)
+                    then i -= 1; continue end
+
+                    tuple[1] = values[i]
+                    local missing = false
+                    for ii, target in next, targets do
+                        local index = pool_has(target, key) :: number
+                        if index == nil then missing = true; break end
+                        tuple[ii + 1] = pool_getIndex(target, index)
+                    end
+                    if missing then i -= 1; continue end
+
+                    iu = i - 1
+                    return entity, unpack(tuple)
                 end
-                if missing then i -= 1; continue end
-
-                iu = i - 1
-                return entity, unpack(tuple)
+                return nil :: any
             end
-            return nil :: any
-        end
     end
 
     function Observer.disconnect(self: _Observer)
@@ -560,23 +564,24 @@ local View, Observer do
 
     function Observer.reconnect(self: _Observer)
         assert(not self.connections, "observer already connected")
-        
-        local listener: (reg: Registry, entity: EntityId, value: unknown) -> ()
 
         local changed = self.changed
-
-        function listener(_, entity, value)
-            local key = id_key(entity)
-            pool_set(changed, key, entity, value)
-        end
 
         local reg = self.registry
         local toTrack = self.tracking
 
         self.connections = {
-            reg:added(toTrack):connect(listener),
-            reg:changed(toTrack):connect(listener),
-            reg:removing(toTrack):connect(listener)
+            reg:added(toTrack):connect(function(_, entity, value)
+                pool_add(changed, id_key(entity), entity, value)
+            end),
+
+            reg:changed(toTrack):connect(function(_, entity, value)
+                pool_change(changed, id_key(entity), value)
+            end),
+
+            reg:removing(toTrack):connect(function(_, entity)
+                pool_remove(changed, id_key(entity))  
+            end)
         }
     end
 
