@@ -365,7 +365,7 @@ Returns a [signal](Signal) which is fired whenever the given component is added 
 - **Type**
 
     ```lua
-    function Registry:added<T>(component: T): Signal<Registry, Entity, T>
+    function Registry:added<T>(component: T): Signal<Entity, T>
     ```
 
     > ⚠️ Removing a component of a given type from within a listener connected to the same type will result in *undefined behavior*.
@@ -379,7 +379,7 @@ Returns a [signal](Signal) which is fired whenever the given component's value i
 - **Type**
 
     ```lua
-    function Registry:changed<T>(component: T): Signal<Registry, Entity, T>
+    function Registry:changed<T>(component: T): Signal<Entity, T>
     ```
 
     > ⚠️ Removing a component of a given type from within a listener connected to the same type will result in *undefined behavior*.
@@ -393,7 +393,7 @@ Returns a [signal](Signal) which is fired whenever the given component is being 
 - **Type**
 
     ```lua
-    function Registry:removing<T>(component: T): Signal<Registry, Entity, nil>
+    function Registry:removing<T>(component: T): Signal<Entity, nil>
     ```
 
 - **Details**

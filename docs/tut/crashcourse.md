@@ -180,9 +180,8 @@ registry:removing(component):connect(callback)
 
 All three callbacks are called with:
 
-1. The registry the entity belongs to.
-2. The entity whose component is being changed.
-3. The new component value (always `nil` in the case of `removing`).
+1. The entity whose component is being changed.
+2. The new component value (always `nil` in the case of `removing`).
 
 `added` and `changed` are fired *after* the component is set.
 

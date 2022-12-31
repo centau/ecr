@@ -731,11 +731,11 @@ TEST("registry:added()", function()
     local e = reg:create()
 
     -- runcount, reg, entity, value
-    local cc, cr, ce, cv = 0, nil, nil, nil
+    local cc, ce, cv = 0, nil, nil
 
     local function fn(...)
         cc += 1
-        cr, ce, cv = ...
+        ce, cv = ...
     end
 
     local con = reg:added(A):connect(fn)
@@ -743,7 +743,6 @@ TEST("registry:added()", function()
     CASE "Adding triggers"
     reg:set(e, A, true)
     CHECK(cc == 1)
-    CHECK(cr == reg)
     CHECK(ce == e)
     CHECK(cv == true)
 
@@ -768,11 +767,11 @@ TEST("registry:changed()", function()
     local reg = ecr.registry()
     local e = reg:create()
 
-    local cc, cr, ce, cv = 0, nil, nil, nil
+    local cc, ce, cv = 0, nil, nil
 
     local function fn(...)
         cc += 1
-        cr, ce, cv = ...
+        ce, cv = ...
     end
 
     local con = reg:changed(A):connect(fn)
@@ -784,7 +783,6 @@ TEST("registry:changed()", function()
     CASE "Changing triggers"
     reg:set(e, A, false)
     CHECK(cc == 1)
-    CHECK(cr == reg)
     CHECK(ce == e)
     CHECK(cv == false)
 
@@ -805,12 +803,12 @@ TEST("registry:removing()", function()
         local reg = ecr.registry()
         local e = reg:create()
 
-        local cc, cr, ce, cv, lv = 0, nil, nil, nil, nil
+        local cc, ce, cv, lv = 0, nil, nil, nil
 
         local function fn(...)
             cc += 1
             lv = reg:get(e, A) -- get current value
-            cr, ce, cv = ...
+            ce, cv = ...
         end
 
         local con = reg:removing(A):connect(fn)
@@ -820,7 +818,6 @@ TEST("registry:removing()", function()
         CASE "Removing triggers"
         reg:set(e, A, nil)
         CHECK(cc == 1)
-        CHECK(cr == reg)
         CHECK(ce == e)
         CHECK(cv == nil)
         CHECK(lv == true)
@@ -845,7 +842,7 @@ TEST("registry:removing()", function()
 
         local cache = {}
 
-        reg:removing(A):connect(function(reg, entity)
+        reg:removing(A):connect(function(entity)
             cache[entity] = true
         end)
 

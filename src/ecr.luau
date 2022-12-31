@@ -44,9 +44,9 @@ export type Registry = {
     entities: <T>(Registry) -> vector<EntityId>,
     storage: <T>(Registry, component: T) -> Pool<T>,
 
-    added: <T>(Registry, component: T) -> Signal<Registry, EntityId, T>,
-    changed: <T>(Registry, component: T) -> Signal<Registry, EntityId, T>,
-    removing: <T>(Registry, component: T) -> Signal<Registry, EntityId, T>,
+    added: <T>(Registry, component: T) -> Signal<Entity, T>,
+    changed: <T>(Registry, component: T) -> Signal<Entity, T>,
+    removing: <T>(Registry, component: T) -> Signal<Entity, nil>,
 }
 
 export type View<T...> = typeof(setmetatable(
@@ -571,15 +571,15 @@ local View, Observer do
         local toTrack = self.tracking
 
         self.connections = {
-            reg:added(toTrack):connect(function(_, entity, value)
+            reg:added(toTrack):connect(function(entity, value)
                 pool_add(changed, id_key(entity), entity, value)
             end),
 
-            reg:changed(toTrack):connect(function(_, entity, value)
+            reg:changed(toTrack):connect(function(entity, value)
                 pool_change(changed, id_key(entity), value)
             end),
 
-            reg:removing(toTrack):connect(function(_, entity)
+            reg:removing(toTrack):connect(function(entity)
                 pool_remove(changed, id_key(entity))  
             end)
         }
@@ -669,12 +669,12 @@ local function createRegistry(): Registry
 
     local cpools: map<ComponentId, Pool<unknown>> = table.create(componentN)
 
-    local added: map<ComponentId, (Registry, EntityId, unknown) -> ()> = table.create(componentN)
-    local changed: map<ComponentId, (Registry, EntityId, unknown) -> ()> = table.create(componentN)
-    local removing: map<ComponentId, (Registry, EntityId, unknown) -> ()> = table.create(componentN)
-    local addedSignal: map<ComponentId, Signal<Registry, EntityId, unknown>> = table.create(componentN)
-    local changedSignal: map<ComponentId, Signal<Registry, EntityId, unknown>> = table.create(componentN)
-    local removingSignal: map<ComponentId, Signal<Registry, EntityId, unknown>> = table.create(componentN)
+    local added: map<ComponentId, (EntityId, unknown) -> ()> = table.create(componentN)
+    local changed: map<ComponentId, (EntityId, unknown) -> ()> = table.create(componentN)
+    local removing: map<ComponentId, (EntityId, unknown) -> ()> = table.create(componentN)
+    local addedSignal: map<ComponentId, Signal<EntityId, unknown>> = table.create(componentN)
+    local changedSignal: map<ComponentId, Signal<EntityId, unknown>> = table.create(componentN)
+    local removingSignal: map<ComponentId, Signal<EntityId, unknown>> = table.create(componentN)
 
     local function releaseAllEntities()
         local n = #ids
@@ -688,13 +688,13 @@ local function createRegistry(): Registry
     end
 
     local function fireSignal<T>(
-        signals: map<ComponentId, (Registry, EntityId, unknown) -> ()>,
+        signals: map<ComponentId, (EntityId, unknown) -> ()>,
         component: ComponentId,
         entity: EntityId,
         value: T
     )
         local fire = signals[component]
-        if fire then fire(registry, entity, value) end
+        if fire then fire(entity, value) end
     end
 
     local function clearPool(component: ComponentId)
@@ -704,7 +704,7 @@ local function createRegistry(): Registry
 
         if fire then
             for _, entity in next, pool.entities do
-                fire(registry, entity)
+                fire(entity)
             end
         end
         

@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Registry signals no longer pass the registry as the first argument to listeners.
 - Observers no longer track entities with removed components.
 - Method `Registry:entities()` now creates and returns an array of only valid entities.
 - Method `ecr.registry()` can no longer pre-allocate memory.
