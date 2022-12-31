@@ -5,6 +5,8 @@ title: Registry
 
 ## Methods
 
+> ⚠️ Using registry methods with invalid entity identifiers will result in unexpected behavior such as other entities having their components changed. When in doubt if an identifier is valid or not, use `Registry:valid()` to check.
+
 ### create()
 
 Creates a new entity and returns the entity's identifier.
@@ -45,7 +47,7 @@ Releases the entity identifier, allowing the identifier to be reused.
     > ⚠️ This method does **not** remove any of the entity's components.
     > If it is not known that an entity has components, use [`Registry:destroy()`](Registry#destroy) instead.
 
-    > ⚠️ Using this method on an entity that still has components will result in *undefined behavior*.
+    > ⚠️ Using this method on an entity that still has components will result in *unexpected behavior*.
 
 ---
 
@@ -73,7 +75,7 @@ Checks if the given entity is a valid entity identifier.
 
 - **Details**
 
-    Released identifiers are **not** valid.
+    Valid identifiers are identifiers created with `Registry:create()` that have not been released.
 
 ---
 
@@ -368,7 +370,7 @@ Returns a [signal](Signal) which is fired whenever the given component is added 
     function Registry:added<T>(component: T): Signal<Entity, T>
     ```
 
-    > ⚠️ Removing a component of a given type from within a listener connected to the same type will result in *undefined behavior*.
+    > ⚠️ Removing a component of a given type from within a listener connected to the same type will result in *unexpected behavior*.
 
 ---
 
@@ -382,7 +384,7 @@ Returns a [signal](Signal) which is fired whenever the given component's value i
     function Registry:changed<T>(component: T): Signal<Entity, T>
     ```
 
-    > ⚠️ Removing a component of a given type from within a listener connected to the same type will result in *undefined behavior*.
+    > ⚠️ Removing a component of a given type from within a listener connected to the same type will result in *unexpected behavior*.
 
 ---
 
@@ -400,8 +402,8 @@ Returns a [signal](Signal) which is fired whenever the given component is being 
 
     The signal is fired *before* the component is actually removed. You can retrieve the component value within the signal listener.
 
-    > ⚠️ Adding or removing a component of a given type from within a listener connected to the same type will result in
-    > *undefined behavior*. This type of listener is intended to allow users to perform cleanup and nothing else.
+    > ⚠️ Adding or removing a component of a given type from within a listener connected to the same type may result in
+    > *unexpected behavior*. This type of listener is intended to allow users to perform cleanup and nothing else.
 
 
 ---

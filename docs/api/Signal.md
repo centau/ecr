@@ -19,7 +19,7 @@ Connects a given function to a signal to be called whenever the signal is fired.
 
 - **Details**
 
-    New connections made within a listener callback will not be ran until the next time the signal is fired.
+    New connections made within a listener will not be ran until the next time the signal is fired.
 
 ---
 
@@ -37,6 +37,7 @@ Disconnects a listener from a signal.
 
 - **Details**
 
-    > ⚠️ Disconnecting other listeners from within a listener will result in *undefined behavior*.
+    > ⚠️ Disconnecting other listeners from within a listener may result in unexpected behavior.
+    > Disconnecting a listenener from within itself is allowed.
 
 ---
