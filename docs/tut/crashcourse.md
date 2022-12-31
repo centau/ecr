@@ -216,8 +216,6 @@ end
 
 As the observer has the same interface as views, you can also use `:include()` and `:exclude()` which follow the same rules.
 
-Observers also track component removal, in which case `nil` will be returned for the tracked component.
-
 It is important to note that the observer only returns entities once, with their latest component values, no matter how many times their tracked component has been changed since the last time the observer was cleared.
 
 ## Multithreading

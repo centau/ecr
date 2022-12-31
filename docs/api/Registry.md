@@ -270,7 +270,7 @@ Creates an [`observer`](Observer) which tracks any changes that happen for a giv
 - **Type**
 
     ```lua
-    function Registry:track<T, U...>(totrack: T, includes: U...): Observer<T?, U...>
+    function Registry:track<T, U...>(totrack: T, includes: U...): Observer<T, U...>
     ```
 
 - **Details**
@@ -283,7 +283,6 @@ Creates an [`observer`](Observer) which tracks any changes that happen for a giv
 
     1. Are assigned the component when they previously did not own it.
     2. Have the tracked component's value changed.
-    3. Have the tracked component removed (value will be returned as `nil` during iterations).
 
     An entity must have **all** components specified at the time of iteration to be returned during iteration.
 
@@ -312,14 +311,6 @@ Creates an [`observer`](Observer) which tracks any changes that happen for a giv
     -- we clear the currently recorded changes as we have no use
     -- for them anymore.
     tracker:clear()
-    
-    -- we remove the component from the entity which will also be tracked
-    registry:set(entity, Health) 
-
-    for id, health in tracker:each() do
-        print(health) -- will print nil
-    end
-    
     ```
 
 ---
