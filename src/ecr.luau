@@ -205,9 +205,9 @@ local function pool_set<T>(self: Pool<T>, k: number, entity: EntityId, v: T)
 end
 
 -- change value for key (undefined if key is not in pool)
-local function pool_change<T>(self: Pool<T>, k: number, v: T)
-    self.values[self.map[k] :: number] = v
-end
+-- local function pool_change<T>(self: Pool<T>, k: number, v: T)
+--     self.values[self.map[k] :: number] = v
+-- end
 
 -- removes key from pool (does nothing if already not in pool)
 local function pool_remove<T>(self: Pool<T>, k: number)
@@ -572,11 +572,11 @@ local View, Observer do
 
         self.connections = {
             reg:added(toTrack):connect(function(entity, value)
-                pool_add(changed, id_key(entity), entity, value)
+                pool_set(changed, id_key(entity), entity, value)
             end),
 
             reg:changed(toTrack):connect(function(entity, value)
-                pool_change(changed, id_key(entity), value)
+                pool_set(changed, id_key(entity), entity, value)
             end),
 
             reg:removing(toTrack):connect(function(entity)

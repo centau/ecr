@@ -940,6 +940,19 @@ TEST("registry:track()", function()
         end
     end
 
+    do CASE "Changed components tracked after clear"
+        changedABC:clear()
+        reg:set(ABCs[1], A, true)
+
+        local ran = false
+        for entity, value in changedABC:each() do
+            ran = true
+            CHECK(entity == ABCs[1])
+            CHECK(value == true)
+        end
+        CHECK(ran)
+    end
+
     do CASE "Removed components are not returned"
         local removed = {}
 
