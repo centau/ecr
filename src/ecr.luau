@@ -3,22 +3,19 @@
 -- v0.2.0
 ----------------------------------------------------------------------
 
-local INVALID = 0
 local INITIAL_VERSION = 1
-local MAX_ENTITIES = 0x000FFFFF -- must be a ^2 - 1
+local MAX_ENTITIES = 0x000F_FFFF -- must be one less than a power of 2
 
-assert(bit32.band(MAX_ENTITIES, 0xFFFF_FFFF) == MAX_ENTITIES, "max entities must be one less than power of 2")
+assert(bit32.band(MAX_ENTITIES + 1, MAX_ENTITIES) == 0 and MAX_ENTITIES > 0, "max entities must be one less than a power of 2")
 
-type vector<T> = { [number]: T }
-type map<T, U> = { [T]: U }
+type Array<T> = { [number]: T }
+type Map<T, U> = { [T]: U }
 
-type ComponentId = number
-type EntityId = number
-export type Entity = EntityId
+type Component = unknown
+export type Entity = number
 
 export type Registry = {
-    create: 
-        ( (Registry, Id: Entity?) -> Entity ),
+    create: (Registry, Id: Entity?) -> Entity,
     release: (Registry, entity: Entity) -> (),
     destroy: (Registry, entity: Entity) -> (),
 
@@ -29,7 +26,6 @@ export type Registry = {
     orphan: (Registry, entity: Entity) -> boolean,
     add: <T...>(Registry, entity: Entity, T...) -> (),
     set: <T>(Registry, entity: Entity, component: T, value: T?) -> (),
-    change: <T>(Registry, entity: Entity, component: T, value: T) -> (),
     patch: <T>(Registry, entity: Entity, component: T, patcher: (current: T) -> T?) -> (),
     has: <T...>(Registry, entity: Entity, T...) -> boolean,
     get: <T...>(Registry, entity: Entity, T...) -> T...,
@@ -39,9 +35,9 @@ export type Registry = {
     clear: <T...>(Registry, T...) -> (),
 
     view: <T...>(Registry, T...) -> View<T...>,
-    track: <T, U...>(Registry, T, U...) -> Observer<(T, U...)>,
+    track: <T, U...>(Registry, track: T, U...) -> Observer<(T, U...)>,
 
-    entities: <T>(Registry) -> vector<EntityId>,
+    entities: (Registry) -> Array<Entity>,
     storage: <T>(Registry, component: T) -> Pool<T>,
 
     added: <T>(Registry, component: T) -> Signal<Entity, T>,
@@ -51,12 +47,12 @@ export type Registry = {
 
 export type View<T...> = typeof(setmetatable(
     {} :: {
-        each: (View<T...>) -> () -> (EntityId, T...),
+        each: (View<T...>) -> () -> (Entity, T...),
         include: <U...>(View<T...>, U...) -> View<T...>,
         exclude: <U...>(View<T...>, U...) -> View<T...>,
     },
     {} :: {
-        __iter: (View<T...>) -> () -> (EntityId, T...),
+        __iter: (View<T...>) -> () -> (Entity, T...),
         __len: (View<T...>) -> number
     }
 ))
@@ -76,11 +72,11 @@ export type Connection = {
 }
 
 -- assert but stack trace will always start at the callsite of library functions outside of this file
-local lassert = function<T>(v: T, msg: string)
-    if v then return end
+local lassert = function<T>(v: T, msg: string): T
+    if v then return v end
 
     local stack = 1
-    
+
     while debug.info(stack, "s") == debug.info(1, "s") do
         stack += 1    
     end
@@ -94,18 +90,21 @@ end :: typeof(assert)
 
 --[[
  - entity id implementation
- -     53 bits total
+ -     53 bits total - IEEE 754
  -     upper 33 bits represents version (8,589,934,591)
  -     lower 20 bits represents key (1,048,575)
  -
  - luau numbers are 64-bit floats so bitshifting is done through multiplication by power of 2
  -
  - the key is used as an array index for pools
- - the version is used to keep the actual identifier unique.
+ - the version is used to keep the overall identifier unique when a key is reused.
 ]]
 
+local id_INVALID = 0
 local id_MASK_KEY = MAX_ENTITIES
 local id_MASK_VERSION = 2^53-1 - id_MASK_KEY
+
+assert(id_MASK_VERSION > 0)
 
 local id_LSHIFT = id_MASK_KEY + 1
 local id_RSHIFT = 1/id_LSHIFT
@@ -137,7 +136,7 @@ local function id_version(id: number): number
     return (id - bit32.band(id, id_MASK_KEY)) * id_RSHIFT
 end
 
--- returns an identifier with the same version but new key
+-- returns an identifier with the same version but different key
 local function id_rekey(id: number, key: number): (number, number) -- newid, oldkey
     local oldkey = bit32.band(id, id_MASK_KEY)
     return id - oldkey + key, oldkey
@@ -157,9 +156,9 @@ end
 
 type Pool<T> = {
     size: number,
-    map: vector<number?>,
-    entities: vector<number>,
-    values: vector<T>
+    map: Array<number?>,
+    entities: Array<number>,
+    values: Array<T>
 }
 
 local function pool_create(size: number?): Pool<any>
@@ -183,15 +182,15 @@ local function pool_get<T>(self: Pool<T>, k: number): T?
 end
 
 -- adds key, entity and value (undefined if key is already in pool)
-local function pool_add<T>(self: Pool<T>, k: number, entity: EntityId, v: T)
+local function pool_add<T>(self: Pool<T>, k: number, entity: Entity, v: T)
     local n = self.size + 1; self.size = n
     self.map[k] = n
     self.entities[n] = entity
     self.values[n] = v     
 end
 
--- adds key with given value if key is not in pool, else changes keys value
-local function pool_set<T>(self: Pool<T>, k: number, entity: EntityId, v: T)
+-- adds entity with given value if key is not in pool, else changes entities value
+local function pool_set<T>(self: Pool<T>, k: number, entity: Entity, v: T)
     local map = self.map
     local i = map[k]
     if i then
@@ -203,11 +202,6 @@ local function pool_set<T>(self: Pool<T>, k: number, entity: EntityId, v: T)
         self.values[n] = v   
     end 
 end
-
--- change value for key (undefined if key is not in pool)
--- local function pool_change<T>(self: Pool<T>, k: number, v: T)
---     self.values[self.map[k] :: number] = v
--- end
 
 -- removes key from pool (does nothing if already not in pool)
 local function pool_remove<T>(self: Pool<T>, k: number)
@@ -230,11 +224,11 @@ local function pool_size<T>(self: Pool<T>): number
     return self.size
 end
 
-local function pool_entities<T>(self: Pool<T>): vector<EntityId>
+local function pool_entities<T>(self: Pool<T>): Array<Entity>
     return self.entities
 end
 
-local function pool_values<T>(self: Pool<T>): vector<T>
+local function pool_values<T>(self: Pool<T>): Array<T>
     return self.values
 end
 
@@ -284,35 +278,35 @@ end
 ----------------------------------------------------------------------
 
 local View, Observer do
-    type _View = View<...unknown> & {
+    type _View =  {
         registry: Registry,
-        components: map<ComponentId, boolean>,
-        targets: vector<Pool<unknown>>,
-        includes: vector<Pool<unknown>>?,
-        excludes: vector<Pool<unknown>>?
+        components: Map<Component, boolean>,
+        targets: Array<Pool<unknown>>,
+        includes: Array<Pool<unknown>>?,
+        excludes: Array<Pool<unknown>>?
     }
 
     type _Observer = _View & Observer<...unknown> & {
-        tracking: ComponentId,
+        tracking: Component,
         changed: Pool<unknown>,
-        connections: vector<Connection>?   
+        connections: Array<Connection>?   
     }
 
-    local function hasNone(pools: vector<Pool<unknown>>, key: number): boolean
+    local function hasNone(pools: Array<Pool<unknown>>, key: number): boolean
         for _, pool in next, pools do
             if pool_has(pool, key) then return false end
         end
         return true
     end
     
-    local function hasAll(pools: vector<Pool<unknown>>, key: number): boolean
+    local function hasAll(pools: Array<Pool<unknown>>, key: number): boolean
         for _, pool in next, pools do
             if not pool_has(pool, key) then return false end
         end
         return true
     end
 
-    local function getSmallestPool(...: vector<Pool<unknown>>?): Pool<unknown>
+    local function getSmallestPool(...: Array<Pool<unknown>>?): Pool<unknown>
         local smallest: Pool<unknown>?
 
         for i = 1, select("#", ...) do
@@ -320,11 +314,7 @@ local View, Observer do
             if pools == nil then continue end
 
             for _, pool in next, pools do
-                if smallest then
-                    if pool_size(pool) < pool_size(smallest) then
-                        smallest = pool
-                    end
-                else
+                if not smallest or pool_size(pool) < pool_size(smallest) then
                     smallest = pool
                 end
             end
@@ -335,7 +325,7 @@ local View, Observer do
         return smallest
     end
 
-    local function include(self: _View, ...: ComponentId): _View
+    local function include(self: _View, ...: Component): _View
         if not self.includes then self.includes = {} end
         local includes = assert(self.includes)
 
@@ -352,7 +342,7 @@ local View, Observer do
         return self
     end
 
-    local function exclude(self: _View, ...: ComponentId): _View
+    local function exclude(self: _View, ...: Component): _View
         if not self.excludes then self.excludes = {} end
         local excludes = assert(self.excludes)
 
@@ -372,7 +362,7 @@ local View, Observer do
     View = {}
     View.__index = View
 
-    function View.new(reg: Registry, ...: ComponentId): View<...unknown>
+    function View.new<T...>(reg: Registry, ...: T...): View<T...>
         local argn = select("#", ...)
     
         local components, targets = {}, {}
@@ -390,15 +380,15 @@ local View, Observer do
             targets = targets,
             includes = nil,
             excludes = nil
-        }, View) :: any
+        } :: _View, View) :: any
     end
 
-    function View.__iter(self: _View): () -> (EntityId, ...unknown)
+    function View.__iter(self: _View): () -> (Entity, ...unknown)
         local targets = self.targets
         local includes = self.includes
         local excludes = self.excludes
 
-        local function single<A>(source: Pool<A>): () -> (EntityId, A)
+        local function single<A>(source: Pool<A>): () -> (Entity, A)
             local n = pool_size(source)
             local entities = pool_entities(source)
             local values = pool_values(source)
@@ -409,7 +399,7 @@ local View, Observer do
             end
         end
     
-        local function double<A, B>(a: Pool<A>, b: Pool<B>): () -> (EntityId, A, B)
+        local function double<A, B>(a: Pool<A>, b: Pool<B>): () -> (Entity, A, B)
             local na, nb = pool_size(a), pool_size(b)
     
             if na <= nb then
@@ -447,7 +437,7 @@ local View, Observer do
             end
         end
     
-        local function multi(targets: vector<Pool<unknown>>, includes: vector<Pool<unknown>>?, excludes: vector<Pool<unknown>>?)
+        local function multi(targets: Array<Pool<unknown>>, includes: Array<Pool<unknown>>?, excludes: Array<Pool<unknown>>?)
             local source = getSmallestPool(targets, includes)
     
             local n = pool_size(source)
@@ -499,19 +489,19 @@ local View, Observer do
     Observer = {}
     Observer.__index = Observer
 
-    function Observer.new(reg: Registry, toTrack: ComponentId, ...: ComponentId)
-        local self = View.new(reg, ...) :: _Observer
+    function Observer.new<T, U...>(reg: Registry, track: T, ...: U...): Observer<(T, U...)>
+        local self: _Observer = View.new(reg, track, ...) :: any
         setmetatable(self, Observer)
 
-        self.tracking = toTrack
-        self.changed = pool_clone(reg:storage(toTrack))
+        self.tracking = track
+        self.changed = pool_clone(reg:storage(track))
 
         self:reconnect()
 
-        return self
+        return self :: any
     end
 
-    function Observer.__iter(self: _Observer): () -> (EntityId, ...unknown)
+    function Observer.__iter(self: _Observer): () -> (Entity, ...unknown)
         local changed = self.changed
         local targets = self.targets
         local includes = self.includes
@@ -609,7 +599,7 @@ local createSignal: <T...>() -> (Signal<T...>, (T...) -> ()) do
         count: number
     }
 
-    type _Connection = { signal: _Signal<>, id: number? }
+    type _Connection = { signal: _Signal<...unknown>, id: number? }
 
     local Connection = {}
     Connection.__index = Connection
@@ -623,18 +613,19 @@ local createSignal: <T...>() -> (Signal<T...>, (T...) -> ()) do
     local Signal = {}
     Signal.__index = Signal
 
-    function Signal.connect<T...>(self: _Signal<T...>, listener: (T...) -> ())
+    function Signal.connect<T...>(self: _Signal<T...>, listener: (T...) -> ()): Connection
         local n = self.count + 1; self.count = n
         pool_add(self.pool, n, n, listener)
-        return setmetatable({ signal = self, id = n }, Connection)
+        return setmetatable({ signal = self, id = n }, Connection) :: any
     end
 
-    function createSignal()
-        local pool = pool_create()
-        local signal = setmetatable({ pool = pool, count = 0 }, Signal)
+    function createSignal(): (Signal<...unknown>, (...unknown) -> ())
+        local pool = pool_create(1)
+        local signal: Signal<...unknown> = setmetatable({ pool = pool, count = 0 }, Signal) :: any
 
         local listeners = pool.values
-        local function fire(...: any)
+        local function fire(...: unknown)
+            local listeners = listeners
             for i = pool_size(pool), 1, -1 do
                 listeners[i](...)
             end
@@ -649,7 +640,8 @@ end
 ----------------------------------------------------------------------
 
 local componentN = 0
-local componentDefault: map<ComponentId, ((() -> unknown)?)> = {}
+local componentDefault: Map<Component, ((() -> unknown)?)> = {}
+
 local createComponent = function(default: (() -> unknown)?): unknown
     componentN += 1
     componentDefault[componentN] = default
@@ -661,20 +653,20 @@ end :: (<T>(default: () -> T) -> T) & (() -> unknown)
 ----------------------------------------------------------------------
 
 local function createRegistry(): Registry
-    local registry = {} :: any
+    local registry = {} :: Registry
 
     local size = 0
-    local freeKey = INVALID
-    local ids = table.create(1) :: vector<EntityId>
+    local freeKey = id_INVALID
+    local ids = table.create(1) :: Array<Entity>
 
-    local cpools: map<ComponentId, Pool<unknown>> = table.create(componentN)
+    local cpools: Map<Component, Pool<unknown>> = table.create(componentN)
 
-    local added: map<ComponentId, (EntityId, unknown) -> ()> = table.create(componentN)
-    local changed: map<ComponentId, (EntityId, unknown) -> ()> = table.create(componentN)
-    local removing: map<ComponentId, (EntityId, unknown) -> ()> = table.create(componentN)
-    local addedSignal: map<ComponentId, Signal<EntityId, unknown>> = table.create(componentN)
-    local changedSignal: map<ComponentId, Signal<EntityId, unknown>> = table.create(componentN)
-    local removingSignal: map<ComponentId, Signal<EntityId, unknown>> = table.create(componentN)
+    local added: Map<Component, (Entity, unknown) -> ()> = table.create(componentN)
+    local changed: Map<Component, (Entity, unknown) -> ()> = table.create(componentN)
+    local removing: Map<Component, (Entity, unknown) -> ()> = table.create(componentN)
+    local addedSignal: Map<Component, Signal<Entity, unknown>> = table.create(componentN)
+    local changedSignal: Map<Component, Signal<Entity, unknown>> = table.create(componentN)
+    local removingSignal: Map<Component, Signal<Entity, unknown>> = table.create(componentN)
 
     local function releaseAllEntities()
         local n = #ids
@@ -682,22 +674,22 @@ local function createRegistry(): Registry
             local ver = id_version(ids[i])
             ids[i] = id_encode(i + 1, ver + 1)
         end
-        ids[n] = id_encode(INVALID, id_version(ids[n]) + 1)
+        ids[n] = id_encode(id_INVALID, id_version(ids[n]) + 1)
         freeKey = 1
         size = 0
     end
 
     local function fireSignal<T>(
-        signals: map<ComponentId, (EntityId, unknown) -> ()>,
-        component: ComponentId,
-        entity: EntityId,
+        signals: Map<Component, (Entity, unknown) -> ()>,
+        component: Component,
+        entity: Entity,
         value: T
     )
         local fire = signals[component]
         if fire then fire(entity, value) end
     end
 
-    local function clearPool(component: ComponentId)
+    local function clearPool(component: Component)
         local pool = cpools[component]
 
         local fire = removing[component]
@@ -712,16 +704,16 @@ local function createRegistry(): Registry
     end
 
     setmetatable(cpools, {
-        __index = function(self, component: ComponentId): Pool<unknown>
-            lassert(type(component) == "number", "invalid component type")
+        __index = function(self, v: unknown): Pool<unknown>
+            lassert(type(v) == "number", "invalid component type")
             local pool = pool_create(1)
-            self[component] = pool
+            self[v] = pool
             return pool
         end
     })
 
-    local function create(ids: vector<EntityId>, free: number, size: number): EntityId
-        if free ~= INVALID then
+    local function create(ids: Array<Entity>, free: number, size: number): Entity
+        if free ~= id_INVALID then
             local newid, nextFree = id_rekey(ids[free], free)
             freeKey = nextFree
             ids[free] = newid
@@ -733,7 +725,7 @@ local function createRegistry(): Registry
         end  
     end
 
-    local function createWith(id: EntityId, ids: vector<EntityId>, free: number, size: number): EntityId
+    local function createWith(id: Entity, ids: Array<Entity>, free: number, size: number): Entity
         local key = id_key(id)
 
         local n = #ids
@@ -745,7 +737,7 @@ local function createRegistry(): Registry
             ids[key-1] = id_encode(free, INITIAL_VERSION)
             freeKey = n+1
         elseif key <= n then -- if id has been created before
-            lassert(free ~= INVALID and id_key(ids[key]) ~= key, "could not create entity with the given identifier")   
+            lassert(free ~= id_INVALID and id_key(ids[key]) ~= key, "could not create entity with the given identifier")   
 
             if free == key then -- if desired id is at head
                 local nextFree = id_key(ids[free])
@@ -767,7 +759,7 @@ local function createRegistry(): Registry
         return id
     end
 
-    function registry:create(entity: EntityId?): EntityId
+    function registry:create(entity: Entity?): Entity
         local n = size + 1
         if n > id_MAX_KEY then error("cannot create entity; registry is at max entity count ("..id_MAX_KEY..")", 2) end
         size = n
@@ -781,18 +773,18 @@ local function createRegistry(): Registry
         end
     end
 
-    local function release(entity: EntityId)
+    local function release(entity: Entity)
         local key, ver = id_decode(entity)
         size -= 1
         ids[key] = id_encode(freeKey, ver < id_MAX_VERSION and ver + 1 or INITIAL_VERSION)
         freeKey = key
     end
 
-    function registry:release(entity: EntityId)
+    function registry:release(entity: Entity)
         release(entity)
     end
 
-    function registry:destroy(entity: EntityId)
+    function registry:destroy(entity: Entity)
         release(entity)
         local key = id_key(entity)
         for component, pool in next, cpools do
@@ -801,19 +793,19 @@ local function createRegistry(): Registry
         end
     end
 
-    function registry:valid(entity: EntityId): boolean
+    function registry:valid(entity: Entity): boolean
         return ids[id_key(entity)] == entity
     end
 
-    function registry:version(entity: EntityId): number
+    function registry:version(entity: Entity): number
         return id_version(entity)
     end
 
-    function registry:current(entity: EntityId): number
+    function registry:current(entity: Entity): number
         return id_version(ids[id_key(entity)])
     end
 
-    function registry:orphan(entity: EntityId): boolean
+    function registry:orphan(entity: Entity): boolean
         local key = id_key(entity)
         for _, pool in next, cpools do
             if pool_has(pool, key) then return false end
@@ -821,7 +813,7 @@ local function createRegistry(): Registry
         return true
     end
 
-    function registry:add(entity: EntityId, ...: ComponentId)
+    function registry:add<T...>(entity: Entity, ...: T...)
         local key = id_key(entity)
         for i = 1, select("#", ...) do
             local component = select(i, ...)
@@ -835,8 +827,8 @@ local function createRegistry(): Registry
         end
     end
 
-    function registry:set(entity: EntityId, component: ComponentId, value: unknown)
-        local pool = cpools[component]
+    function registry:set<T>(entity: Entity, component: T, value: T?)
+        local pool = cpools[component] :: Pool<T>
         local key = id_key(entity)
         local index = pool_has(pool, key)
         
@@ -854,8 +846,8 @@ local function createRegistry(): Registry
         end
     end
     
-    function registry:patch(entity: EntityId, component: ComponentId, patcher: (unknown) -> unknown)
-        local pool = cpools[component]
+    function registry:patch<T>(entity: Entity, component: T, patcher: (T) -> T?)
+        local pool = cpools[component] :: Pool<T>
         local key = id_key(entity)
         local index = pool_has(pool, key) :: number
         local values = pool.values
@@ -871,20 +863,20 @@ local function createRegistry(): Registry
         end
     end
 
-    function registry:has(entity: EntityId, ...: ComponentId): boolean
+    registry.has = (function(self: Registry, entity: Entity, ...: unknown): boolean
         local a, b = ...
         local key = id_key(entity)
         if b == nil then
-            return pool_has(cpools[a], key) ~= nil
+            return pool_has(cpools[a] :: Pool<unknown>, key) ~= nil
         else
             for i = 1, select("#", ...) do
-                if not pool_has(cpools[select(i, ...)], key) then return false end
+                if pool_has(cpools[select(i, ...)], key) == nil then return false end
             end
             return true
-        end
-    end
+        end  
+    end :: any) :: <T...>(self: Registry, entity: Entity, T...) -> boolean
 
-    function registry:get(entity: EntityId, ...: ComponentId): ...unknown
+    registry.get = (function(self: Registry, entity: Entity, ...: unknown): ...unknown
         local a, b, c, d, e = ...
         local key = id_key(entity)
         if b == nil then
@@ -896,15 +888,15 @@ local function createRegistry(): Registry
         elseif e == nil then
             return pool_get(cpools[a], key), pool_get(cpools[b], key), pool_get(cpools[c], key), pool_get(cpools[d], key)
         else
-            local tuple: vector<any> = { ... }
+            local tuple: Array<any> = { ... }
             for i, v in next, tuple do
                 tuple[i] = pool_get(cpools[v], key)
             end
             return unpack(tuple)
         end
-    end
+    end :: any) :: <T...>(self: Registry, entity: Entity, T...) -> T...
 
-    function registry:remove(entity: EntityId, ...: ComponentId)
+    function registry:remove<T...>(entity: Entity, ...: T...)
         local key = id_key(entity)
         for i = 1, select("#", ...) do
             local component = select(i, ...)
@@ -920,7 +912,7 @@ local function createRegistry(): Registry
         return size
     end
 
-    function registry:clear(...: ComponentId)
+    function registry:clear<T...>(...: T...)
         local argn = select("#", ...)
         if argn > 0 then
             for i = 1, argn do
@@ -932,15 +924,15 @@ local function createRegistry(): Registry
         end 
     end
 
-    function registry:view(...: ComponentId): View<...unknown>
+    function registry:view<T...>(...: T...): View<T...>
         return View.new(registry, ...)
     end
 
-    function registry:track(...: ComponentId): Observer<...unknown>
-        return Observer.new(registry, ...)
+    function registry:track<T, U...>(track: T, ...: U...): Observer<(T, U...)>
+        return Observer.new(registry, track, ...)
     end
 
-    function registry:entities(): vector<EntityId>
+    function registry:entities(): Array<Entity>
         local entities = table.create(size)
 
         for i, id in next, ids do
@@ -952,43 +944,43 @@ local function createRegistry(): Registry
         return entities
     end
 
-    function registry:storage(component: ComponentId): Pool<unknown>
-        return cpools[component]
+    function registry:storage<T>(component: T): Pool<T>
+        return cpools[component] :: Pool<T>
     end
 
-    function registry:added(component: ComponentId): Signal<unknown>
-        return addedSignal[component] or (function() 
+    function registry:added<T>(component: T): Signal<Entity, T>
+        return (addedSignal[component] or (function() 
             local signal, fire = createSignal()
             addedSignal[component] = signal
             added[component] = fire
-            return signal      
-        end)()
+            return signal
+        end)()) :: Signal<Entity, T>
     end
 
-    function registry:changed(component: ComponentId): Signal<unknown>
-        return changedSignal[component] or (function() 
+    function registry:changed<T>(component: T): Signal<Entity, T>
+        return (changedSignal[component] or (function() 
             local signal, fire = createSignal()
             changedSignal[component] = signal
             changed[component] = fire
-            return signal      
-        end)()       
+            return signal    
+        end)()) :: Signal<Entity, T>    
     end
 
-    function registry:removing(component: ComponentId): Signal<unknown>
-        return removingSignal[component] or (function() 
+    function registry:removing<T>(component: T): Signal<Entity, nil>
+        return (removingSignal[component] or (function() 
             local signal, fire = createSignal()
             removingSignal[component] = signal
             removing[component] = fire
-            return signal      
-        end)()
+            return signal
+        end)()) :: Signal<Entity, nil>
     end
 
     -- internal test method
-    function registry:setEntityVersion(key: number, ver: number)
+    (registry :: any).setEntityVersion = function(_, key: number, ver: number)
         ids[key] = id_encode(id_key(ids[key]), ver)
     end
 
-    setmetatable(registry, { __index = function(_, index)
+    setmetatable(registry :: any, { __index = function(_, index)
         error(tostring(index) .. " is not a valid member of Registry", 2)    
     end })
 
