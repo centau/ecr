@@ -363,6 +363,9 @@ TEST("registry:has()", function()
     do CASE "Has component"
         reg:set(e, A, true)
         CHECK(reg:has(e, A) == true)
+
+        reg:set(e, B, true)
+        CHECK(reg:has(e, A, B))
     end
 
     do CASE "Does not have component"
