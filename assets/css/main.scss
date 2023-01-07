@@ -1,0 +1,132 @@
+---
+search: false
+---
+
+@charset "utf-8";
+
+// site colors
+$background-color: #1a1a1b;
+$text-color: #ffffff;
+$primary-color: #ee5e0b;
+$border-color: mix(#fff, $background-color, 20%);
+$code-background-color: mix(#000, $background-color, 15%);
+$code-background-color-dark: mix(#000, $background-color, 20%);
+$form-background-color: mix(#000, $background-color, 15%);
+$footer-background-color: mix(#000, $background-color, 30%);
+$link-color: mix($primary-color, $text-color, 80%);
+$link-color-hover: mix(#fff, $link-color, 25%);
+$link-color-visited: mix(#000, $link-color, 25%);
+$masthead-link-color: $text-color;
+$masthead-link-color-hover: mix(#000, $text-color, 20%);
+$navicon-link-color-hover: mix(#000, $background-color, 30%);
+
+// codeblock colors
+$base00: #27292b; // background
+$base01: #2e3c43;
+$base02: #314549;
+$base03: #546e7a;
+$base04: #70757a; // comment
+$base05: #eeffff; // text
+$base06: #3ac5c5;
+$base07: #c02a2a;
+$base08: #f07178;
+$base09: #86d4d4; // number literal
+$base0a: #82aaff; // function definition (class)
+$base0b: #86d4d4; // string literal
+$base0c: #f7721a; // operator
+$base0d: #82aaff; // function definition (function)
+$base0e: #f7721a; // keyword
+$base0f: #ff5370;
+
+$x-large: 1680px;
+$max-width: $x-large; // max text screen width
+
+// text scales
+$type-size-1: 2.8em;
+$type-size-2: 2.5em;
+$type-size-3: 1.8em;
+$type-size-4: 1.4em;
+$type-size-5: 1.25em;
+$type-size-6: 0.9em; // codeblock text size
+$type-size-7: 0.9em;
+$type-size-8: 0.8em;
+
+// header scales
+$h-size-1: 1.8em;
+$h-size-2: 1.5em;
+$h-size-3: 1.25em;
+$h-size-4: 1.2em;
+$h-size-5: 1.1em;
+$h-size-6: 1em;
+
+@import "minimal-mistakes/skins/{{ site.minimal_mistakes_skin | default: 'default' }}";
+@import "minimal-mistakes";
+
+html {
+    font-size: 12px;
+
+    @include breakpoint($medium) {
+        font-size: 14px;
+    }
+  
+    @include breakpoint($large) {
+        font-size: 16px;
+    }
+  
+    @include breakpoint($x-large) {
+        font-size: 18px;
+    }
+}
+
+// table of contents
+.toc {
+    border: 1px solid $background-color;
+
+    .nav__title {
+        color: rgb(87, 87, 87);
+        font-size: $type-size-6;
+        background: $background-color;
+    }
+}
+
+.toc__menu {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    list-style: none;
+    font-size: $type-size-6;
+  
+    @include breakpoint($large) {
+      font-size: $type-size-7;
+    }
+  
+    a {
+        display: block;
+        padding: 0.25rem 0.75rem;
+        color: $muted-text-color;
+        font-weight: bold;
+        line-height: 1.5;
+        border-bottom: 1px solid $background-color;
+    
+        &:hover {
+            color: $text-color;
+        }
+    }
+}
+
+// topbar
+.masthead__menu-item {
+    display: l;
+    list-style-type: none;
+    white-space: nowrap;
+    font-size: $type-size-4;
+
+    &--lg {
+        padding-right: 2em;
+        font-weight: 700;
+    }
+}
+
+.site-logo img {
+    max-height: 3rem;
+}
