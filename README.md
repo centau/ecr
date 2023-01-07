@@ -4,6 +4,6 @@
         <br><br>
         <a style="text-decoration: none" href="https://centau.github.io/ecr/"><strong>Get started</strong></a>
         <br><br><br>
-        <img src="docs/assets/images/logo.svg" width="500" />
+        <img src="docs/logo.svg" width="500" />
     </h3>
 </div>
