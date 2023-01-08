@@ -26,7 +26,7 @@ export type Registry = {
     orphan: (Registry, entity: Entity) -> boolean,
     add: <T...>(Registry, entity: Entity, T...) -> (),
     set: <T>(Registry, entity: Entity, component: T, value: T?) -> (),
-    patch: <T>(Registry, entity: Entity, component: T, patcher: (current: T) -> T?) -> (),
+    patch: <T>(Registry, entity: Entity, component: T, patcher: (current: T) -> T) -> (),
     has: <T...>(Registry, entity: Entity, T...) -> boolean,
     get: <T...>(Registry, entity: Entity, T...) -> T...,
     remove: <T...>(Registry, entity: Entity, T...) -> (),
@@ -850,17 +850,15 @@ local function createRegistry(): Registry
         local pool = cpools[component] :: Pool<T>
         local key = id_key(entity)
         local index = pool_has(pool, key) :: number
-        local values = pool.values
+        if index == nil then error("entity does not own the given component", 2) end
 
+        local values = pool.values
         local value = patcher(values[index])
 
-        if value ~= nil then
-            pool.values[index] = value
-            fireSignal(changed, component, entity, value)
-        else
-            fireSignal(removing, component, entity, nil)
-            pool_eraseIndex(pool, index, key)
-        end
+        if value == nil then error("error while patching, cannot set new value as nil", 2) end
+
+        pool.values[index] = value :: T
+        fireSignal(changed, component, entity, value)
     end
 
     registry.has = (function(self: Registry, entity: Entity, ...: unknown): boolean

@@ -259,17 +259,6 @@ do TITLE "Patching components"
             end
         end)
     end
-
-    do
-        local reg, ids = setup()
-        
-        BENCH("Remove 1 existing component", function()
-            for i = 1, START(N) do
-                local e = ids[i]
-                reg:patch(e, A, function() return nil end)
-            end
-        end)
-    end
 end
 
 do TITLE "Has components"

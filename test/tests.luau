@@ -386,14 +386,6 @@ TEST("registry:patch()", function()
         end)
         CHECK(reg:get(e, A) == 1)
     end
-
-    do CASE "Remove component"
-        reg:patch(e, A, function(cur)
-            CHECK(cur == 1)
-            return nil
-        end)
-        CHECK(reg:has(e, A) == false)
-    end
 end)
 
 TEST("registry:remove()", function()
