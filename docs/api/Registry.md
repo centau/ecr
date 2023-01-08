@@ -20,21 +20,20 @@ Creates a new entity and returns the entity's identifier.
 
 - **Details**
 
-    Identifiers are composed internally of two parts, a key and version.
+    The first `8,589,934,592` new identifiers returned are guaranteed to be unique. After this, identifiers may be reused. Be wary of using stale references in situations where this number may be exceeded.
 
-    Keys can be reused to save memory while versions will be incremented to keep the
-    overall identifier unique.
+    Can also manually specify an entity identifier to use. Will error if the registry is unable to create a new entity with the given identifier.
 
-    The version can be incremented to a max value of `2^33 - 1` before it will overflow and reset back to 1.
-    This means that ids returned are guaranteed to be unique unless a key has been reused `8,589,934,592` times or an old ID was given as an argument.
+    > ⚠️ Manually reusing an old identifier previously returned by this registry will no longer guarantee new identifiers returned to be unique.
 
-    Can specify a pre-existing entity ID to use. Will error if the registry is unable to create a new entity with the given ID.
+    > ⚠️ The total amount of entities in a registry at any given time **cannot** exceed 1,048,575.
+    > Attempting to go over this limit will throw an error.
 
 ---
 
 ### release()
 
-Releases the entity identifier, allowing the identifier to be reused.
+Releases the entity identifier, making it invalid.
 
 - **Type**
 
@@ -65,7 +64,7 @@ Releases the entity identifier and removes all of its components.
 
 ### valid()
 
-Checks if the given entity is a valid entity identifier.
+Checks if the given entity identifier is valid.
 
 - **Type**
 
@@ -75,41 +74,13 @@ Checks if the given entity is a valid entity identifier.
 
 - **Details**
 
-    Valid identifiers are identifiers created with `Registry:create()` that have not been released.
-
----
-
-### version()
-
-Probes the given identifier and returns the encoded version.
-
-- **Type**
-
-    ```lua
-    function Registry:version(entity: Entity): number
-    ```
-
----
-
-### current()
-
-Returns the current version of the given identifier.
-
-- **Type**
-
-    ```lua
-    function Registry:current(entity: Entity): number
-    ```
-
-- **Details**
-
-    Not to be confused with [`Registry:version()`](Registry#version). This method will return the latest version of the given identifer.
+    Valid identifiers are identifiers created with `Registry:create()` that have not yet been released.
 
 ---
 
 ### orphan()
 
-Checks if the given entity is an orphan (has no components).
+Checks if the given entity has any components.
 
 - **Type**
 
@@ -119,7 +90,7 @@ Checks if the given entity is an orphan (has no components).
 
 - **Details**
 
-    A entity is considered a orphan if it has no components.
+    An entity is considered a orphan if it has no components.
 
 ---
 
@@ -135,9 +106,9 @@ Adds components with default values to an entity.
 
 - **Details**
 
-    Adds the given components to the entity with default values.
+    Adds the given components to the entity with their default values.
 
-    The value assigned is the value returned by the function given when defining the component.
+    The values assigned are the values returned by the functions used to define the components.
 
     > ⚠️ Attempting to add components with this method that do not have default values will throw an error.
 
@@ -147,7 +118,7 @@ Adds components with default values to an entity.
 
 ### set()
 
-Sets an entity's component value.
+Sets an entity's component.
 
 - **Type**
 
@@ -168,12 +139,12 @@ Sets an entity's component value.
 
 ### patch()
 
-Updates an entity's component value.
+Updates an entity's component.
 
 - **Type**
 
     ```lua
-    function Registry:patch<T>(entity: Entity, component: T, patcher: (T) -> T?)
+    function Registry:patch<T>(entity: Entity, component: T, patcher: (T) -> T)
     ```
 
 - **Details**
@@ -181,9 +152,7 @@ Updates an entity's component value.
     Takes a callback which is given the current component value as the only argument.
     The value returned by the callback is then set as the new value.
 
-    If the value returned is `nil` then the component is removed from the entity.
-
-    > ⚠️ Attempting to patch a component that an entity does not have will result in *undefined behavior*.
+    > ⚠️ Attempting to patch a component that an entity does not have will throw an error.
 
 - **Example**
 
@@ -197,7 +166,7 @@ Updates an entity's component value.
 
 ### has()
 
-Checks if a entity has all of the given components.
+Checks if an entity has all of the given components.
 
 - **Type**
 
@@ -207,7 +176,7 @@ Checks if a entity has all of the given components.
 
 - **Details**
 
-    If multiple components are given, it is checked if the entity has **every** component given.
+    Will return `true` only if the entity has *every* component specified.
 
 ---
 
@@ -225,13 +194,13 @@ Gets an entity's components.
 
     Will return the value of each of the given components.
 
-    Will return `nil` if the entity does not own the component.
+    Will return `nil` if the entity does not own a component.
 
 ---
 
 ### remove()
 
-Removes the given components from an entity.
+Removes the given components from the entity.
 
 - **Type**
 
@@ -241,13 +210,13 @@ Removes the given components from an entity.
 
 - **Details**
 
-    Will do nothing if the entity does not own the given component.
+    Will do nothing if the entity does not own a component.
 
 ---
 
 ### view()
 
-Creates a [`view`](View) to see all entities with the specified components.
+Creates a [`view`](View) for all entities with the specified components.
 
 - **Type**
 
@@ -259,67 +228,39 @@ Creates a [`view`](View) to see all entities with the specified components.
 
     Creates a new view with the given components.
 
-    Entities in the view are guaranteed to have *at least all* of the specified components.
-
-    Views are relatively cheap to create so it is encouraged to construct and throw them away after iteration on the fly.
+    Entities in the view are guaranteed to have *at least all* of the given components.
 
 ---
 
 ### track()
 
-Creates an [`observer`](Observer) which tracks any changes that happen for a given component.
+Creates an [`observer`](Observer) which tracks any changes that occur for a given component.
 
 - **Type**
 
     ```lua
-    function Registry:track<T, U...>(totrack: T, includes: U...): Observer<T, U...>
+    function Registry:track<T, U...>(toTrack: T, includes: U...): Observer<T, U...>
     ```
 
 - **Details**
 
-    Observers are used to track changes that happen to a given component and grants control over when to track, stop tracking and start tracking again.
-
-    Only changes made to the first argument specified are tracked, subsequent arguments are only included when iterating just like a `View`.
+    Only changes made to the component as the first argument are tracked, subsequent arguments are only included when iterating just like a `View`.
 
     The observer will return entities that:
 
     1. Are assigned the component when they previously did not own it.
-    2. Have the tracked component's value changed.
+    2. Have the component's value changed.
+    3. Have all other components specified at the time of iteration.
 
-    An entity must have **all** components specified at the time of iteration to be returned during iteration.
-
-    A history of changes is not kept, the observer will only return entities whose tracked components have been changed with their latest values.
-
-    When an observer is first created, it treats all current entities with the given component in the registry as newly changed.
+    When an observer is first created, it treats all current entities with the given components in the registry as newly changed.
 
     > ⚠️ After iterating over an observer and processing the changes, call [`Observer:clear()`](Observer#clear) to clear all changes so you do not reprocess the same changes again.
-
-- **Example**
-
-    ```lua
-    local Health = ecr.component() :: number
-    
-    local tracker = registry:track(Health)
-    local entity = registry:create()
-    
-    -- when the entity's health component is set to 100
-    -- the tracker will record that.
-    registry:set(entity, Health, 100) 
-
-    for id, health in tracker:each() do
-        print(health) -- will print 100
-    end
-    
-    -- we clear the currently recorded changes as we have no use
-    -- for them anymore.
-    tracker:clear()
-    ```
 
 ---
 
 ### size()
 
-Returns the current amount of entities in the registry.
+Returns the current amount of valid entities in the registry.
 
 - **Type**
 
@@ -356,7 +297,7 @@ Returns a [pool](Pool) containing every entity and corresponding value for a giv
     The returned pool is direct access to the underlying datastructures the registry uses
     to store entities and components.
 
-    Modifying the returned pool may result in *undefined behavior*.
+    Modifying the returned pool may result in *unexpected behavior*.
 
 ---
 
@@ -370,7 +311,7 @@ Returns a [signal](Signal) which is fired whenever the given component is added 
     function Registry:added<T>(component: T): Signal<Entity, T>
     ```
 
-    > ⚠️ Removing a component of a given type from within a listener connected to the same type will result in *unexpected behavior*.
+    > ⚠️ Removing a component of a given type from within a listener connected to the same type may result in *unexpected behavior*.
 
 ---
 
@@ -384,7 +325,7 @@ Returns a [signal](Signal) which is fired whenever the given component's value i
     function Registry:changed<T>(component: T): Signal<Entity, T>
     ```
 
-    > ⚠️ Removing a component of a given type from within a listener connected to the same type will result in *unexpected behavior*.
+    > ⚠️ Removing a component of a given type from within a listener connected to the same type may result in *unexpected behavior*.
 
 ---
 
@@ -405,5 +346,32 @@ Returns a [signal](Signal) which is fired whenever the given component is being 
     > ⚠️ Adding or removing a component of a given type from within a listener connected to the same type may result in
     > *unexpected behavior*. This type of listener is intended to allow users to perform cleanup and nothing else.
 
+---
+
+### version()
+
+Probes the given identifier and returns the encoded version.
+
+- **Type**
+
+    ```lua
+    function Registry:version(entity: Entity): number
+    ```
+
+---
+
+### current()
+
+Returns the current version of the given identifier.
+
+- **Type**
+
+    ```lua
+    function Registry:current(entity: Entity): number
+    ```
+
+- **Details**
+
+    Not to be confused with [`Registry:version()`](Registry#version). This method will return the latest version of the given identifer.
 
 ---
