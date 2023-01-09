@@ -7,9 +7,7 @@ Observers are used to track component changes.
 
 Extends the [View](View) class.
 
-Returned by [`registry:track()`](Registry#track).
-
-The observer stores an internal pool of changed components that can be iterated over and cleared at will.
+The observer keeps track of changed components that can be iterated over and cleared at will.
 
 ## Methods
 

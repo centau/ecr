@@ -3,7 +3,7 @@ permalink: /api/Pool
 title: Pool
 ---
 
-The datastructure used internally to store all entities and values for a single component.
+The datastructure used internally to store all entities and values for a single component type.
 
 ## Properties
 
@@ -21,7 +21,7 @@ The amount of entities contained in the pool.
 
 ### entities
 
-An array of all entities with the given component.
+An array of all entities with the given component type.
 
 - **Type**
   
@@ -33,13 +33,13 @@ An array of all entities with the given component.
 
     This array is sorted in the same order as [`Pool.values`](Pool#values).
 
-    - `entities[n]`'s component value is located at `values[n]`.
+    - i.e. `entities[n]`'s component value is located at `values[n]`.
 
 ---
 
 ### values
 
-An array of all values for the given component.
+An array of all values for the given component type.
 
 - **Type**
   

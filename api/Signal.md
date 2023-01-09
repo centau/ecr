@@ -9,7 +9,7 @@ title: Signal
 
 ### connect()
 
-Connects a given function to a signal to be called whenever the signal is fired.
+Connects a given function to the signal to be called whenever the signal is fired.
 
 - **Type**
 
