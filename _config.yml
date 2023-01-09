@@ -9,7 +9,7 @@ minimal_mistakes_skin: dark
 include: [api, tut]
 
 # customization settings
-subtitle: v0.2.0
+subtitle: v0.3.0
 name: centau
 description: A fast ECS library for Luau.
 baseurl: /ecr
