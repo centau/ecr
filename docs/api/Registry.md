@@ -20,7 +20,7 @@ Creates a new entity and returns the entity's identifier.
 
 - **Details**
 
-    The first `8,589,934,592` new identifiers returned are guaranteed to be unique. After this, identifiers may be reused. Be wary of using stale references in situations where this number may be exceeded.
+    The first `8,589,934,591` new identifiers returned are guaranteed to be unique. After this, identifiers may be reused. Be wary of using stale references in situations where this number may be exceeded.
 
     Can also manually specify an entity identifier to use. Will error if the registry is unable to create a new entity with the given identifier.
 
