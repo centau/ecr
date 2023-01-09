@@ -59,7 +59,7 @@ local Health = ecr.component()
 registry:set(entity, Health, 100)
 ```
 
-The behavior of `Registry:set()` is similar to a Luau table. Any amount of components can be added to an entity and changed.
+The behavior of `Registry:set()` is similar to working with a Luau table. Any amount of components can be added to an entity and changed dynamically.
 Likewise, setting a component value to `nil` will remove the component from the entity.
 
 Alternatively, multiple components can be removed in one go using `Registry:remove()`.
@@ -67,10 +67,12 @@ Alternatively, multiple components can be removed in one go using `Registry:remo
 ```lua
 -- both are equivalent
 registry:set(entity, Health, nil)
-registry:remove(entity, Health)
+registry:set(entity, Position, nil)
+
+registry:remove(entity, Health, Position)
 ```
 
-You can get components added to an entity with the following:
+You can get entity component values with the following:
 
 ```lua
 -- get a single component
@@ -92,12 +94,12 @@ You can check if an entity has multiple components in one go as well.
 
 ```lua
 -- will return true if the entity has EVERY component, else will return false
-local hasAll = registry:has(Health, Name, Model)
+local hasAll = registry:has(entity, Health, Name, Model)
 ```
 
 ## Views
 
-A view allows you to look into the registry and iterate over all entities with specified components.
+A view allows you to look into the registry and iterate over all entities with a specified set of components.
 
 There are two types of views: single-type views and multi-type views (both have a common API).
 
@@ -130,7 +132,7 @@ local view = registry:view(A)
 local view = registry:view(A, B)
 ```
 
-You can also filter based on excluded components:
+You can also filter components to exclude them from the view:
 
 ```lua
 local view = registry:view(A, B):exclude(C)
@@ -187,9 +189,9 @@ All three callbacks are called with:
 
 `removing` is fired *before* the component is removed.
 
-These events are useful for queuing entities that have had specific components changed for processing in one go.
+These events are useful for queuing entities that have had specific components changed for later processing in one go.
 
-`ECR` takes this a step further and provides a method for basic change tracking for you.
+`ECR` takes this a step further and provides a method for basic change tracking.
 
 ## Observers
 
@@ -215,8 +217,6 @@ end
 
 As the observer has the same interface as views, you can also use `:include()` and `:exclude()` which follow the same rules.
 
-It is important to note that the observer only returns entities once, with their latest component values, no matter how many times their tracked component has been changed since the last time the observer was cleared.
-
 ## Multithreading
 
 The registry is generally not thread-safe.
@@ -227,9 +227,9 @@ However, views (with some restrictions) can be used concurrently.
 
 ## Example Usage
 
-All components should be defined within a single file that any file can require to use that component.
+All components should be defined within a single file that any file can require to use those components.
 
-`ECR` is designed around the typechecking feature of Luau to write more organised code.
+`ECR` is designed around the typechecking feature of Luau to write better structured code.
 When a component is defined, it is recommended to cast the return value to the type the component will hold. Doing this will allow you to utilize type inference.
 
 A simple example of defining components and creating a system:
@@ -248,9 +248,9 @@ return {
 ```lua
 -- regenHealth.luau
 
-return function(world: ecr.Registry)
+return function(world: ecr.Registry, dt: number)
     for entity, health, maxHealth in world:view(Health, MaxHealth) do
-        local new = health + 10
+        local new = health + 10*dt
 
         if new > maxHealth then
             new = maxHealth
@@ -264,5 +264,4 @@ end
 ## End
 
 At this point, most of the main concepts and features of `ECR` have been covered.
-
-However there are a lot more features that are not documented here. You can read other guides on specifics of the library or view the API to find out more.
+You can read other guides on usage of the library or view the API for more details.
