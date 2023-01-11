@@ -703,7 +703,7 @@ do TITLE("Valid and version checking")
 end
 
 do TITLE ("Registry signals")
-    local N = 1e6
+    local N = 1e5
 
     local reg = ecr.registry()
     local entities = table.create(N)

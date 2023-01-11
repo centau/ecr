@@ -49,8 +49,7 @@ export type View<T...> = typeof(setmetatable(
     {} :: {
         each: (View<T...>) -> () -> (Entity, T...),
         exclude: <U...>(View<T...>, U...) -> View<T...>,
-    },
-    {} :: {
+    }, {} :: {
         __iter: (View<T...>) -> () -> (Entity, T...),
         __len: (View<T...>) -> number
     }
@@ -65,6 +64,8 @@ export type Observer<T...> = View<T...> & {
 export type Signal<T...> = {
     connect: ( Signal<T...>, (T...) -> () ) -> Connection,
 }
+
+type Listener = (Entity, unknown) -> ()
 
 export type Connection = {
     disconnect: (Connection) -> ()
@@ -218,7 +219,6 @@ local function pool_remove<T>(self: Pool<T>, k: number)
     values[i] = values[n]; values[n] = nil
 end
 
--- gets size of pool
 local function pool_size<T>(self: Pool<T>): number
     return self.size
 end
@@ -247,16 +247,6 @@ local function pool_clone<T>(self: Pool<T>): Pool<T>
         entities = table.clone(self.entities),
         values = table.clone(self.values)
     }
-end
-
--- gets value at given index (undefined if index is outside of range)
-local function pool_getIndex<T>(self: Pool<T>, i: number): T?
-    return self.values[i]
-end
-
--- replaces value at given index (undefined if index is outside of range)
-local function pool_changeIndex<T>(self: Pool<T>, i: number, v: T)
-    self.values[i] = v
 end
 
 -- removes value at given index (undefined if index is outside of range)
@@ -293,13 +283,6 @@ local View, Observer do
     local function hasNone(pools: Array<Pool<unknown>>, key: number): boolean
         for _, pool in next, pools do
             if pool_has(pool, key) then return false end
-        end
-        return true
-    end
-    
-    local function hasAll(pools: Array<Pool<unknown>>, key: number): boolean
-        for _, pool in next, pools do
-            if not pool_has(pool, key) then return false end
         end
         return true
     end
@@ -430,7 +413,7 @@ local View, Observer do
                     for ii, pool in next, includes do
                         local index = pool_has(pool, key) :: number
                         if index == nil then missing = true; break end
-                        tuple[ii] = pool_getIndex(pool, index)
+                        tuple[ii] = pool.values[index]
                     end
                     if missing then i -= 1; continue end
     
@@ -497,7 +480,7 @@ local View, Observer do
                     for ii, pool in next, includes do
                         local index = pool_has(pool, key) :: number
                         if index == nil then missing = true; break end
-                        tuple[ii] = pool_getIndex(pool, index)
+                        tuple[ii] = pool.values[index]
                     end
                     if missing then i -= 1; continue end
 
@@ -555,7 +538,7 @@ end
 -- Signal
 ----------------------------------------------------------------------
 
-local createSignal: <T...>() -> (Signal<T...>, (T...) -> ()) do
+local createSignal: () -> (Signal<...any>, Array<(...any) -> ()>) do
     type _Signal<T...> = {
         [(T...) -> ()]: true,
         pool: Pool<(T...) -> ()>,
@@ -582,19 +565,10 @@ local createSignal: <T...>() -> (Signal<T...>, (T...) -> ()) do
         return setmetatable({ signal = self, id = n }, Connection) :: any
     end
 
-    function createSignal(): (Signal<...unknown>, (...unknown) -> ())
+    function createSignal()
         local pool = pool_create(1)
-        local signal: Signal<...unknown> = setmetatable({ pool = pool, count = 0 }, Signal) :: any
-
-        local listeners = pool.values
-        local function fire(...: unknown)
-            local listeners = listeners
-            for i = pool_size(pool), 1, -1 do
-                listeners[i](...)
-            end
-        end
-
-        return signal, fire
+        local signal: Signal<...unknown> = setmetatable({ pool = pool, count = 0 } :: _Signal<...any>, Signal) :: any
+        return signal, pool.values
     end
 end
 
@@ -603,11 +577,11 @@ end
 ----------------------------------------------------------------------
 
 local componentN = 0
-local componentDefault: Map<Component, ((() -> unknown)?)> = {}
+local componentDefaults: Map<Component, ((() -> unknown)?)> = {}
 
 local createComponent = function(default: (() -> unknown)?): unknown
     componentN += 1
-    componentDefault[componentN] = default
+    componentDefaults[componentN] = default
     return componentN
 end :: (<T>(default: () -> T) -> T) & (() -> unknown)
 
@@ -624,12 +598,39 @@ local function createRegistry(): Registry
 
     local cpools: Map<Component, Pool<unknown>> = table.create(componentN)
 
-    local added: Map<Component, (Entity, unknown) -> ()> = table.create(componentN)
-    local changed: Map<Component, (Entity, unknown) -> ()> = table.create(componentN)
-    local removing: Map<Component, (Entity, unknown) -> ()> = table.create(componentN)
+    local addedListeners: Map<Component, Array<Listener>?> = table.create(componentN)
+    local changedListeners: Map<Component, Array<Listener>?> = table.create(componentN)
+    local removingListeners: Map<Component, Array<Listener>?> = table.create(componentN)
     local addedSignal: Map<Component, Signal<Entity, unknown>> = table.create(componentN)
     local changedSignal: Map<Component, Signal<Entity, unknown>> = table.create(componentN)
     local removingSignal: Map<Component, Signal<Entity, unknown>> = table.create(componentN)
+
+    local function fireAdded<T>(component: Component, entity: Entity, value: T)
+        local listeners = addedListeners[component]
+        if listeners then
+            for i = #listeners, 1, -1 do
+                listeners[i](entity, value)         
+            end
+        end
+    end
+
+    local function fireChanged<T>(component: Component, entity: Entity, value: T)
+        local listeners = changedListeners[component]
+        if listeners then
+            for i = #listeners, 1, -1 do
+                listeners[i](entity, value)         
+            end
+        end
+    end
+
+    local function fireRemoving(component: Component, entity: Entity)
+        local listeners = removingListeners[component]
+        if listeners then
+            for i = #listeners, 1, -1 do
+                listeners[i](entity)
+            end
+        end
+    end
 
     local function releaseAllEntities()
         local n = #ids
@@ -642,25 +643,17 @@ local function createRegistry(): Registry
         size = 0
     end
 
-    local function fireSignal<T>(
-        signals: Map<Component, (Entity, unknown) -> ()>,
-        component: Component,
-        entity: Entity,
-        value: T
-    )
-        local fire = signals[component]
-        if fire then fire(entity, value) end
-    end
-
     local function clearPool(component: Component)
         local pool = cpools[component]
 
-        local fire = removing[component]
+        local listeners = removingListeners[component]
 
-        if fire then
+        if listeners then
             for _, entity in next, pool.entities do
-                fire(entity)
-            end
+                for i = #listeners, 1, -1 do
+                    listeners[i](entity)
+                end
+            end    
         end
         
         pool_clear(pool)
@@ -751,7 +744,7 @@ local function createRegistry(): Registry
         release(entity)
         local key = id_key(entity)
         for component, pool in next, cpools do
-            fireSignal(removing, component, entity, nil)
+            fireRemoving(component, entity)
             pool_remove(pool, key)
         end
     end
@@ -782,8 +775,8 @@ local function createRegistry(): Registry
             local component = select(i, ...)
             local pool = cpools[component]
             local index = pool_has(pool, key) :: number
-            if index then error("entity already owns component", 2) end
-            local default = componentDefault[component] or error("no default value given", 2)
+            if index then error("entity already has component", 2) end
+            local default = componentDefaults[component] or error("no default value given", 2)
             local value = default()
             if value == nil then error("default value cannot be nil", 2) end
             pool_add(pool, key, entity, value)
@@ -797,14 +790,14 @@ local function createRegistry(): Registry
         
         if value ~= nil then
             if index then
-                pool_changeIndex(pool, index, value)
-                fireSignal(changed, component, entity, value)
+                pool.values[index] = value
+                fireChanged(component, entity, value)
             else
                 pool_add(pool, key, entity, value)
-                fireSignal(added, component, entity, value)
+                fireAdded(component, entity, value)
             end
         elseif index then
-            fireSignal(removing, component, entity, nil)
+            fireRemoving(component, entity)
             pool_eraseIndex(pool, index, key)
         end
     end
@@ -821,7 +814,7 @@ local function createRegistry(): Registry
         if value == nil then error("error while patching, cannot set new value as nil", 2) end
 
         pool.values[index] = value :: T
-        fireSignal(changed, component, entity, value)
+        fireChanged(component, entity, value)
     end
 
     registry.has = (function(self: Registry, entity: Entity, ...: unknown): boolean
@@ -864,7 +857,7 @@ local function createRegistry(): Registry
             local pool = cpools[component]
             local index = pool_has(pool, key) :: number
             if not index then continue end
-            fireSignal(removing, component, entity, nil)
+            fireRemoving(component, entity)
             pool_eraseIndex(pool, index, key)
         end
     end
@@ -911,27 +904,27 @@ local function createRegistry(): Registry
 
     function registry:added<T>(component: T): Signal<Entity, T>
         return (addedSignal[component] or (function() 
-            local signal, fire = createSignal()
+            local signal, listeners = createSignal()
             addedSignal[component] = signal
-            added[component] = fire
+            addedListeners[component] = listeners
             return signal
         end)()) :: Signal<Entity, T>
     end
 
     function registry:changed<T>(component: T): Signal<Entity, T>
         return (changedSignal[component] or (function() 
-            local signal, fire = createSignal()
+            local signal, listeners = createSignal()
             changedSignal[component] = signal
-            changed[component] = fire
+            changedListeners[component] = listeners
             return signal    
         end)()) :: Signal<Entity, T>    
     end
 
     function registry:removing<T>(component: T): Signal<Entity, nil>
         return (removingSignal[component] or (function() 
-            local signal, fire = createSignal()
+            local signal, listeners = createSignal()
             removingSignal[component] = signal
-            removing[component] = fire
+            removingListeners[component] = listeners
             return signal
         end)()) :: Signal<Entity, nil>
     end
