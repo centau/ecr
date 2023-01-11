@@ -4,7 +4,7 @@
 ----------------------------------------------------------------------
 
 local INITIAL_VERSION = 1
-local MAX_ENTITIES = 0x000F_FFFF -- must be one less than a power of 2
+local MAX_ENTITIES = 0x000F_FFFF
 
 assert(bit32.band(MAX_ENTITIES + 1, MAX_ENTITIES) == 0 and MAX_ENTITIES > 0, "max entities must be one less than a power of 2")
 
@@ -48,7 +48,6 @@ export type Registry = {
 export type View<T...> = typeof(setmetatable(
     {} :: {
         each: (View<T...>) -> () -> (Entity, T...),
-        include: <U...>(View<T...>, U...) -> View<T...>,
         exclude: <U...>(View<T...>, U...) -> View<T...>,
     },
     {} :: {
@@ -281,8 +280,7 @@ local View, Observer do
     type _View =  {
         registry: Registry,
         components: Map<Component, boolean>,
-        targets: Array<Pool<unknown>>,
-        includes: Array<Pool<unknown>>?,
+        includes: Array<Pool<unknown>>,
         excludes: Array<Pool<unknown>>?
     }
 
@@ -306,40 +304,18 @@ local View, Observer do
         return true
     end
 
-    local function getSmallestPool(...: Array<Pool<unknown>>?): Pool<unknown>
+    local function getSmallestPool(pools: Array<Pool<unknown>>): Pool<unknown>
         local smallest: Pool<unknown>?
 
-        for i = 1, select("#", ...) do
-            local pools = select(i, ...)
-            if pools == nil then continue end
-
-            for _, pool in next, pools do
-                if not smallest or pool_size(pool) < pool_size(smallest) then
-                    smallest = pool
-                end
+        for _, pool in next, pools do
+            if not smallest or pool_size(pool) < pool_size(smallest) then
+                smallest = pool
             end
         end
 
         assert(smallest, "no pools given")
 
         return smallest
-    end
-
-    local function include(self: _View, ...: Component): _View
-        if not self.includes then self.includes = {} end
-        local includes = assert(self.includes)
-
-        local components = self.components
-
-        for i = 1, select("#", ...) do
-            local component = select(i, ...)
-            lassert(components[component] ~= true, "duplicate component included")
-            lassert(components[component] ~= false, "cannot include an already excluded component")
-            components[component] = true
-            table.insert(includes, self.registry:storage(component))
-        end
-
-        return self
     end
 
     local function exclude(self: _View, ...: Component): _View
@@ -365,26 +341,24 @@ local View, Observer do
     function View.new<T...>(reg: Registry, ...: T...): View<T...>
         local argn = select("#", ...)
     
-        local components, targets = {}, {}
+        local components, includes = {}, {}
 
         for i = 1, argn do
             local component = select(i, ...)
             lassert(not components[component], "duplicate component included")
             components[component] = true
-            targets[i] = reg:storage(component)
+            includes[i] = reg:storage(component)
         end
 
         return setmetatable({
             registry = reg,
             components = components,
-            targets = targets,
-            includes = nil,
+            includes = includes,
             excludes = nil
         } :: _View, View) :: any
     end
 
     function View.__iter(self: _View): () -> (Entity, ...unknown)
-        local targets = self.targets
         local includes = self.includes
         local excludes = self.excludes
 
@@ -437,12 +411,12 @@ local View, Observer do
             end
         end
     
-        local function multi(targets: Array<Pool<unknown>>, includes: Array<Pool<unknown>>?, excludes: Array<Pool<unknown>>?)
-            local source = getSmallestPool(targets, includes)
+        local function multi(includes: Array<Pool<unknown>>, excludes: Array<Pool<unknown>>?)
+            local source = getSmallestPool(includes)
     
             local n = pool_size(source)
             local entities = pool_entities(source)
-            local tuple = table.create(#targets)
+            local tuple = table.create(#includes)
     
             return function()
                 local i = n
@@ -450,16 +424,13 @@ local View, Observer do
                     local entity = entities[i]
                     local key = id_key(entity)
                     
-                    if 
-                        includes and not hasAll(includes, key) or
-                        excludes and not hasNone(excludes, key)
-                    then i -= 1; continue end
+                    if excludes and not hasNone(excludes, key) then i -= 1; continue end
     
                     local missing = false
-                    for ii, target in next, targets do
-                        local index = pool_has(target, key) :: number
+                    for ii, pool in next, includes do
+                        local index = pool_has(pool, key) :: number
                         if index == nil then missing = true; break end
-                        tuple[ii] = pool_getIndex(target, index)
+                        tuple[ii] = pool_getIndex(pool, index)
                     end
                     if missing then i -= 1; continue end
     
@@ -470,20 +441,19 @@ local View, Observer do
             end
         end
 
-        return if #targets == 1 and not includes and not excludes then -- pure single view
-                single(targets[1])
-            elseif #targets == 2 and not includes and not excludes then 
-                double(targets[1], targets[2])
+        return if #includes == 1 and not excludes then
+                single(includes[1])
+            elseif #includes == 2  and not excludes then 
+                double(includes[1], includes[2])
             else
-                multi(targets, includes, excludes)
+                multi(includes, excludes)
     end
 
     function View.__len(self: _View): number
-        return pool_size(getSmallestPool(self.targets, self.includes))
+        return pool_size(getSmallestPool(self.includes))
     end
 
     View.each = View.__iter
-    View.include = include
     View.exclude = exclude
 
     Observer = {}
@@ -503,42 +473,36 @@ local View, Observer do
 
     function Observer.__iter(self: _Observer): () -> (Entity, ...unknown)
         local changed = self.changed
-        local targets = self.targets
         local includes = self.includes
         local excludes = self.excludes
 
         local entities = changed.entities
         local values = changed.values
 
-        local tuple = table.create(#targets + 1)
+        local tuple = table.create(#includes)
 
-        local iu = pool_size(changed)
-        return if #targets == 0 and not includes and not excludes then function()
-                local i = iu; iu = i - 1
-
+        local n = pool_size(changed)
+        return if #includes == 0 and not excludes then function()
+                local i = n; n = i - 1
                 return entities[i], values[i]
             end else function()
-                local i = iu
+                local i = n
                 while i > 0 do
                     local entity = entities[i]
                     local key = id_key(entity)
 
-                    if 
-                        includes and not hasAll(includes, key) or
-                        excludes and not hasNone(excludes, key)
-                    then i -= 1; continue end
+                    if excludes and not hasNone(excludes, key) then i -= 1; continue end
 
-                    tuple[1] = values[i]
                     local missing = false
-                    for ii, target in next, targets do
-                        local index = pool_has(target, key) :: number
+                    for ii, pool in next, includes do
+                        local index = pool_has(pool, key) :: number
                         if index == nil then missing = true; break end
-                        tuple[ii + 1] = pool_getIndex(target, index)
+                        tuple[ii] = pool_getIndex(pool, index)
                     end
                     if missing then i -= 1; continue end
 
-                    iu = i - 1
-                    return entity, unpack(tuple)
+                    n = i - 1
+                    return entity, values[i], unpack(tuple)
                 end
                 return nil :: any
             end
@@ -584,7 +548,6 @@ local View, Observer do
     end
 
     Observer.each = Observer.__iter
-    Observer.include = include
     Observer.exclude = exclude
 end
 

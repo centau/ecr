@@ -150,13 +150,7 @@ for entity, position, velocity in registry:view(Position, Velocity) do
 end
 ```
 
-All components specified in the argument list `registry:view(...)` will be returned during iteration. If you want to specify components that entities must have but do not want their values during iteration, you can do the following:
-
-```lua
-for entity, position in registry:view(Position):include(Velocity)
-```
-
-This will only return `Position` but ensures that all entities returned also have `Velocity`. This is still a multi-type view.
+All components specified in the argument list `registry:view(...)` will be returned during iteration.
 
 ### Iteration Order
 
@@ -215,7 +209,7 @@ end
 
 `Registry:track()` will track changes for the first component specified, while ensuring the entity also has all other components specified at the time of iteration.
 
-As the observer has the same interface as views, you can also use `:include()` and `:exclude()` which follow the same rules.
+As the observer has the same interface as views, you can also use `:exclude()` which follow the same rules.
 
 ## Multithreading
 

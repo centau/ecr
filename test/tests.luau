@@ -638,15 +638,6 @@ TEST("registry:view()", function()
         end
     end
 
-    do CASE "View all entities with B including A and C"
-        local viewed = {}
-        for entity, b in reg:view(B):include(A, C) do viewed[entity] = b end
-        CHECK(not empty(viewed))
-        for _, entity in ABCs do
-            CHECK(viewed[entity] == entity)
-        end
-    end
-
     do CASE "View all entities with AB and not C"
         local viewed = {}
         for entity in reg:view(A, B):exclude(C) do viewed[entity] = entity end
@@ -656,9 +647,9 @@ TEST("registry:view()", function()
         end
     end
 
-    do CASE "View all entities with B including A and not C"
+    do CASE "View all entities with BA and not C"
         local viewed = {}
-        for entity, b in reg:view(B):include(A):exclude(C) do viewed[entity] = b end
+        for entity, b in reg:view(B, A):exclude(C) do viewed[entity] = b end
         CHECK(not empty(viewed))
         for _, entity in ABnotCs do 
             CHECK(viewed[entity] == entity)
@@ -855,8 +846,7 @@ TEST("registry:track()", function()
     local reg = ecr.registry()
 
     local changedA = reg:track(A)
-    local changedABC = reg:track(A)
-    local changedAincBexcC = reg:track(A):include(B):exclude(C)
+    local changedABC = reg:track(A, B, C)
 
     local As = {}
     local ABCs = {}
@@ -917,20 +907,6 @@ TEST("registry:track()", function()
         CHECK((next(viewed)))
 
         for _, entity in ABCs do
-            CHECK(viewed[entity])
-        end
-    end
-
-    do CASE "A including B excluding Cs tracked"
-        local viewed = {}
-
-        for entity, value in changedAincBexcC:each() do
-            viewed[entity] = value
-        end
-
-        CHECK((next(viewed)))
-
-        for _, entity in AincBexcCs do
             CHECK(viewed[entity])
         end
     end

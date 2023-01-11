@@ -23,26 +23,6 @@ Excludes entities with the given components from the view.
 
 ---
 
-### include()
-
-Includes entities with the given components into the view.
-
-- **Type**
-
-    ```lua
-    function View:include<T...>(components: ...unknown): View<T...>
-    ```
-
-- **Details**
-
-    The method will return the same view that it was called on.
-
-    Any entities that do not have **all** of the included components will be not be returned during iteration.
-
-    Components given with this method will not have their values returned during iteration.
-
----
-
 ## Iteration
 
 ### each()
