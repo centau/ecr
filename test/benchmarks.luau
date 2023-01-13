@@ -4,6 +4,22 @@ local function TITLE(name: string)
     print("\27[1;4m"..name.."\27[0m")
 end
 
+local function printt(t: {})
+    if next(t) then
+        print("{")
+        for i, v in next, t do
+            print(string.format(
+                "    [%s]: %s",
+                tostring(i),
+                tostring(v)
+            ))
+        end
+        print("}")
+    else
+        print("{}")
+    end
+end
+
 local ecr = require "src/ecr"
 
 local function rtrue() return true :: any end
@@ -574,6 +590,16 @@ do
         end
 
         viewBench(reg)
+
+        --printt(reg:storage(B).entities)
+        --printt(reg:storage(C).entities)
+
+        reg:sort(A, B, C, D, E, F, G, H)
+
+        viewBench(reg)
+
+        --printt(reg:storage(B).entities)
+        --printt(reg:storage(C).entities)
     end
 end
 
@@ -700,6 +726,75 @@ do TITLE("Valid and version checking")
             reg:version(entities[i])   
         end
     end)
+end
+
+do TITLE "Sorting components"
+    -- assign components to all entities in random order
+    local function randomize(reg: ecr.Registry, entities, component)
+        local N = #entities
+        local tmp = table.clone(entities)
+        for _ = 1, N do
+            local n = #tmp
+            local i = math.random(1, n)
+
+            reg:set(tmp[i], component, bit32.band(tmp[i], 0xFFFFF))
+
+            tmp[i] = tmp[n]
+            tmp[n] = nil
+        end
+    end
+
+    do
+        local reg = ecr.registry()
+        local entities = table.create(1e3)
+        for i = 1, 1e3 do
+            entities[i] = reg:create()
+        end
+
+        randomize(reg, entities, A)
+
+        BENCH("1e3 random", function()
+            START(1e3)
+            reg:sort(A)
+        end)
+
+        for i = 1, 1e3 do
+            if i == 9e2 then continue end
+            reg:set(entities[i], B, true)
+        end
+        reg:set(entities[9e2], B, true)
+
+        BENCH("1e3 nearly", function()
+            START(1e3)
+            reg:sort(B)
+        end)
+    end
+
+    do
+        local reg = ecr.registry()
+        local entities = table.create(1e6)
+        for i = 1, 1e6 do
+            entities[i] = reg:create()
+        end
+
+        randomize(reg, entities, A)
+
+        BENCH("1e6 random", function()
+            START(1e6)
+            reg:sort(A)
+        end)
+
+        for i = 1, 1e6 do
+            if i == 9e5 then continue end
+            reg:set(entities[i], B, true)
+        end
+        reg:set(entities[9e2], B, true)
+
+        BENCH("1e6 nearly", function()
+            START(1e6)
+            reg:sort(B)   
+        end)
+    end
 end
 
 do TITLE ("Registry signals")

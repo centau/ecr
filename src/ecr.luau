@@ -39,6 +39,7 @@ export type Registry = {
 
     entities: (Registry) -> Array<Entity>,
     storage: <T>(Registry, component: T) -> Pool<T>,
+    sort: <T...>(Registry, T...) -> (),
 
     added: <T>(Registry, component: T) -> Signal<Entity, T>,
     changed: <T>(Registry, component: T) -> Signal<Entity, T>,
@@ -266,6 +267,20 @@ end
 -- Views
 ----------------------------------------------------------------------
 
+local function smallest(pools: Array<Pool<unknown>>): Pool<unknown>
+    local smallest: Pool<unknown>?
+
+    for _, pool in next, pools do
+        if not smallest or pool_size(pool) < pool_size(smallest) then
+            smallest = pool
+        end
+    end
+
+    assert(smallest, "no pools given")
+
+    return smallest
+end
+
 local View, Observer do
     type _View =  {
         registry: Registry,
@@ -285,20 +300,6 @@ local View, Observer do
             if pool_has(pool, key) then return false end
         end
         return true
-    end
-
-    local function getSmallestPool(pools: Array<Pool<unknown>>): Pool<unknown>
-        local smallest: Pool<unknown>?
-
-        for _, pool in next, pools do
-            if not smallest or pool_size(pool) < pool_size(smallest) then
-                smallest = pool
-            end
-        end
-
-        assert(smallest, "no pools given")
-
-        return smallest
     end
 
     local function exclude(self: _View, ...: Component): _View
@@ -395,7 +396,7 @@ local View, Observer do
         end
     
         local function multi(includes: Array<Pool<unknown>>, excludes: Array<Pool<unknown>>?)
-            local source = getSmallestPool(includes)
+            local source = smallest(includes)
     
             local n = pool_size(source)
             local entities = pool_entities(source)
@@ -433,7 +434,7 @@ local View, Observer do
     end
 
     function View.__len(self: _View): number
-        return pool_size(getSmallestPool(self.includes))
+        return pool_size(smallest(self.includes))
     end
 
     View.each = View.__iter
@@ -898,8 +899,115 @@ local function createRegistry(): Registry
         return entities
     end
 
+    local function printt(t: {})
+        if next(t) then
+            print("{")
+            for i, v in next, t do
+                print(string.format(
+                    "    [%s]: %s",
+                    tostring(i),
+                    tostring(v)
+                ))
+            end
+            print("}")
+        else
+            print("{}")
+        end
+    end
+
     function registry:storage<T>(component: T): Pool<T>
         return cpools[component] :: Pool<T>
+    end
+
+    --[[
+    function registry:sort<T>(component: T)
+        local pool = cpools[component] :: Pool<T>
+        local n = pool.size
+        local map = pool.map :: Map<number, number>
+        local entities = pool.entities
+        local values = pool.values
+
+        -- map array used to store permutation
+        table.clear(map)
+        for i = 1, n do
+            map[i] = id_encode( i, id_key(entities[i]) )    
+        end
+
+        table.sort(map)
+
+        for i, v in next, map do
+            map[i] = id_key(v)
+        end
+
+        -- apply permutation
+        for new = 1, n do
+            local old = map[new]
+
+            while old ~= new do
+                local mnew = map[new]
+                local mold = map[old]
+
+                entities[mnew], entities[mold] = entities[mold], entities[mnew]
+                values[mnew], values[mold] = values[mold], values[mnew]
+
+                map[new] = new
+                new = old
+                old = mold
+            end
+        end
+
+        table.clear(map)
+        for i, entity in next, entities do
+            map[id_key(entity)] = i
+        end
+    end]]
+
+    --[[
+        2 4 1 3
+        b d a c
+
+        5 3 1
+        e c a
+
+        ->
+
+        2 4 1 3
+        1 3 5
+
+    ]]
+
+    local function sort<T, U>(target: Pool<T>, other: Pool<U>)
+        local map = other.map
+        local entities = other.entities
+        local values = other.values
+        local new = 0
+        for _, entity in target.entities do
+            local key = id_key(entity)
+
+            local old = map[key] :: number
+            if not old then continue end
+            new += 1 -- pool has entity
+            local toremove = entities[new]
+            entities[new], entities[old] = entities[old], toremove
+            values[new], values[old] = values[old], values[new]
+            map[id_key(toremove)] = old
+            map[key] = new
+        end
+    end
+
+    function registry:sort<T...>(...: T...)
+        local pools: Array<Pool<unknown>> = {}
+        for i = 1, select("#", ...) do
+            pools[i] = cpools[select(i, ...)]
+        end
+        
+        local target = smallest(pools)
+
+        for _, pool in next, pools do
+            if pool ~= target then
+                sort(target, pool)
+            end
+        end
     end
 
     function registry:added<T>(component: T): Signal<Entity, T>

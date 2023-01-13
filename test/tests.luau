@@ -949,6 +949,34 @@ TEST("registry:track()", function()
     end
 end)
 
+TEST("registry:sort()", function()
+    local N = 1e1
+    local reg = ecr.registry()
+
+    do
+        local entities = {}
+        for i = 1, N do
+            entities[i] = reg:create()
+        end
+
+        for _ = 1, N do -- add components in random order
+            local n = #entities
+            local i = math.random(1, n)
+
+            reg:set(entities[i], A, bit32.band(entities[i], 0xFFFFF))
+
+            entities[i] = entities[n]
+            entities[n] = nil
+        end
+    end
+
+    reg:sort(A)
+
+    for i, entity in reg:storage(A).entities do
+        CHECK(i == bit32.band(entity, 0xFFFFF))
+    end
+end)
+
 TEST("ecr:component()", function()
     do CASE "Components have unique ids"
         local cache = {}
