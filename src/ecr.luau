@@ -142,6 +142,8 @@ local function id_rekey(id: number, key: number): (number, number) -- newid, old
     return id - oldkey + key, oldkey
 end
 
+local id_NULL = id_encode(1, 0)
+
 ----------------------------------------------------------------------
 -- Entity Pool
 ----------------------------------------------------------------------
@@ -682,7 +684,9 @@ local function createRegistry(): Registry
     end
 
     local function createWith(id: Entity, ids: Array<Entity>, free: number, size: number): Entity
-        local key = id_key(id)
+        local key, version = id_decode(id)
+
+        if key < 1 or version < 1 then error("attempted to use malformed id", 2) end
 
         local n = #ids
 
@@ -958,5 +962,6 @@ return {
         clear = pool_clear
     },
     signal = createSignal,
-    encode = id_encode
+    encode = id_encode,
+    null = id_NULL
 }

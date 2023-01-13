@@ -224,6 +224,10 @@ TEST("registry:valid()", function()
     do CASE "Integer key invalid"
         CHECK(not reg:valid(1))
     end
+
+    do CASE "Null entity is invalid"
+        CHECK(not reg:valid(ecr.null))
+    end
 end)
 
 TEST("registry:version()", function()
@@ -565,6 +569,8 @@ TEST("registry:entities()", function()
         end
     end
 end)
+
+
 
 TEST("registry:view()", function()
     local N = 1e3

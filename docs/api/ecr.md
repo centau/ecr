@@ -63,3 +63,28 @@ Creates a new registry.
     It is recommended to define all component types before creating any `Registry` instances so that registries can allocate the correct amount of memory for faster operations.
 
 ---
+
+<br><br>
+
+## Constants
+
+### null
+
+A null entity.
+
+- **Type**
+  
+    ```lua
+    ecr.null: Entity
+    ```
+
+- **Details**
+  
+    The following expression will always return `false`:
+
+    ```lua
+    registry:valid(ecr.null)
+    ```
+
+---
+
