@@ -99,7 +99,6 @@ TEST("registry:create()", function()
 
     do CASE "Error if `null` is used"
         local reg = ecr.registry()
-        reg:create()
 
         local ok = pcall(function()
             reg:create(ecr.null)
@@ -171,10 +170,15 @@ TEST("registry:version()", function()
         
         reg2:release( reg2:create() ); -- ensure id internally exists
 
-        (reg2 :: any):setEntityVersion(1, MAX_VER)
+        (reg2 :: any):setEntityVersion(1, MAX_VER - 1)
 
-        -- verify version was set to max correctly
+        -- verify version was set to 1 under max correctly
         local id = reg2:create()
+        CHECK(reg2:version(id) == MAX_VER - 1)
+        -- trigger version increment
+        reg2:release(id)
+
+        id = reg2:create()
         CHECK(reg2:version(id) == MAX_VER)
         -- trigger version increment
         reg2:release(id)

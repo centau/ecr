@@ -857,7 +857,9 @@ local function registry_create(): Registry
     end
 
     local function createWith(id: Entity): Entity
-        local key = id_key(id)
+        local key, version = id_decode(id)
+        if key < 1 or version < 1 then error("attempted to use malformed id", 2) end
+
         local n = #ids
         if key > n + 1 then -- if ids have not been created yet
             for i = n+1, key-2 do
