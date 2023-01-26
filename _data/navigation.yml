@@ -11,6 +11,8 @@ tut:
     children:
       - title: Crash Course
         url: /tut/crashcourse
+      - title: Groups
+        url: /tut/groups
 
 api:
   - title: API
@@ -19,10 +21,15 @@ api:
       url: /api/ecr
     - title: Registry
       url: /api/Registry
-    - title: Observer
-      url: /api/Observer
-    - title: Signal
-      url: /api/Signal
     - title: View
       url: /api/View
+    - title: Observer
+      url: /api/Observer
+    - title: Group
+      url: /api/Group
+    - title: Signal
+      url: /api/Signal
+    - title: Restrictions
+      url: /api/restrictions
+    
     

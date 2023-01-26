@@ -3,7 +3,7 @@ permalink: api/Signal
 title: Signal
 ---
 
-`ECR` Signal class.
+`ECR` signal class.
 
 ## Methods
 
@@ -37,7 +37,7 @@ Disconnects a listener from a signal.
 
 - **Details**
 
-    > ⚠️ Disconnecting other listeners from within a listener may result in unexpected behavior.
+    > ⚠️ Disconnecting other listeners from within a listener may result in *undefined behavior*.
     > Disconnecting a listenener from within itself is allowed.
 
 ---

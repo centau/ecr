@@ -18,9 +18,11 @@ There is a single pool for each component type in the registry.
 
 All pools keep their entities and components packed contiguously in memory for fast iteration.
 
+The registry class is effectively a large wrapper for iterating and transforming the data in these pools.
+
 ## Components
 
-Components are types of data and are represenented by unique integer identifiers that you can create by doing:
+Components are types of data and are represenented by unique identifiers that you can create by doing:
 
 ```lua
 local component = ecr.component()
@@ -28,9 +30,8 @@ local component = ecr.component()
 
 Each call to `ecr.component()` will return a new component identifier.
 
-Much like composition in OOP, entities can be given components with each entity having its own value for that component.
-
-Components can be freely added, changed and removed from entities on the fly.
+Entity components behave similarly to a Luau table. Any amount of components can be added, changed and removed dynamically.
+Likewise, setting a component value to `nil` will remove the component from the entity.
 
 ## The Registry
 
@@ -42,9 +43,6 @@ local registry = ecr.registry()
 
 -- create a new entity with no components
 local entity = registry:create()
-
--- releases an entity and removes all its components
-registry:destroy(entity)
 ```
 
 The value returned by `Registry:create()` is an identifier representing an entity. This identifier is usually just referred to as the "entity".
@@ -58,9 +56,6 @@ local Health = ecr.component()
 
 registry:set(entity, Health, 100)
 ```
-
-The behavior of `Registry:set()` is similar to working with a Luau table. Any amount of components can be added to an entity and changed dynamically.
-Likewise, setting a component value to `nil` will remove the component from the entity.
 
 Alternatively, multiple components can be removed in one go using `Registry:remove()`.
 
@@ -114,10 +109,10 @@ You can also check the amount of entities contained in a single-view with the `#
 This view slower than a single-type view (but still fast overall).
 They iterate only entities that contain **all** of the specified components.
 
-These views cannot iterate directly over a single pool, it performs checks in multiple pools per iteration to check if an entity has all of the specified components.
+These views cannot iterate directly over a single pool, it performs checks in multiple pools per iteration to check if an entity has all of the specified components. The more components specified by the view the slower iteration will be.
 
 You cannot accurately check the amount of entities contained in a multi-type view without actually iterating through it.
-The `#` len operator will however give an *estimate* of the amount of entities contained in it.
+The `#` length operator will however give an *estimate* of the amount of entities contained in it.
 The actual amount of entities in a view will not be greater than the estimated amount.
 
 ### Usage
@@ -150,13 +145,7 @@ for entity, position, velocity in registry:view(Position, Velocity) do
 end
 ```
 
-All components specified in the argument list `registry:view(...)` will be returned during iteration. If you want to specify components that entities must have but do not want their values during iteration, you can do the following:
-
-```lua
-for entity, position in registry:view(Position):include(Velocity)
-```
-
-This will only return `Position` but ensures that all entities returned also have `Velocity`. This is still a multi-type view.
+All components specified in the argument list `registry:view(...)` will be returned during iteration in the same order.
 
 ### Iteration Order
 
@@ -166,7 +155,7 @@ For example, for `registry:view(A, B)`, the view will first check the size of `A
 
 ### Modification During Iteration
 
-It is safe to add, change and remove any components during view iteration as long as view iterations are not nested within each other.
+It is safe to add, change and remove any components for the entity currently being iterated during view iteration.
 
 Components that are added during iteration will not be returned for that iteration.
 
@@ -215,7 +204,7 @@ end
 
 `Registry:track()` will track changes for the first component specified, while ensuring the entity also has all other components specified at the time of iteration.
 
-As the observer has the same interface as views, you can also use `:include()` and `:exclude()` which follow the same rules.
+You can also use `:exclude()` which follow the same rules as views.
 
 ## Multithreading
 
@@ -235,7 +224,7 @@ When a component is defined, it is recommended to cast the return value to the t
 A simple example of defining components and creating a system:
 
 ```lua
--- component.luau
+-- components.luau
 
 return {
     Health = ecr.component() :: number

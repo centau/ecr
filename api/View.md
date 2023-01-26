@@ -23,31 +23,9 @@ Excludes entities with the given components from the view.
 
 ---
 
-### include()
-
-Includes entities with the given components into the view.
-
-- **Type**
-
-    ```lua
-    function View:include<T...>(components: ...unknown): View<T...>
-    ```
-
-- **Details**
-
-    The method will return the same view that it was called on.
-
-    Any entities that do not have **all** of the included components will be not be returned during iteration.
-
-    Components given with this method will not have their values returned during iteration.
-
----
-
-## Iteration
-
 ### each()
 
-Returns a generator that can be used to iterate over all entities within the view.
+Returns an iterator that can be used to iterate over all entities in the view.
 
 - **Type**
 
@@ -61,26 +39,29 @@ Returns a generator that can be used to iterate over all entities within the vie
 
     Components can be added and changed during iteration. Newly added components and their entities will not be returned until the next iteration.
 
-    Components can be removed during iteration as long as the component being removed belongs to the latest entity returned.
-    - i.e. Do not remove components from entities outside of the for loop while the loop has not stopped yet for the given components.
-
-    
-
-- **Example**
-
-    ```lua
-    for entity, health, position in registry:view(Health, Position):each() do
-        print(entity, health, position)
-    end
-    ```
+    > ⚠️ During iteration, adding or removing components from entities not currently being iterated can *invalidate the iterator*.
 
 ---
 
-### Generalized
+### use()
+
+Specifies a component to iterate along.
+
+- **Type**
+
+    ```lua
+    function View:use<T...>(component: unknown): View<T...>
+    ```
 
 - **Details**
-  
-  Generalized iteration functions identically to [`View:each()`](View#each).
+
+    Views, by default, iterate along the smallest pool within the given set of components. This function allows a specific pool to be iterated along instead as long as the component is included in the view.
+
+---
+
+## Iteration
+
+Views support generalized iteration.
 
 - **Example**
 
@@ -92,7 +73,5 @@ Returns a generator that can be used to iterate over all entities within the vie
         print(entity, health, position)
     end
     ```
-
-    > ⚠️ As of now, Luau is unable to correctly infer the return types with this method.
 
 ---

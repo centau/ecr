@@ -3,7 +3,7 @@ permalink: /api/Pool
 title: Pool
 ---
 
-The datastructure used internally to store all entities and values for a single component type.
+Stores all entities and values for a single component type.
 
 ## Properties
 
@@ -26,12 +26,12 @@ An array of all entities with the given component type.
 - **Type**
   
     ```lua
-    Pool.entities: Array<entity>
+    Pool.entities: Array<Entity>
     ```
 
 - **Details**
 
-    This array is sorted in the same order as [`Pool.values`](Pool#values).
+    Sorted in the same order as [`Pool.values`](Pool#values).
 
     - i.e. `entities[n]`'s component value is located at `values[n]`.
 
@@ -49,6 +49,6 @@ An array of all values for the given component type.
 
 - **Details**
 
-    This array is sorted in the same order as [`Pool.entities`](Pool#entities).
+    Sorted in the same order as [`Pool.entities`](Pool#entities).
 
 ---
