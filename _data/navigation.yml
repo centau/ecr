@@ -29,6 +29,8 @@ api:
       url: /api/Group
     - title: Signal
       url: /api/Signal
+    - title: Pool
+      url: /api/Pool
     - title: Restrictions
       url: /api/restrictions
     
