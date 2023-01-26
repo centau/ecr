@@ -22,7 +22,7 @@ Creates a new entity and returns the entity's identifier.
 
     The first `8,589,934,591` new identifiers returned are guaranteed to be unique. After this, identifiers may be reused. Be wary of using stale references in situations where this number may be exceeded.
 
-    Identifiers previusly returned or from another registry can also be specified to use. Will error if the registry is unable to create a new entity with the given identifier.
+    Identifiers previusly returned or from another registry can also be specified for use. Will error if the registry is unable to create a new entity with the given identifier.
 
     > ⚠️ Manually reusing an old identifier previously returned by this registry will no longer guarantee new identifiers returned to be unique.
 
@@ -307,6 +307,8 @@ Returns a [signal](Signal) which is fired whenever the given component is added 
 
     The signal is fired *after* the component is changed.
 
+    > ⚠️ Components cannot be added or removed within a listener.
+
 ---
 
 ### changed()
@@ -320,6 +322,8 @@ Returns a [signal](Signal) which is fired whenever the given component's value i
     ```
 
     The signal is fired *after* the component is changed.
+
+    > ⚠️ Components cannot be added or removed within a listener.
 
 ---
 
@@ -336,6 +340,8 @@ Returns a [signal](Signal) which is fired whenever the given component is being 
 - **Details**
 
     The signal is fired *before* the component is actually removed. You can retrieve the component value within the signal listener.
+
+    > ⚠️ Components cannot be added or removed within a listener.
 
 ---
 

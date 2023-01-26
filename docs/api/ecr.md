@@ -60,7 +60,7 @@ Creates a new registry.
 
 - **Details**
 
-    Registries stores and manages entities and their components.
+    Registries store and manages entities and their components.
 
     It is recommended to define all component types before creating any `Registry` instances so that registries can allocate the correct amount of memory for faster operations.
 
@@ -81,6 +81,8 @@ A null entity.
     ```
 
 - **Details**
+
+    The null entity is an entity that is guaranteed to be invalid.
   
     The following expression will always return `false`:
 
@@ -89,4 +91,3 @@ A null entity.
     ```
 
 ---
-
