@@ -27,4 +27,4 @@ jobs:
         run: unzip bin/luau-ubuntu.zip -d bin
 
       - name: Run unit tests
-        run: bin/luau test/tests.luau
+        run: bin/luau --fflags=LuauInterpolatedStringBaseSupport=true test/tests.luau
