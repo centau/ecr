@@ -10,9 +10,11 @@ local function rtrue() return true :: any end
 local A, B, C, D = ecr.component(rtrue), ecr.component(rtrue), ecr.component(rtrue), ecr.component(rtrue)
 local E, F, G, H = ecr.component(), ecr.component(), ecr.component(), ecr.component()
 
+-- power of 2 so arrays are better alined for accurate memory usage reading
+local N = 2^18 --~ 262k
+
 do TITLE "Entity creation and release"
     BENCH("Entity creation", function()
-        local N = 1e6
         local reg = ecr.registry()
 
         for i = 1, START(N) do
@@ -21,7 +23,6 @@ do TITLE "Entity creation and release"
     end)
 
     BENCH("Entity creation (no pre-alloc)", function()
-        local N = 1e6
         local reg = ecr.registry()
 
         for i = 1, START(N) do
@@ -30,7 +31,6 @@ do TITLE "Entity creation and release"
     end)
 
     BENCH("Entity release", function()
-        local N = 1e6
         local reg = ecr.registry()
 
         local id = table.create(N)
@@ -45,7 +45,6 @@ do TITLE "Entity creation and release"
     end)
 
     BENCH("Entity creation with desired id", function()
-        local N = 1e6
         local sreg = ecr.registry()
         
         local id = table.create(N)
@@ -63,8 +62,6 @@ do TITLE "Entity creation and release"
 end
 
 do TITLE "Adding components"
-    local N = 1e6
-
     local function setup()
         local reg = ecr.registry()
         local ids = table.create(N)
@@ -107,8 +104,6 @@ end
 
 
 do TITLE "Setting components"
-    local N = 1e6
-
     local function setup()
         local reg = ecr.registry()
         local ids = table.create(N)
@@ -203,8 +198,6 @@ do TITLE "Setting components"
 end
 
 do TITLE "Patching components"
-    local N = 1e6
-
     local function setup()
         local reg = ecr.registry()
         local ids = table.create(N)
@@ -262,8 +255,6 @@ do TITLE "Patching components"
 end
 
 do TITLE "Has components"
-    local N = 1e6
-
     local reg = ecr.registry()
     local ids = table.create(N)
 
@@ -297,8 +288,6 @@ do TITLE "Has components"
 end
 
 do TITLE("Getting components")
-    local N = 1e6
-
     local reg = ecr.registry()
     local ids = table.create(N)
 
@@ -344,8 +333,6 @@ do TITLE("Getting components")
 end
 
 do TITLE("Removing components")
-    local N = 1e6
-
     local function setup()
         local reg = ecr.registry()
         local ids = table.create(N)
@@ -413,8 +400,6 @@ do TITLE("Removing components")
 end
 
 do TITLE "Clear components"
-    local N = 1e6
-
     local function setup()
         local reg = ecr.registry()
         local ids = table.create(N)
@@ -471,8 +456,6 @@ do TITLE "Clear components"
 end
 
 do
-    local N = 1e6
-
     local function viewBench(reg: ecr.Registry)
         local function getExactSize(view: ecr.View<...any>): number
             local i = 0
@@ -577,56 +560,126 @@ do
     end
 end
 
-do TITLE("Destroying entities")
-    local N = 1e6
-
-    BENCH("Destroy entity with 0 components", function()
+do TITLE "Registry group"
+    do
         local reg = ecr.registry()
-        local entities = table.create(N)
+
+        local group = reg:group(A, B)
+
+        local ids = {}
 
         for i = 1, N do
-            entities[i] = reg:create()
+            ids[i] = reg:create()
+        end
+
+        BENCH("Add 2 components", function()
+            for i = 1, START(N) do
+                local e = ids[i]
+                reg:set(e, A, 1)
+                reg:set(e, B, 2)
+            end
+        end)
+
+        BENCH("Iterate 2 components", function()
+            START(N)
+            for entity, a, b in group do end
+        end)
+
+        BENCH("Remove 2 components", function()
+            for i = 1, START(N) do
+                local e = ids[i]
+                reg:set(e, A, nil)
+                reg:set(e, B, nil)
+            end
+        end)
+    end
+
+    do
+        local reg = ecr.registry()
+
+        local group2 = reg:group(C, D, E, F)
+        
+        local ids = {}
+
+        for i = 1, N do
+            ids[i] = reg:create()
+        end
+
+        BENCH("Add 4 components", function()
+            for i = 1, START(N) do
+                local e = ids[i]
+                reg:set(e, C, 1)
+                reg:set(e, D, 2)
+                reg:set(e, E, 3)
+                reg:set(e, F, 4)
+            end
+        end)
+
+        BENCH("Iterate 4 components", function()
+            START(N)
+            for entity, a, b, c, d in group2 do end
+        end)
+
+        BENCH("Remove 4 components", function()
+            for i = 1, START(N) do
+                local e = ids[i]
+                reg:set(e, C, nil)
+                reg:set(e, D, nil)
+                reg:set(e, E, nil)
+                reg:set(e, F, nil)
+            end
+        end)
+    end
+end
+
+do TITLE("Destroying entities")
+    BENCH("Destroy entity with 0 components", function()
+        local reg = ecr.registry()
+        local ids = table.create(N)
+
+        for i = 1, N do
+            ids[i] = reg:create()
         end
 
         for i = 1, START(N) do
-            reg:destroy(entities[i])
+            reg:destroy(ids[i])
         end
     end)
 
     BENCH("Destroy entity with 1 components", function()
         local reg = ecr.registry()
-        local entities = table.create(N)
+        local ids = table.create(N)
 
         for i = 1, N do
             local e = reg:create()
             reg:set(e, A, true)
-            entities[i] = e
+            ids[i] = e
         end
 
         for i = 1, START(N) do
-            reg:destroy(entities[i])
+            reg:destroy(ids[i])
         end
     end)
 
     BENCH("Destroy entity with 2 components", function()
         local reg = ecr.registry()
-        local entities = table.create(N)
+        local ids = table.create(N)
 
         for i = 1, N do
             local e = reg:create()
             reg:set(e, A, true)
             reg:set(e, B, true)
-            entities[i] = e
+            ids[i] = e
         end
 
         for i = 1, START(N) do
-            reg:destroy(entities[i])
+            reg:destroy(ids[i])
         end
     end)
 
     BENCH("Destroy entity with 4 components", function()
         local reg = ecr.registry()
-        local entities = table.create(N)
+        local ids = table.create(N)
 
         for i = 1, N do
             local e = reg:create()
@@ -634,22 +687,22 @@ do TITLE("Destroying entities")
             reg:set(e, B, true)
             reg:set(e, C, true)
             reg:set(e, D, true)
-            entities[i] = e
+            ids[i] = e
         end
 
         for i = 1, START(N) do
-            reg:destroy(entities[i])
+            reg:destroy(ids[i])
         end
     end)
 
     BENCH("Destroy entity with 1 component (8 component registered)", function()
         local reg = ecr.registry()
-        local entities = table.create(N)
+        local ids = table.create(N)
 
         for i = 1, N do
             local e = reg:create()
             reg:set(e, A, true)
-            entities[i] = e
+            ids[i] = e
         end
 
         do
@@ -665,58 +718,54 @@ do TITLE("Destroying entities")
         end
 
         for i = 1, START(N) do
-            reg:destroy(entities[i])
+            reg:destroy(ids[i])
         end
     end)
 end
 
 do TITLE("Valid and version checking")
     BENCH("registry::valid", function()
-        local N = 1e6
         local reg = ecr.registry()
-        local entities = table.create(N)
+        local ids = table.create(N)
         for i = 1, N do
-            entities[i] = reg:create()
+            ids[i] = reg:create()
         end
 
         START(N)
 
         for i = 1, N do
-            reg:valid(entities[i])   
+            reg:valid(ids[i])   
         end
     end)
 
     BENCH("registry::version", function()
-        local N = 1e6
         local reg = ecr.registry()
-        local entities = table.create(N)
+        local ids = table.create(N)
         for i = 1, N do
-            entities[i] = reg:create()
+            ids[i] = reg:create()
         end
 
         START(N)
 
         for i = 1, N do
-            reg:version(entities[i])   
+            reg:version(ids[i])   
         end
     end)
 end
 
-do TITLE ("Registry signals")
-    local N = 1e5
-
+do TITLE "Registry signals"
     local reg = ecr.registry()
-    local entities = table.create(N)
+    local ids = table.create(N)
 
     for i = 1, N do
-        entities[i] = reg:create()
+        ids[i] = reg:create()
     end
 
     BENCH("registry::added", function()
         reg:added(A):connect(function() end)
 
         for i = 1, START(N) do
-            reg:set(entities[i], A, true)
+            reg:set(ids[i], A, true)
         end
     end)
 
@@ -724,7 +773,7 @@ do TITLE ("Registry signals")
         reg:changed(A):connect(function() end)
 
         for i = 1, START(N) do
-            reg:set(entities[i], A, false)
+            reg:set(ids[i], A, false)
         end
     end)
 
@@ -733,7 +782,45 @@ do TITLE ("Registry signals")
         reg:removing(A):connect(function() end)
 
         for i = 1, START(N) do
-            reg:remove(entities[i], A)
+            reg:remove(ids[i], A)
         end
+    end)
+end
+
+do TITLE "Observers"
+    local reg = ecr.registry()
+    local observer = reg:track(A)
+
+    local ids = table.create(N)
+    for i = 1, N do
+        ids[i] = reg:create()
+    end
+
+    BENCH("Add component", function()
+        for i = 1, START(N) do
+            reg:set(ids[i], A, true)
+        end
+    end)
+
+    BENCH("Change component", function()
+        for i = 1, START(N) do
+            reg:set(ids[i], A, false)
+        end
+    end)
+
+    BENCH("Iterate", function()
+        START(N)
+        for id, v in observer do end
+    end)
+
+    BENCH("Remove component", function()
+        for i = 1, START(N) do
+            reg:set(ids[i], A, nil)
+        end
+    end)
+
+    BENCH("Clear", function()
+        START(N)
+        observer:clear()
     end)
 end

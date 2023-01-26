@@ -5,7 +5,7 @@ title: Registry
 
 ## Methods
 
-> ⚠️ Using registry methods with invalid entity identifiers will result in unexpected behavior such as other entities having their components changed. When in doubt if an identifier is valid or not, use `Registry:valid()` to check.
+> ⚠️ There are certain [restrictions](restrictions) with what you can do with the registry that you should be aware of.
 
 ### create()
 
@@ -22,23 +22,23 @@ Creates a new entity and returns the entity's identifier.
 
     The first `8,589,934,591` new identifiers returned are guaranteed to be unique. After this, identifiers may be reused. Be wary of using stale references in situations where this number may be exceeded.
 
-    Can also manually specify an entity identifier to use. Will error if the registry is unable to create a new entity with the given identifier.
+    Identifiers previusly returned or from another registry can also be specified to use. Will error if the registry is unable to create a new entity with the given identifier.
 
     > ⚠️ Manually reusing an old identifier previously returned by this registry will no longer guarantee new identifiers returned to be unique.
 
-    > ⚠️ The total amount of entities in a registry at any given time **cannot** exceed 1,048,575.
-    > Attempting to go over this limit will throw an error.
+    > ⚠️ The total amount of entities in a registry at any given time **cannot** exceed `1,048,575`.
+    > Attempting to exceed this limit will throw an error.
 
 ---
 
 ### release()
 
-Releases the entity identifier, making it invalid.
+Removes the entity from the registry.
 
 - **Type**
 
     ```lua
-    function Registry:release(entity: Entity): ()
+    function Registry:release(entity: Entity)
     ```
 
 - **Details**
@@ -46,18 +46,18 @@ Releases the entity identifier, making it invalid.
     > ⚠️ This method does **not** remove any of the entity's components.
     > If it is not known that an entity has components, use [`Registry:destroy()`](Registry#destroy) instead.
 
-    > ⚠️ Using this method on an entity that still has components will result in *unexpected behavior*.
+    > ⚠️ Using this method on an entity that still has components will result in *undefined behavior*.
 
 ---
 
 ### destroy()
 
-Releases the entity identifier and removes all of its components.
+Removes the entity from the registry and removes all of its components.
 
 - **Type**
 
     ```lua
-    function Registry:destroy(entity: Entity): ()
+    function Registry:destroy(entity: Entity)
     ```
 
 ---
@@ -72,15 +72,11 @@ Checks if the given entity identifier is valid.
     function Registry:valid(entity: Entity): boolean
     ```
 
-- **Details**
-
-    Valid identifiers are identifiers created with `Registry:create()` that have not yet been released.
-
 ---
 
 ### orphan()
 
-Checks if the given entity has any components.
+Checks if the given entity no components.
 
 - **Type**
 
@@ -90,7 +86,7 @@ Checks if the given entity has any components.
 
 - **Details**
 
-    An entity is considered a orphan if it has no components.
+    An entity is considered an orphan if it has no components.
 
 ---
 
@@ -131,7 +127,7 @@ Sets an entity's component.
     Adds the component to the entity with the given value
     if the entity does not already have the component.
 
-    Changes the component's value for the given entity if the entity already owns the component.
+    Changes the component's value for the given entity if the entity already has the component.
 
     Removes the component from the entity if value is `nil`.
 
@@ -182,7 +178,7 @@ Checks if an entity has all of the given components.
 
 ### get()
 
-Gets an entity's components.
+Gets an entity's component values.
 
 - **Type**
 
@@ -191,8 +187,6 @@ Gets an entity's components.
     ```
 
 - **Details**
-
-    Will return the value of each of the given components.
 
     Will return `nil` if the entity does not own a component.
 
@@ -234,7 +228,7 @@ Creates a [`view`](View) for all entities with the specified components.
 
 ### track()
 
-Creates an [`observer`](Observer) which tracks any changes that occur for a given component.
+Creates an [`observer`](Observer) which records changes that occur for a given component.
 
 - **Type**
 
@@ -244,7 +238,7 @@ Creates an [`observer`](Observer) which tracks any changes that occur for a give
 
 - **Details**
 
-    Only changes made to the component as the first argument are tracked, subsequent arguments are only included when iterating just like a `View`.
+    Only changes made to the component given as the first argument are tracked, subsequent arguments are only included when iterating just like a `View`.
 
     The observer will return entities that:
 
@@ -297,7 +291,7 @@ Returns a [pool](Pool) containing every entity and corresponding value for a giv
     The returned pool is direct access to the underlying datastructures the registry uses
     to store entities and components.
 
-    Modifying the returned pool may result in *unexpected behavior*.
+    Modifying the returned pool results in *undefined behavior*.
 
 ---
 
@@ -311,7 +305,7 @@ Returns a [signal](Signal) which is fired whenever the given component is added 
     function Registry:added<T>(component: T): Signal<Entity, T>
     ```
 
-    > ⚠️ Removing a component of a given type from within a listener connected to the same type may result in *unexpected behavior*.
+    The signal is fired *after* the component is changed.
 
 ---
 
@@ -325,7 +319,7 @@ Returns a [signal](Signal) which is fired whenever the given component's value i
     function Registry:changed<T>(component: T): Signal<Entity, T>
     ```
 
-    > ⚠️ Removing a component of a given type from within a listener connected to the same type may result in *unexpected behavior*.
+    The signal is fired *after* the component is changed.
 
 ---
 
@@ -343,14 +337,11 @@ Returns a [signal](Signal) which is fired whenever the given component is being 
 
     The signal is fired *before* the component is actually removed. You can retrieve the component value within the signal listener.
 
-    > ⚠️ Adding or removing a component of a given type from within a listener connected to the same type may result in
-    > *unexpected behavior*. This type of listener is intended to allow users to perform cleanup and nothing else.
-
 ---
 
 ### version()
 
-Probes the given identifier and returns the encoded version.
+Returns the identifier's encoded version.
 
 - **Type**
 
@@ -372,6 +363,6 @@ Returns the current version of the given identifier.
 
 - **Details**
 
-    Not to be confused with [`Registry:version()`](Registry#version). This method will return the latest version of the given identifer.
+    Not to be confused with [`Registry:version()`](Registry#version).
 
 ---

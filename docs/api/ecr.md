@@ -20,7 +20,7 @@ Creates a new component type.
 
     Returns a unique identifier representing a new component type.
 
-    If given a function, the component can be assigned to an entity using [`registry:add()`](Registry#add), which will call the given function and assign the returned value.
+    Component types can be given a default value which are assigned using [`registry:add()`](Registry#add) by specifying a function. This function will be called and its return value used for each call.
 
 - **Example**
 
@@ -59,6 +59,8 @@ Creates a new registry.
     ```
 
 - **Details**
+
+    Registries stores and manages entities and their components.
 
     It is recommended to define all component types before creating any `Registry` instances so that registries can allocate the correct amount of memory for faster operations.
 

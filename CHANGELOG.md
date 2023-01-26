@@ -6,13 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
-## Added
+### Added
 
-- Null entity `ecr.null`.
+- Component grouping and `Registry:group()`.
+- Method `View:use()`.
 
 ### Removed
 
 - Method `View:include()` and `Observer:include()`.
+
+### Fixed
+
+- `Registry:add()` not firing `Registry:added()` signals.
+- Mismatch between argument list and values returned in multi-typed observers.
+- Observers not garbage collecting after calling `Observer:disconnect()`.
 
 ### Improved
 
@@ -31,7 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Registry signals no longer pass the registry as the first argument to listeners.
 - Observers no longer track entities with removed components.
 - Method `Registry:entities()` now creates and returns an array of only valid entities.
-- Method `ecr.registry()` can no longer pre-allocate memory.
+- Function `ecr.registry()` can no longer pre-allocate memory.
 
 ### Removed
 

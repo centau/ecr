@@ -1,6 +1,6 @@
 ----------------------------------------------------------------------
 -- testkit.luau
--- v0.1.1
+-- v0.1.2
 ----------------------------------------------------------------------
 
 --!strict
@@ -67,7 +67,7 @@ local function CASE(name: string)
     table.insert(activeTest.cases, case)
 end
 
-local function CHECK(value: any)
+local function CHECK(value: any): boolean
     assert(activeTest, "no active test")
     local activeCase = activeTest.activeCase
 
@@ -76,10 +76,14 @@ local function CHECK(value: any)
         activeCase = activeTest.activeCase
     end; assert(activeCase, "no active case")
 
+    local result = value and PASS or FAIL
+
     if activeCase.result == NONE or activeCase.result == PASS then
-        activeCase.result = value and PASS or FAIL
+        activeCase.result = result
         activeCase.line = debug.info(2, "l")
     end
+
+    return result == PASS
 end
 
 local function TEST(name: string, fn: () -> ())
@@ -94,7 +98,8 @@ local function TEST(name: string, fn: () -> ())
     table.insert(tests, test)
 
     local start = os.clock()
-    local success, msg: string? = pcall(fn)
+    local msg: string?
+    local success = xpcall(fn, function(m: string) msg = m .. debug.traceback("", 2) end)
     test.duration = os.clock() - start
 
     if not test.activeCase then CASE "" end
@@ -168,7 +173,8 @@ local function BENCH(name: string, fn: () -> ())
 
     local memStart = gcinfo()
     local timeStart = os.clock()
-    local success, msg: string? = pcall(fn)
+    local msg: string?
+    local success = xpcall(fn, function(m: string) msg = m .. debug.traceback("", 2) end)
     local timeStop = os.clock()
     local memStop = gcinfo()
 

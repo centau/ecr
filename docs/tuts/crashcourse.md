@@ -18,9 +18,11 @@ There is a single pool for each component type in the registry.
 
 All pools keep their entities and components packed contiguously in memory for fast iteration.
 
+The registry class is effectively a large wrapper for iterating and transforming the data in these pools.
+
 ## Components
 
-Components are types of data and are represenented by unique integer identifiers that you can create by doing:
+Components are types of data and are represenented by unique identifiers that you can create by doing:
 
 ```lua
 local component = ecr.component()
@@ -114,7 +116,7 @@ You can also check the amount of entities contained in a single-view with the `#
 This view slower than a single-type view (but still fast overall).
 They iterate only entities that contain **all** of the specified components.
 
-These views cannot iterate directly over a single pool, it performs checks in multiple pools per iteration to check if an entity has all of the specified components.
+These views cannot iterate directly over a single pool, it performs checks in multiple pools per iteration to check if an entity has all of the specified components. The more components specified by the view the slower iteration will be.
 
 You cannot accurately check the amount of entities contained in a multi-type view without actually iterating through it.
 The `#` len operator will however give an *estimate* of the amount of entities contained in it.
@@ -150,7 +152,7 @@ for entity, position, velocity in registry:view(Position, Velocity) do
 end
 ```
 
-All components specified in the argument list `registry:view(...)` will be returned during iteration.
+All components specified in the argument list `registry:view(...)` will be returned during iteration in the same order.
 
 ### Iteration Order
 
@@ -160,7 +162,7 @@ For example, for `registry:view(A, B)`, the view will first check the size of `A
 
 ### Modification During Iteration
 
-It is safe to add, change and remove any components during view iteration as long as view iterations are not nested within each other.
+It is safe to add, change and remove any components for the entity currently being iterated during view iteration.
 
 Components that are added during iteration will not be returned for that iteration.
 
@@ -229,7 +231,7 @@ When a component is defined, it is recommended to cast the return value to the t
 A simple example of defining components and creating a system:
 
 ```lua
--- component.luau
+-- components.luau
 
 return {
     Health = ecr.component() :: number
