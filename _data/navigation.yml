@@ -13,6 +13,8 @@ tut:
         url: /tut/crashcourse
       - title: Groups
         url: /tut/groups
+      - title: Replication
+        url: /tut/replication
 
 api:
   - title: API

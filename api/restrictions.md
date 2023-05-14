@@ -3,21 +3,11 @@ permalink: api/restrictions
 title: Restrictions
 ---
 
-The API omits sanity checks in areas that would be costly to do so, allowing you to run into nasty problems like iterator invalidation, stale references and general undefined behavior. This means that there are certain restrictions on what you can do. All restrictions are documented here and at the relevant API references.
+The API omits sanity checks in areas that would be costly to do so, allowing you to run into problems like iterator invalidation and undefined behavior. This means that there are certain restrictions on what you can do. All restrictions are documented here and at the relevant API references.
 
-## Entity Identifiers
+## Releasing Ids
 
-Using an invalid identifier can cause errors, references to incorrect entities, and corrupt registry pools causing them to store invalid entities, in general, this is called *undefined behavior*.
-
-A valid identifier is an identifier that has been returned by [`create()`](Registry#create) and has not yet been released.
-
-- Invalid identifiers can be used with [`valid()`](Registry#valid), [`version()`](Registry#version) and [`current()`](Registry#current), for all other methods they cannot be used.
-
-- Identifiers returned during view iteration, observer iteration and group iteration are guaranteed to be valid.
-
-In all other cases, it is recommended to check if an identifier is valid with [`valid()`](Registry#valid) first before using it.
-
-Removing an entity that still has components with [`release()`](Registry#release) can also cause the same issues. If in doubt check first using [`orphan()`](Registry#orphan) or just use [`destroy()`](Registry#destroy).
+Destroying an entity that still has components with [`release()`](Registry#release.md) can corrupt registry pools and lead to undefined behavior. If in doubt check first using [`orphaned()`](Registry#orphaned.md) or just use [`destroy()`](Registry#destroy.md).
 
 ## Signals
 
@@ -27,19 +17,19 @@ Removing an entity that still has components with [`release()`](Registry#release
 
 Breaking these restrictions can result in *undefined behavior*.
 
-## Iteration
+## Modifing During Iteration
 
 This applies to the iteration of views, observers and groups.
 
 - During iteration, adding or removing components from entities not currently being iterated can *invalidate the iterator*.
 
-## Groups and views
+## Groups and Views
 
-Using groups add extra limitations to adding components during views.
+Using `Registry:group()` adds extra limitations to adding components during views.
 
 - When iterating a view of a single component that is owned by a group, adding all the components required to add an entity to the group may *invalidate the iterator*.
 
-- When iterating a view of multiple components lead by a group-owned component, adding all components required to add the entity to that same group will *invalidate the iterator*. [`View:use()`](View#use) can be used to specify a component to lead that is not owned by the same group to get around this.
+- When iterating a view of multiple components lead by a group-owned component, adding all components required to add the entity to that same group will *invalidate the iterator*. [`View:use()`](View#use.md) can be used to specify a component to lead that is not owned by the same group to get around this.
 
     In short, when iterating a view that includes group-owned components, do not add any component owned by any of those groups unless you
     1. specify a component to lead that is not owned by the same group as the components you intend to add.
@@ -47,7 +37,7 @@ Using groups add extra limitations to adding components during views.
 
 ## Pools
 
-[`Registry:storage()`](Registry#storage) returns the underlying datastructure used in the registry to store data. You can iterate over these for more direct access than views and also modify the values of `Pool.values` directly. Changing `Pool.entities` or adding or removing fields from either table however will result in *undefined behavior*.
+[`Registry:storage()`](Registry#storage.md) returns the underlying storages used in the registry to store data. You can iterate over these for more direct access than views and also modify the values of `Pool.values` directly. Changing `Pool.entities` or adding or removing fields from either table however will result in *undefined behavior*.
 
 ## Multithreading
 

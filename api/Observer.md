@@ -16,7 +16,7 @@ Excludes entities with the given components from the observer.
 - **Type**
 
     ```lua
-    function Observer:exclude<T...>(components: ...unknown): View<T...>
+    function Observer:exclude<T...>(components: ...unknown): Observer<T...>
     ```
 
 - **Details**
@@ -24,24 +24,6 @@ Excludes entities with the given components from the observer.
     The method will return the same observer that it was called on.
 
     Any entities encountered with **any** of the excluded components, will not be returned during iteration.
-
-### each()
-
-Returns an iterator that can be used to iterate over all entities in the observer.
-
-- **Type**
-
-    ```lua
-    function Observer:each<T...>(): () -> (Entity, T...)
-    ```
-
-- **Details**
-
-    The entity followed by its components (ordered the same as the argument list) are returned.
-
-    Components can be added and changed during iteration. Newly added components and their entities will not be returned until the next iteration.
-
-    > ⚠️ During iteration, adding or removing components from entities not currently being iterated can *invalidate the iterator*.
 
 ---
 
@@ -52,10 +34,12 @@ Disconnects the observer, stopping any new changes from being tracked
 - **Type**
 
     ```lua
-    function Observer:disconnect()
+    function Observer:disconnect<T...>(): Observer<T...>
     ```
 
 - **Details**
+
+    Returns the same view that it was called on.
 
     > ⚠️ This must be called for the observer to be garbage collected.
 
@@ -68,8 +52,12 @@ Reconnects the Observer and allows it to track future changes again.
 - **Type**
 
     ```lua
-    function Observer:reconnect()
+    function Observer:reconnect<T...>(): Observer<T...>
     ```
+
+- **Details**
+
+    Returns the same view that it was called on.
 
 ---
 
@@ -80,10 +68,12 @@ Clears all recorded changes.
 - **Type**
 
     ```lua
-    function Observer:clear(): ()
+    function Observer:clear<T...>(): Observer<T...>
     ```
 
 - **Details**
+
+    Returns the same view that it was called on.
 
     Use to clear all recorded changes after they have been processed to avoid reprocessing the same changes again later.
 
@@ -92,5 +82,15 @@ Clears all recorded changes.
 ## Iteration
 
 Observers support generalized iteration.
+
+```lua
+for id: Entity, ...: T... in Observer<T...> do
+```
+
+The entity id followed by the group components are returned.
+
+Components can be added, changed and removed during iteration. Newly added components and their entities will not be returned until the next iteration.
+
+> ⚠️ During iteration, adding or removing components from entities not currently being iterated can invalidate the iterator.
 
 ---

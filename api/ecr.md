@@ -13,25 +13,25 @@ Creates a new component type.
 
     ```lua
     function ecr.component(): unknown
-    function ecr.component<T>(default: () -> T): T
+    function ecr.component<T>(constructor: () -> T): T
     ```
 
 - **Details**
 
     Returns a unique identifier representing a new component type.
 
-    Component types can be given a default value which are assigned using [`registry:add()`](Registry#add) by specifying a function. This function will be called and its return value used for each call.
+    Component types can be given a constructor which is called when [`registry:add()`](Registry#add.md) is used.
 
 - **Example**
 
-    No default value.
+    No constructor.
 
     ```lua
     local Health = ecr.component() :: number
     local Model = ecr.component() :: Model
     ```
 
-    With default value.
+    With constructor.
 
     ```lua
     local Health = ecr.component(function()
@@ -42,7 +42,7 @@ Creates a new component type.
     end)
 
     local Position = ecr.component(function()
-        return Vector3.new()
+        return Vector3.new(0, 0, 0)
     end)
     ```
 
@@ -57,12 +57,6 @@ Creates a new registry.
     ```lua
     function ecr.registry(): Registry
     ```
-
-- **Details**
-
-    Registries store and manages entities and their components.
-
-    It is recommended to define all component types before creating any `Registry` instances so that registries can allocate the correct amount of memory for faster operations.
 
 ---
 
@@ -82,12 +76,12 @@ A null entity.
 
 - **Details**
 
-    The null entity is an entity that is guaranteed to be invalid.
+    This id behaves as a reference to a destroyed entity.
   
     The following expression will always return `false`:
 
     ```lua
-    registry:valid(ecr.null)
+    registry:contains(ecr.null)
     ```
 
 ---

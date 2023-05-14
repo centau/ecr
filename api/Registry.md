@@ -20,11 +20,11 @@ Creates a new entity and returns the entity's identifier.
 
 - **Details**
 
-    The first `8,589,934,591` new identifiers returned are guaranteed to be unique. After this, identifiers may be reused. Be wary of using stale references in situations where this number may be exceeded.
+    All ids returned are guaranteed to be unique unless an old id is explicitly reused.
 
-    Identifiers previusly returned or from another registry can also be specified for use. Will error if the registry is unable to create a new entity with the given identifier.
+    An entity can be created using a specific id that was created by another registry or previously by the same registry. Will error if it is unable to do so.
 
-    > ⚠️ Manually reusing an old identifier previously returned by this registry will no longer guarantee new identifiers returned to be unique.
+    > ⚠️ Reusing an old identifier previously returned by this registry will no longer guarantee new identifiers returned to be unique.
 
     > ⚠️ The total amount of entities in a registry at any given time **cannot** exceed `1,048,575`.
     > Attempting to exceed this limit will throw an error.
@@ -38,13 +38,13 @@ Removes the entity from the registry.
 - **Type**
 
     ```lua
-    function Registry:release(entity: Entity)
+    function Registry:release(id: Entity)
     ```
 
 - **Details**
 
     > ⚠️ This method does **not** remove any of the entity's components.
-    > If it is not known that an entity has components, use [`Registry:destroy()`](Registry#destroy) instead.
+    > If it is not known that an entity has components, use [`Registry:destroy()`](Registry#destroy.md) instead.
 
     > ⚠️ Using this method on an entity that still has components will result in *undefined behavior*.
 
@@ -57,31 +57,31 @@ Removes the entity from the registry and removes all of its components.
 - **Type**
 
     ```lua
-    function Registry:destroy(entity: Entity)
+    function Registry:destroy(id: Entity)
     ```
 
 ---
 
-### valid()
+### contains()
 
-Checks if the given entity identifier is valid.
+Checks if the given entity exists in the registry.
 
 - **Type**
 
     ```lua
-    function Registry:valid(entity: Entity): boolean
+    function Registry:contains(id: Entity): boolean
     ```
 
 ---
 
-### orphan()
+### orphaned()
 
 Checks if the given entity no components.
 
 - **Type**
 
     ```lua
-    function Registry:orphan(entity: Entity): boolean
+    function Registry:orphan(id: Entity): boolean
     ```
 
 - **Details**
@@ -92,23 +92,21 @@ Checks if the given entity no components.
 
 ### add()
 
-Adds components with default values to an entity.
+Adds all components specified to an entity.
 
 - **Type**
   
     ```lua
-    function Registry:add<T...>(entity: Entity, components: T...)
+    function Registry:add<T...>(id: Entity, components: T...)
     ```
 
 - **Details**
 
-    Adds the given components to the entity with their default values.
+    Adds the given components to the entity by calling each component constructor.
 
-    The values assigned are the values returned by the functions used to define the components.
+    Adding a component to an entity that already has the component will do nothing.
 
-    > ⚠️ Attempting to add components with this method that do not have default values will throw an error.
-
-    > ⚠️ Attempting to add a component to an entity that already has the component will throw an error.
+    > ⚠️ Attempting to add components with this method that do not have constructors will error.
 
 ---
 
@@ -119,7 +117,7 @@ Sets an entity's component.
 - **Type**
 
     ```lua
-    function Registry:set<T>(entity: Entity, component: T, value: T?)
+    function Registry:set<T>(id: Entity, component: T, value: T?)
     ```
 
 - **Details**
@@ -140,7 +138,7 @@ Updates an entity's component.
 - **Type**
 
     ```lua
-    function Registry:patch<T>(entity: Entity, component: T, patcher: (T) -> T)
+    function Registry:patch<T>(id: Entity, component: T, patcher: (T) -> T)
     ```
 
 - **Details**
@@ -167,7 +165,7 @@ Checks if an entity has all of the given components.
 - **Type**
 
     ```lua
-    function Registry:has<T...>(entity: Entity, components: T...): boolean
+    function Registry:has<T...>(id: Entity, components: T...): boolean
     ```
 
 - **Details**
@@ -183,7 +181,7 @@ Gets an entity's component values.
 - **Type**
 
     ```lua
-    function Registry:get<T...>(entity: Entity, components: T...): T...
+    function Registry:get<T...>(id: Entity, components: T...): T...
     ```
 
 - **Details**
@@ -194,12 +192,12 @@ Gets an entity's component values.
 
 ### remove()
 
-Removes the given components from the entity.
+Removes the given components from an entity.
 
 - **Type**
 
     ```lua
-    function Registry:remove<T...>(entity: Entity, components: T...): ()
+    function Registry:remove<T...>(id: Entity, components: T...): ()
     ```
 
 - **Details**
@@ -233,28 +231,28 @@ Creates an [`observer`](Observer) which records changes that occur for a given c
 - **Type**
 
     ```lua
-    function Registry:track<T, U...>(toTrack: T, includes: U...): Observer<T, U...>
+    function Registry:track<T...>(...: T...): Observer<T...>
     ```
 
 - **Details**
 
-    Only changes made to the component given as the first argument are tracked, subsequent arguments are only included when iterating just like a `View`.
+    Tracks all components in the argument list.
 
-    The observer will return entities that:
+    The observer will only return entities that:
 
     1. Are assigned the component when they previously did not own it.
-    2. Have the component's value changed.
-    3. Have all other components specified at the time of iteration.
+    2. Have the component value changed.
+    3. Have all components specified in the observer at the time of iteration.
 
     When an observer is first created, it treats all current entities with the given components in the registry as newly changed.
 
-    > ⚠️ After iterating over an observer and processing the changes, call [`Observer:clear()`](Observer#clear) to clear all changes so you do not reprocess the same changes again.
+    > ⚠️ After iterating over an observer and processing the changes, call [`Observer:clear()`](Observer#clear.md) to clear all changes so you do not reprocess the same changes again.
 
 ---
 
 ### size()
 
-Returns the current amount of valid entities in the registry.
+Returns the current amount of entities in the registry.
 
 - **Type**
 
@@ -266,7 +264,7 @@ Returns the current amount of valid entities in the registry.
 
 ### entities()
 
-Creates an array with all valid entities in the registry.
+Creates an array with all entities in the registry.
 
 - **Type**
 
@@ -352,7 +350,7 @@ Returns the identifier's encoded version.
 - **Type**
 
     ```lua
-    function Registry:version(entity: Entity): number
+    function Registry:version(id: Entity): number
     ```
 
 ---
@@ -364,7 +362,7 @@ Returns the current version of the given identifier.
 - **Type**
 
     ```lua
-    function Registry:current(entity: Entity): number
+    function Registry:current(id: Entity): number
     ```
 
 - **Details**
