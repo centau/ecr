@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Changed
+
+- Connecting or disconnecting an already connected or disconnected observer will no longer error.
+- Excluding an already excluded component with `View:exclude()` and `Observer:exclude()` no longer errors.
+- Method `Registry:add()` will do nothing if the entity already has the component.
+- Method `Registry:orphan()` renamed to `Registry:orphaned()`.
+- Method `Registry:valid()` renamed to `Registry:contains()`.
+- Method `Registry:create()` is now guaranteed to always return unique identifiers.
+- Using invalid entities no longer causes undefined behavior in any method and instead errors.
+- `Registry:track()` will now track all components passed, not just the first one.
+
+### Removed
+
+- Methods:
+    - `View:each()`
+    - `Observer:each()`
+    - `Group:each()`
+
+## Fixed
+
+- Undefined behavior sometimes occuring when removing grouped components.
+- Observers not returning up-to-date values when changing a component while it is disconnected.
+
 ---
 
 ## [0.4.0] - 2023-01-26

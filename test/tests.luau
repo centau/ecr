@@ -1,31 +1,60 @@
-local TEST, CASE, CHECK, FINISH = require("test/testkit").getUnitTestTools()
+local testkit = require("test/testkit")
 
---[[local function printt(t: {})
-    if next(t) then
-        print("{")
-        for i, v in next, t do
-            print(string.format(
-                "    [%s]: %s",
-                tostring(i),
-                tostring(v)
-            ))
-        end
-        print("}")
-    else
-        print("{}")
+local TEST, CASE, CHECK, FINISH = testkit.test()
+
+local function CHECK_ERR<T...>(s: string, fn: (T...) -> (), ...: T...)
+    local ok, err: string? = pcall(fn, ...)
+    if CHECK(not ok, 2) then
+        local i = string.find(err :: string, " ")
+        assert(i)
+        local msg = string.sub(err :: string, i+1)
+        CHECK(msg == s, 2)
     end
-end]]
+end
 
 local ecr = require "src/ecr"
 
 local A, B, C, D = ecr.component(), ecr.component(), ecr.component(), ecr.component()
 local E, F, G, H = ecr.component(), ecr.component(), ecr.component(), ecr.component(function() return true end)
 
-TEST("registry:create()", function()
-    local N = 1e3
+local MAX_VER = 2^33-1
 
+local function KEY(id: ecr.Entity): number
+    return bit32.band(id, 2^20-1)
+end
+
+local function CREATE_ID(key: number, ver: number)
+    return (ecr :: any).id(key, ver)
+end
+
+local function SET_ENTITY_VERSION(reg: ecr.Registry, key: number, ver: number)
+    reg:release(reg:create(CREATE_ID(KEY(key), 1)))
+    ;(reg :: any):set_entity_version(KEY(key), ver)
+end
+
+local function CREATE_DEPRECATED_ID(reg: ecr.Registry): ecr.Entity
+    local id = reg:create()
+    reg:release(id)
+    SET_ENTITY_VERSION(reg, KEY(id), MAX_VER)
+    id = reg:create()
+    reg:release(id)
+    return id
+end
+
+local function BULK_CREATE_IDS(reg: ecr.Registry, n: number): { ecr.Entity }
+    local ids = table.create(n)
+    for i = 1, n do
+        ids[i] = reg:create()
+    end
+    return ids
+end
+
+local N = 1e3
+
+TEST("registry:create()", function()
     do CASE "New ids unique"
         local reg = ecr.registry()
+
         local cache = {}
 
         for i = 1, N do
@@ -35,122 +64,215 @@ TEST("registry:create()", function()
         end
     end
 
-    do CASE "Reused ids unique"
+    do CASE "Reusing keys produce unique ids"
         local reg = ecr.registry()
+
         local cache = {}
 
         for i = 1, N do
-            local e = reg:create()
-            cache[e] = true
-        end
-
-        for e in cache do
-            reg:release(e)
-        end
-
-        for i = 1, N do -- reuse all ids
             local id = reg:create()
+            cache[id] = true
+        end
+
+        for id in cache do
+            reg:release(id)
+        end
+
+        for i = 1, N do
+            local id = reg:create() -- key reused
             CHECK(not cache[id])
             cache[id] = true
         end
     end
 
-    do CASE "Create entity with identifier"
-        local entities = {}
+    do CASE "Create entity with specific id"
+        do
+            local sreg = ecr.registry()
 
-        local sreg = ecr.registry()
+            local ids = BULK_CREATE_IDS(sreg, N)
 
-        for i = 1, N do
-            entities[i] = sreg:create()   
+            -- mix array of ids
+            local mixed = table.clone(ids)
+            for i = 1, N do
+                local a = math.random(1, N)
+                local b = math.random(1, N)
+                mixed[a], mixed[b] = mixed[b], mixed[a]
+            end
+
+            local reg = ecr.registry()
+
+            for i = 1, N do
+                reg:create(mixed[i])
+            end
+
+            for i = 1, N do
+                CHECK(reg:contains(ids[i]))
+            end
         end
-
-         -- mix array of entities
-         local mixed = table.clone(entities)
-         for i = 1, N do
-             local a = math.random(1, N)
-             local b = math.random(1, N)
-             mixed[a], mixed[b] = mixed[b], mixed[a]
-         end
 
         local reg = ecr.registry()
+        reg:create(CREATE_ID(3, 2))
+        CHECK(reg:create() == CREATE_ID(1, 1))
+        CHECK(reg:create() == CREATE_ID(2, 1)) 
+        CHECK(reg:create() == CREATE_ID(4, 1))
+    end
 
-        for i = 1, N do
-            reg:create(mixed[i])
+    do CASE "Create entity with previously used id"
+        do
+            local reg = ecr.registry()
+            local id = reg:create()
+            reg:release(id)
+            reg:create(id)
+            CHECK(reg:contains(id))
         end
 
-        for i = 1, N do
-            CHECK(reg:valid(entities[i]))
+        do
+            local reg = ecr.registry()
+            local id1, id2, id3 = reg:create(), reg:create(), reg:create()
+            local id4 = reg:create()
+
+            reg:release(id4)
+            reg:release(id3)
+            reg:release(id2)
+            reg:release(id1)
+
+            -- 1 -> 2 -> 3 -> 4
+            reg:create(id4)
+            -- 1 -> 2 -> 3
+            reg:create(id2)
+            -- 1 -> 3
+            reg:create(id1)
+            -- 3
+            local id5 = reg:create(CREATE_ID(5, 1))
+            reg:release(id5)
+            -- 3 -> 5
+            reg:create(id5)
+            -- 3
+            reg:create(id3)
+            -- [empty]
+
+            CHECK(reg:contains(id1))
+            CHECK(reg:contains(id2))
+            CHECK(reg:contains(id3))
+            CHECK(reg:contains(id4))
+            CHECK(reg:contains(id5))
+
+            CHECK(KEY(id1) == 1)
+            CHECK(KEY(id2) == 2)
+            CHECK(KEY(id3) == 3)
+            CHECK(KEY(id4) == 4)
+            CHECK(KEY(id5) == 5)
         end
     end
 
-    do CASE "Error if identifier is already in use"
+    do CASE "Create entity with deprecated id"
+        local reg = ecr.registry()
+        local id = CREATE_DEPRECATED_ID(reg)
+        reg:create(id)
+        CHECK(reg:contains(id))
+        CHECK(reg:version(id) == MAX_VER)
+    end
+
+    do CASE "Error if key is already in use"
         local sreg = ecr.registry()
         local id = sreg:create()
 
         local reg = ecr.registry()
-        reg:create()
 
-        local ok = pcall(function()
+        CHECK(id == reg:create())
+
+        CHECK_ERR("key is already in use", function()
             reg:create(id)
         end)
-
-        CHECK(not ok)
     end
 
-    do CASE "Error if `null` is used"
+    do CASE "Error if null is used"
         local reg = ecr.registry()
 
-        local ok = pcall(function()
+        CHECK_ERR("malformed id", function()
             reg:create(ecr.null)
         end)
-
-        CHECK(not ok)
     end
 end)
 
 TEST("registry:release()", function()
     local reg = ecr.registry()
 
-    do CASE "Released entities are no longer valid"
+    do CASE "Released entities invalid"
         local id = reg:create()
         reg:release(id)
-        CHECK(not reg:valid(id))
+        CHECK(not reg:contains(id))
+    end
+
+    do CASE "Release invalid id"
+        local id = reg:create()
+        reg:release(id)
+        CHECK_ERR("invalid entity", function()
+            reg:release(id)
+        end)
+    end
+
+    do CASE "Release null id"
+        CHECK_ERR("invalid entity", function()
+            reg:release(ecr.null)
+        end)
+    end
+
+    do CASE "Release deprecated id"
+        local id = CREATE_DEPRECATED_ID(reg)
+        CHECK_ERR("invalid entity", function()
+            reg:release(id)
+        end)
     end
 end)
 
-TEST("registry:valid()", function()
+TEST("registry:contains()", function()
     local reg = ecr.registry()
 
-    local id = reg:create()
+    do
+        local id = reg:create()
 
-    do CASE "New entity valid"
-        CHECK(reg:valid(id))
+        do CASE "New entity valid"
+            CHECK(reg:contains(id))
+        end
+
+        reg:release(id)
+
+        do CASE "Released entity invalid"
+            CHECK(not reg:contains(id))
+        end
+
+        local newid = reg:create()
+
+        do CASE "Id with reused key valid"
+            CHECK(reg:contains(newid))
+        end
+
+        do CASE "Released entity still invalid despite key reuse"
+            CHECK(not reg:contains(id))
+        end
     end
 
-    reg:release(id)
-
-    do CASE "Released entity invalid"
-        CHECK(not reg:valid(id))
-    end
-
-    do CASE "Reused entity key valid"
-        id = reg:create()
-        CHECK(reg:valid(id))
-    end
-
-    do CASE "Integer key invalid"
-        CHECK(not reg:valid(1))
+    do CASE "Integer invalid"
+        local id = reg:create()
+        assert(KEY(id) == 2)
+        CHECK(not reg:contains(2))
     end
 
     do CASE "Null entity invalid"
-        CHECK(not reg:valid(ecr.null))
+        CHECK(not reg:contains(ecr.null))
+    end
+
+    do CASE "Deprecated id invalid"
+        local id = CREATE_DEPRECATED_ID(reg)
+        CHECK(not reg:contains(id))
     end
 end)
 
 TEST("registry:version()", function()
     local reg = ecr.registry()
 
-    do CASE "Gets correct version"
+    do CASE "Get version"
         local id = reg:create()
         CHECK(reg:version(id) == 1)
     end
@@ -166,26 +288,31 @@ TEST("registry:version()", function()
 
     do CASE "Version overflow"
         local reg2 = ecr.registry()
-        local MAX_VER = 2^33 - 1
         
         reg2:release( reg2:create() ); -- ensure id internally exists
 
-        (reg2 :: any):setEntityVersion(1, MAX_VER - 1)
+        SET_ENTITY_VERSION(reg2, 1, MAX_VER - 1)
 
-        -- verify version was set to 1 under max correctly
+        -- verify version was set to MAX-1 correctly
         local id = reg2:create()
         CHECK(reg2:version(id) == MAX_VER - 1)
+        CHECK(KEY(id) == 1)
         -- trigger version increment
         reg2:release(id)
 
+        -- verify version is now MAX
         id = reg2:create()
         CHECK(reg2:version(id) == MAX_VER)
-        -- trigger version increment
+        CHECK(KEY(id) == 1)
+
+        -- id deprecated
         reg2:release(id)
+        CHECK(reg2:version(id) == MAX_VER)
         
-        -- should overflow and reset back to 1
+        -- should produce a new key and not recycle as the previous key is at MAX version
         id = reg2:create()
         CHECK(reg2:version(id) == 1)
+        CHECK(KEY(id) == 2)
     end
 end)
 
@@ -204,6 +331,10 @@ TEST("registry:current()", function()
         reg:release(id_new)
         CHECK(reg:current(id_new) == 3)
     end
+
+    do CASE "Deprecated key"
+        CHECK(reg:current(CREATE_DEPRECATED_ID(reg)) == MAX_VER)
+    end
 end)
 
 TEST("registry:add()", function()
@@ -220,136 +351,380 @@ TEST("registry:add()", function()
         CHECK(reg:has(id, ADD_B))
     end
 
-    do CASE "Attempt to add an already-owned component errors"
-        local ok = pcall(function()
-            local id = reg:create()
-            reg:set(id, ADD_A, true)
-            reg:add(id, ADD_A)
-        end)
-        CHECK(not ok)
+    do CASE "Attempt to add an already added component does nothing"
+        local id = reg:create()
+        reg:set(id, ADD_A, false)
+        reg:add(id, ADD_A)
+        CHECK(reg:get(id, ADD_A) == false)
     end
 
-    do CASE "Add a component with no default value specified errors"
-        local ok = pcall(function()
+    do CASE "Add a component with no constructor errors"
+        CHECK_ERR("no constructor defined for component (arg #1)", function()
             local id = reg:create()
             reg:add(id, B)
         end)
-        CHECK(not ok)
     end
 
-    do CASE "Add a component with no returned value errors"
-        local ok = pcall(function()
+    do CASE "Constructor returning nil errors"
+        CHECK_ERR("component (arg #1) constructor did not return a value", function()
             local id = reg:create()
             reg:add(id, ADD_C)
         end)
-        CHECK(not ok)
+    end
+
+    do CASE "Add component to invalid id with unused key"
+        CHECK_ERR("invalid entity", function()
+            local id = reg:create()
+            reg:release(id)
+            reg:add(id, ADD_A)
+        end)
+    end
+
+    do CASE "Add component to invalid id with used key"
+        CHECK_ERR("invalid entity", function()
+            local id = reg:create()
+            reg:release(id)
+            reg:create() -- reuse key
+            reg:add(id, ADD_A)
+        end)
+    end
+
+    do CASE "Add component to deprecated id"
+        CHECK_ERR("invalid entity", function()
+            local id = CREATE_DEPRECATED_ID(reg)
+            reg:add(id, ADD_A)
+        end)
+    end
+
+    do CASE "Add component to invalid id with used key that has component"
+        CHECK_ERR("invalid entity", function()
+            local id = reg:create()
+            reg:release(id)
+            local newid = reg:create() -- reuse key
+            reg:add(newid, ADD_A)
+            reg:add(id, A)
+        end)
+    end
+
+    do CASE "Add component to null entity"
+        CHECK_ERR("invalid entity", function()
+            reg:add(ecr.null, ADD_A)
+        end)
     end
 end)
 
 TEST("registry:set()", function()
     local reg = ecr.registry()
-    local id = reg:create()
 
-    do CASE "Add component"
-        reg:set(id, A, 1)
-        CHECK(reg:get(id, A) == 1)
+    do
+        local id = reg:create()
+
+        do CASE "Add component"
+            reg:set(id, A, 1)
+            CHECK(reg:get(id, A) == 1)
+        end
+
+        do CASE "Change component"
+            reg:set(id, A, 2)
+            CHECK(reg:get(id, A) == 2)
+        end
+
+        do CASE "Remove component"
+            reg:set(id, A, nil)
+            CHECK(reg:get(id, A) == nil)
+            CHECK(not reg:has(id, A))
+        end
     end
 
-    do CASE "Change component"
-        reg:set(id, A, 2)
-        CHECK(reg:get(id, A) == 2)
+    do CASE "Add component to invalid id with unused key"
+        CHECK_ERR("invalid entity", function()
+            local id = reg:create()
+            reg:release(id)
+            reg:set(id, A, 1)
+        end)
     end
-    
-    do CASE "Remove component"
-        reg:set(id, A, nil)
-        CHECK(reg:get(id, A) == nil)
-        CHECK(not reg:has(id, A))
+
+    do CASE "Add component to invalid id with used key"
+        CHECK_ERR("invalid entity", function()
+            local id = reg:create()
+            reg:release(id)
+            reg:create() -- reuse key
+            reg:set(id, A, 1)
+        end)
+    end
+
+    do CASE "Add component to invalid id with used key that has component"
+        CHECK_ERR("invalid entity", function()
+            local id = reg:create()
+            reg:release(id)
+
+            local newid = reg:create() -- reuse key
+            reg:set(newid, A, 0)
+
+            reg:set(id, A, 1)
+        end)
+    end
+
+    do CASE "Add component to null entity"
+        CHECK_ERR("invalid entity", function()
+            reg:set(ecr.null, A, true)
+        end)
+    end
+
+    do CASE "Add component to deprecated id"
+        CHECK_ERR("invalid entity", function()
+            local id = CREATE_DEPRECATED_ID(reg)
+            reg:set(id, A, 1)
+        end)
+    end
+
+    do CASE "Change component of invalid entity with used key that has component"
+        CHECK_ERR("invalid entity", function()
+            local id = reg:create()
+            reg:release(id)
+            
+            local newid = reg:create() -- reuse key
+            reg:set(newid, A, 1)
+
+            reg:set(id, A, 2)
+        end)
+    end
+
+    do CASE "Remove component from invalid entity"
+        local id = reg:create()
+        reg:release(id)
+
+        local ok = pcall(function()
+            reg:set(id, A, nil)
+        end)
+        
+        CHECK(ok)
+    end
+
+    do CASE "Remove component from invalid entity with used key"
+        local id = reg:create()
+        reg:release(id)
+        reg:create() -- reuse key
+
+        local ok = pcall(function()
+            reg:set(id, A, nil)
+        end)
+        
+        CHECK(ok)
+    end
+
+    do CASE "Remove component from invalid entity with used key that has component"
+        local id = reg:create()
+        reg:release(id)
+        
+        local newid = reg:create() -- reuse key
+        reg:set(newid, A, 1)
+
+        CHECK_ERR("invalid entity", function()
+            reg:set(id, A, nil)
+        end)
+
+        CHECK(reg:get(newid, A) == 1)
     end
 end)
 
 TEST("registry:get()", function()
     local reg = ecr.registry()
-    local id = reg:create()
 
-    do CASE "Get component"
-        reg:set(id, A, 1)
-        CHECK(reg:get(id, A) == 1)
-    end
+    do
+        local id = reg:create()
 
-    do CASE "Get multiple components"
-        reg:set(id, B, 2)
-        reg:set(id, C, 3)
-        reg:set(id, D, 4)
-        reg:set(id, E, 5)
+        do CASE "Get component"
+            reg:set(id, A, 1)
+            CHECK(reg:get(id, A) == 1)
+        end
 
-        ;(function(...)
-            local argn = select("#", ...)
-            CHECK(argn > 0)
-            for i = 1, argn do
-                CHECK(select(i, ...) == i)
+        do CASE "Get multiple components"
+            reg:set(id, B, 2)
+            reg:set(id, C, 3)
+            reg:set(id, D, 4)
+            reg:set(id, E, 5)
+
+            local values = { reg:get(id, A, B, C, D, E) }
+
+            for i, value in values do
+                CHECK(value == i)
             end
-        end)(reg:get(id, A, B, C, D, E))
+        end
+
+        do CASE "Get nil component"
+            reg:remove(id, A)
+            CHECK(reg:get(id, A) == nil)
+        end
     end
 
-    do CASE "Get nil component"
-        reg:remove(id, A)
+    do CASE "Get component of invalid id"
+        local id = reg:create()
+        reg:release(id)
+        CHECK(reg:get(id, A) == nil)
+    end
+
+    do CASE "Get component of invalid id with used key that has component"
+        local id = reg:create()
+        reg:release(id)
+
+        local newid = reg:create()
+        reg:set(newid, A, 1)
+
         CHECK(reg:get(id, A) == nil)
     end
 end)
 
 TEST("registry:has()", function()
     local reg = ecr.registry()
-    local id = reg:create()
+    
+    do
+        local id = reg:create()
 
-    do CASE "Has component"
-        reg:set(id, A, true)
-        CHECK(reg:has(id, A) == true)
+        do CASE "Has component"
+            reg:set(id, A, true)
+            CHECK(reg:has(id, A) == true)
 
-        reg:set(id, B, true)
-        CHECK(reg:has(id, A, B))
+            reg:set(id, B, true)
+            CHECK(reg:has(id, A, B))
+        end
+
+        do CASE "Does not have component"
+            reg:set(id, A, nil)
+            CHECK(reg:has(id, A) == false)
+            CHECK(reg:has(id, B, A) == false)
+        end
     end
 
-    do CASE "Does not have component"
-        reg:set(id, A, nil)
+    do CASE "Invalid entity"
+        local id = reg:create()
+        reg:release(id)
         CHECK(reg:has(id, A) == false)
-        CHECK(reg:has(id, B, A) == false)
+    end
+
+    do CASE "Invalid entity with used key that has component"
+        local id = reg:create()
+        reg:release(id)
+
+        local newid = reg:create()
+        reg:set(newid, A, 1)
+
+        CHECK(reg:has(id, A) == false)
     end
 end)
 
 TEST("registry:patch()", function()
     local reg = ecr.registry()
-    local id = reg:create()
-    reg:set(id, A, 0)
 
     do CASE "Change component"
-        reg:patch(id, A :: number, function(cur)
-            CHECK(cur == 0)
-            return cur + 1
+        local id = reg:create()
+        reg:set(id, A, 0)
+
+        reg:patch(id, A :: number, function(v)
+            CHECK(v == 0)
+            return v + 1
         end)
         CHECK(reg:get(id, A) == 1)
+    end
+
+    do CASE "Patch returns nil"
+        local id = reg:create()
+        reg:set(id, A, true)
+        
+        CHECK_ERR("patcher cannot return nil", function()
+            reg:patch(id, A :: number, function(v)
+                return nil :: any
+            end)
+        end)
+    end
+
+    do CASE "Change non-existent component"
+        local id = reg:create()
+        
+        CHECK_ERR("entity does not have component", function()
+            reg:patch(id, A :: number, function(v)
+                CHECK(false)
+                return v + 1
+            end)
+        end)
+    end
+
+    do CASE "Invalid id"
+        local id = reg:create()
+        reg:release(id)
+        
+        CHECK_ERR("entity does not have component", function()
+            reg:patch(id, A :: number, function(v)
+                CHECK(false)
+                return v + 1
+            end)
+        end)
+    end
+
+    do CASE "Invalid id that shares same key with id that has component"
+        local id = reg:create()
+        reg:release(id)
+
+        local newid = reg:create()
+        reg:set(newid, A, 1)
+        
+        CHECK_ERR("invalid entity", function()
+            reg:patch(id, A :: number, function(v)
+                CHECK(false)
+                return v + 1
+            end)
+        end)
     end
 end)
 
 TEST("registry:remove()", function()
     local reg = ecr.registry()
-    local id = reg:create()
-    reg:set(id, A, 1)
-    reg:set(id, B, 1)
-    reg:set(id, C, 1)
 
-    local id2 = reg:create()
-    reg:set(id2, A, 2)
+    do
+        local id = reg:create()
+        reg:set(id, A, 1)
+        reg:set(id, B, 1)
+        reg:set(id, C, 1)
 
-    do CASE "Remove single component"
-        reg:remove(id, A)
-        CHECK(reg:has(id, A) == false)
-        CHECK(reg:get(id2, A) == 2) -- check removal maintains associativity
+        local id2 = reg:create()
+        reg:set(id2, A, 2)
+
+        do CASE "Remove single component"
+            reg:remove(id, A)
+            CHECK(reg:has(id, A) == false)
+            CHECK(reg:get(id2, A) == 2) -- check removal maintains associativity
+        end
+
+        do CASE "Remove multiple components"
+            reg:remove(id, B, C)
+            CHECK(reg:has(id, B) == false)
+            CHECK(reg:has(id, C) == false)
+        end
     end
 
-    do CASE "Remove multiple components"
-        reg:remove(id, B, C)
-        CHECK(reg:has(id, B) == false)
-        CHECK(reg:has(id, C) == false)
+    do CASE "Remove component from invalid entity"
+        local id = reg:create()
+        reg:release(id)
+
+        local ok = pcall(function()
+            reg:remove(id, A)
+        end)
+
+        CHECK(ok)
+    end
+
+    do CASE "Remove component from invalid id that shares key with entity that has component"
+        local id = reg:create()
+        reg:release(id)
+
+        local newid = reg:create()
+        reg:set(newid, A, 1)
+
+        CHECK_ERR("invalid entity", function()
+            reg:remove(id, A)
+        end)
+
+        CHECK(reg:has(newid, A))
     end
 end)
 
@@ -384,67 +759,89 @@ TEST("registry:clear()", function()
     end
 
     do CASE "Clear entities"
-        local N = 1e3
         local reg = ecr.registry()
-        local ids = {}
+    
+        -- deprecate key = 1
+        CREATE_DEPRECATED_ID(reg)
 
-        for i = 1, N do
-            ids[i] = reg:create()
+        -- set key = 2 version to max
+        SET_ENTITY_VERSION(reg, 2, MAX_VER)
+        do
+            local id = reg:create()
+            assert(KEY(id) == 2)
+            assert(reg:version(id) == MAX_VER)
         end
+
+        local ids = BULK_CREATE_IDS(reg, N)
 
         reg:clear()
 
-        local ids2 = {}
+        local ids_after = BULK_CREATE_IDS(reg, N)
+
+        CHECK(KEY(ids_after[1]) == 3) -- key = 1 should not be reused
+        CHECK(KEY(ids_after[2]) == 4) -- key = 2 should now be deprecated
 
         for i = 1, N do
-            ids2[i] = reg:create()
-        end
-
-        -- check cleared ids were formatted properly by creating a new generation
-        for i = 1, N do
-            CHECK(reg:version(ids[i]) + 1 == reg:version(ids2[i]))
+            CHECK(KEY(ids_after[i]) ~= 1)
+            CHECK(KEY(ids_after[i]) ~= 2)
+            CHECK(reg:version(ids[i]) + 1 == reg:version(ids_after[i]))
         end
     end
 end)
 
-TEST("registry:orphan()", function()
+TEST("registry:orphaned()", function()
     local reg = ecr.registry()
     local id = reg:create()
 
-    do CASE "New entity is an orphan"
-        CHECK(reg:orphan(id))
+    do CASE "New entity is orphaned"
+        CHECK(reg:orphaned(id))
     end
 
     reg:set(id, B, 1)
 
-    do CASE "No longer orphan after assigning component"
-        CHECK(not reg:orphan(id))
+    do CASE "No longer orphaned after assigning component"
+        CHECK(not reg:orphaned(id))
     end
 
     reg:set(id, B, nil)
 
     do CASE "Orphan after removing last component"
-        CHECK(reg:orphan(id))
+        CHECK(reg:orphaned(id))
     end
 end)
 
 TEST("registry:destroy()", function()
     local reg = ecr.registry()
-    local id = reg:create()
-
-    reg:set(id, A, 1)
-    reg:set(id, B, 1)
-
-    reg:destroy(id)
-
-    do CASE "Destroyed entity is released"
-        CHECK(not reg:valid(id))
-    end
 
     do CASE "Component was removed"
-        -- warning: do not rely on this behavior
+        local id = reg:create()
+
+        reg:set(id, A, 1)
+        reg:set(id, B, 1)
+
+        reg:destroy(id)
+
+         -- do not rely on this behavior
+        CHECK(not reg:contains(id))
         CHECK(not reg:has(id, A))
         CHECK(not reg:has(id, B))
+    end
+
+    do CASE "Destroy invalid id"
+        local id = reg:create()
+        reg:release(id)
+
+        CHECK_ERR("invalid entity", function()
+            reg:destroy(id)
+        end)
+    end
+
+    do CASE "Destroy deprecated id"
+        local id = CREATE_DEPRECATED_ID(reg)
+
+        CHECK_ERR("invalid entity", function()
+            reg:destroy(id)
+        end)
     end
 end)
 
@@ -487,44 +884,55 @@ TEST("registry:size()", function()
 end)
 
 TEST("registry:entities()", function()
-    local N = 1e3
-    local reg = ecr.registry()
+    do
+        local reg = ecr.registry()
 
-    local ids = {}
-    for i = 1, N do
-        ids[i] = reg:create()
-    end
+        local ids = BULK_CREATE_IDS(reg, N)
 
-    -- destroy random entities
-    for i = 1, N do
-        if math.random() > 0.5 then
-            reg:destroy(ids[i])
-            ids[i] = nil
+        -- destroy random entities
+        for i = 1, N do
+            if math.random() > 0.5 then
+                reg:destroy(ids[i])
+                ids[i] = nil
+            end
+        end
+
+        do CASE "All entities are valid"
+            local list = reg:entities()
+
+            local cache = {}
+
+            for _, entity in list do
+                cache[entity] = true
+            end
+
+            for _, entity in ids do
+                CHECK(cache[entity])
+            end
         end
     end
 
-    do CASE "All entities are valid"
-        local list = reg:entities()
+    do CASE "Deprecated id not returned"
+        local reg = ecr.registry()
+        CREATE_DEPRECATED_ID(reg)
+        local id2 = reg:create()
 
-        local cache = {}
+        local ids = reg:entities()
 
-        for _, entity in list do
-            cache[entity] = true
-        end
-
-        for _, entity in ids do
-            CHECK(cache[entity])
-        end
+        CHECK(#ids == 1 and ids[1] == id2)
     end
 end)
 
-
-
 TEST("registry:view()", function()
-    local N = 1e3
-    local function flip() return math.random() > 0.3 end
-    local function empty(t) return next(t) == nil end
-    local function viewids(view: ecr.View<...unknown>): { [ecr.Entity]: { unknown } }
+    local function flip()
+        return math.random() > 0.3
+    end
+
+    local function empty(t)
+        return next(t) == nil
+    end
+
+    local function getids(view: ecr.View<...unknown>): { [ecr.Entity]: { unknown } }
         local cache = {}
     
         for id, a, b, c, d in view do
@@ -570,7 +978,7 @@ TEST("registry:view()", function()
     end
 
     do CASE "View all entities with A"
-        local viewed = viewids(reg:view(A))
+        local viewed = getids(reg:view(A))
         CHECK(not empty(viewed))
         for _, id in As do
             local v = viewed[id]
@@ -580,7 +988,7 @@ TEST("registry:view()", function()
     end
 
     do CASE "View all entities with B"
-        local viewed = viewids(reg:view(B))
+        local viewed = getids(reg:view(B))
         CHECK(not empty(viewed))
         for _, id in Bs do
             local v = viewed[id]
@@ -590,7 +998,7 @@ TEST("registry:view()", function()
     end
 
     do CASE "View all entities with ABC"
-        local viewed = viewids(reg:view(A, B, C))
+        local viewed = getids(reg:view(A, B, C))
         CHECK(not empty(viewed))
         for _, id in ABCs do
             local v = viewed[id]
@@ -602,7 +1010,7 @@ TEST("registry:view()", function()
     end
 
     do CASE "View all entities with ABC using C"
-        local viewed = viewids(reg:view(A, B, C):use(C))
+        local viewed = getids(reg:view(A, B, C):use(C))
         CHECK(not empty(viewed))
         for _, id in ABCs do
             local v = viewed[id]
@@ -614,7 +1022,7 @@ TEST("registry:view()", function()
     end
 
     do CASE "View all entities with AB and not C"
-        local viewed = viewids(reg:view(A, B):exclude(C))
+        local viewed = getids(reg:view(A, B):exclude(C))
         CHECK(not empty(viewed))
         for _, id in ABnotCs do 
             local v = viewed[id]
@@ -726,16 +1134,23 @@ TEST("registry:changed()", function()
     CHECK(ce == id)
     CHECK(cv == false)
 
+    reg:patch(id, A, function(v)
+        return not v
+    end)
+    CHECK(cc == 2)
+    CHECK(ce == id)
+    CHECK(cv == true)
+
     CASE "Removing does not trigger"
     reg:set(id, A, nil)
-    CHECK(cc == 1)
+    CHECK(cc == 2)
 
     con:disconnect()
 
     CASE "Changing after disconnect does not trigger"
     reg:set(id, A, true) -- add
     reg:set(id, A, false) -- change
-    CHECK(cc == 1)
+    CHECK(cc == 2)
 end)
 
 TEST("registry:removing()", function()
@@ -753,30 +1168,40 @@ TEST("registry:removing()", function()
 
         local con = reg:removing(A):connect(fn)
 
-        reg:set(id, A, true)
+        do CASE "Removing triggers"
+            reg:set(id, A, true)
+            reg:set(id, A, nil)
+            CHECK(cc == 1)
+            CHECK(ce == id)
+            CHECK(cv == nil)
+            CHECK(lv == true)
 
-        CASE "Removing triggers"
-        reg:set(id, A, nil)
-        CHECK(cc == 1)
-        CHECK(ce == id)
-        CHECK(cv == nil)
-        CHECK(lv == true)
+            reg:set(id, A, true)
+            reg:remove(id, A)
+            CHECK(cc == 2)
+            CHECK(ce == id)
+            CHECK(cv == nil)
+            CHECK(lv == true)
+        end
 
-        CASE "Removing via destroy"
-        reg:set(id, A, false)
-        reg:destroy(id)
+        do CASE "Removing via destroy"
+            reg:set(id, A, false)
+            reg:destroy(id)
 
-        CHECK(cc == 2)
-        CHECK(ce == id)
-        CHECK(cv == nil)
-        CHECK(lv == false)
+            CHECK(cc == 3)
+            CHECK(ce == id)
+            CHECK(cv == nil)
+            CHECK(lv == false)
+        end
 
         con:disconnect()
-
-        CASE "Removing after disconnect does not trigger"
-        reg:set(id, A, true)
-        reg:set(id, A, nil)
-        CHECK(cc == 2)
+     
+        do CASE "Removing after disconnect does not trigger"
+            reg:create(id)
+            reg:set(id, A, true)
+            reg:set(id, A, nil)
+            CHECK(cc == 3)
+        end
     end
 
     do CASE "Clearing components fires removing event"
@@ -804,30 +1229,35 @@ TEST("registry:removing()", function()
 end)
 
 TEST("registry:track()", function()
-    local N = 1e3
-    local function flip() return math.random() > 0.3 end
-    local function empty(t) return next(t) == nil end
-    local function viewids(observer: ecr.Observer<...unknown>): { [ecr.Entity]: { unknown } }
+    local function flip()
+        return math.random() > 0.3
+    end
+
+    local function empty(t)
+        return next(t) == nil
+    end
+
+    local function cache_ids(observer: ecr.Observer<unknown>): { [ecr.Entity]: { unknown } }
         local cache = {}
     
-        for id, a, b, c, d in observer do
-            cache[id] = { a, b, c, d }
+        for id, a, b, c in observer do
+            cache[id] = { a, b, c }
         end
 
         return cache
     end
 
     local reg = ecr.registry()
-    local changedA = reg:track(A)
-    local changedB = reg:track(B)
-    local changedABC = reg:track(A, B, C)
-    local changedABnotC = reg:track(A, B):exclude(C)
+    local observerA = reg:track(A)
+    local observerB = reg:track(B)
+    local observerABC = reg:track(A, B, C)
+    local observerAnotC = reg:track(A):exclude(C)
 
     local ids = {}
     local As = {}
     local Bs = {}
     local ABCs = {}
-    local ABnotCs = {}
+    local AnotCs = {}
 
     for i = 1, N do
         local id = reg:create()
@@ -844,94 +1274,90 @@ TEST("registry:track()", function()
         if has[A] then table.insert(As, id) end
         if has[B] then table.insert(Bs, id) end
         if has[A] and has[B] and has[C] then table.insert(ABCs, id) end
-        if has[A] and has[B] and not has[C] then table.insert(ABnotCs, id) end
+        if has[A] and not has[C] then table.insert(AnotCs, id) end
     end
 
     do CASE "Observer size"
-        CHECK(#changedA == #As)
-        CHECK(#changedB == #Bs)
-        CHECK(#changedABC >= #ABCs)
-        CHECK(#changedABnotC >= #ABnotCs)
+        CHECK(#observerA == #As)
+        CHECK(#observerB == #Bs)
+        CHECK(#observerABC >= #ABCs)
+        CHECK(#observerAnotC >= #AnotCs)
     end
 
     do CASE "Initial components treated as changed"
-        local changed = reg:track(A)
-        local viewed = viewids(changed)
-        CHECK(not empty(viewed))
+        do
+            local observer = reg:track(A)
 
+            local cache = cache_ids(observer)
+            CHECK(not empty(cache))
+
+            for _, id in As do
+                local v = cache[id]
+                if not CHECK(v) then continue end
+                CHECK(v[1] == id)
+            end
+        end
+        do
+            local observer = reg:track(A, B, C)
+            local cache = cache_ids(observer)
+            CHECK(not empty(cache))
+
+            for _, id in ABCs do
+                local v = cache[id]
+                if not CHECK(v) then continue end
+                CHECK(v[1] == id)
+                CHECK(v[2] == id)
+                CHECK(v[3] == id)
+            end
+        end
+    end
+
+    do CASE "A tracked"
+        local cache = cache_ids(observerA)
+        CHECK(not empty(cache))
         for _, id in As do
-            local v = viewed[id]
+            local v = cache[id]
             if not CHECK(v) then continue end
             CHECK(v[1] == id)
         end
     end
 
-    do CASE "A tracked"
-        local viewed = viewids(changedA)
-        CHECK(not empty(viewed))
-        for _, id in As do
-            local v = viewed[id]
+    do CASE "AnotCs tracked"
+        local cache = cache_ids(observerAnotC)
+        CHECK(not empty(cache))
+        for _, id in AnotCs do
+            local v = cache[id]
             if not CHECK(v) then continue end
             CHECK(v[1] == id)
         end
     end
 
     do CASE "ABCs tracked"
-        local viewed = viewids(changedABC)
-        CHECK(not empty(viewed))
+        local cache = cache_ids(observerABC)
+        CHECK(not empty(cache))
         for _, id in ABCs do
-            local v = viewed[id]
+            local v = cache[id]
             if not CHECK(v) then continue end
             CHECK(v[1] == id)
             CHECK(v[2] == id)
             CHECK(v[3] == id)
-            CHECK(v[4] == nil)
         end
     end
 
-    do CASE "ABnotCs tracked"
-        local viewed = viewids(changedABnotC)
-        CHECK(not empty(viewed))
-        for _, id in ABnotCs do
-            local v = viewed[id]
-            if not CHECK(v) then continue end
-            CHECK(v[1] == id)
-            CHECK(v[2] == id)
-            CHECK(v[3] == nil)
-        end
-    end
+    observerA:clear()
 
     do CASE "Changed components tracked after clear"
-        changedABC:clear()
+        CHECK(#observerA == 0)
 
-        CHECK(#changedABC == 0)
-
-        reg:set(ABCs[1], A, true)
+        reg:set(As[1], A, As[1])
 
         local ran = false
-        for id, v in changedABC do
+        for id, v in observerA do
             ran = true
-            CHECK(id == ABCs[1])
-            CHECK(v == true)
+            CHECK(id == As[1])
+            CHECK(v == id)
         end
         CHECK(ran)
-    end
-
-    do CASE "Removed components are not returned"
-        local removed = {}
-
-        for _, id in As do
-            if flip() then
-                reg:remove(id, A)
-                removed[id] = true
-            end
-        end
-
-        CHECK(not empty(removed))
-
-        for id in changedA:each() do
-            CHECK(not removed[id])
-        end
     end
 
     do CASE "Changed components updated"
@@ -941,66 +1367,94 @@ TEST("registry:track()", function()
             end)
         end
 
-        for id, v in changedB:each() do
+        for id, v in observerB do
             CHECK(v == id + 1)
         end
     end
 
-    do CASE "Clear observer"
-        changedA:clear()
-        CHECK(true)
-        for _ in changedA:each() do CHECK(false) end
+    do CASE "Removed components are not returned"
+        local removed = {}
+
+        for _, id in Bs do
+            if flip() then
+                reg:remove(id, B)
+                removed[id] = true
+            end
+        end
+
+        CHECK(not empty(removed))
+
+        for id in observerB do
+            CHECK(not removed[id])
+        end
     end
 
+    observerA:disconnect()
+
     do CASE "Changes not recorded if disconnected"
-        changedA:disconnect()
+        local size = #observerA
         local id = reg:create()
         reg:set(id, A, 1)
-        changedA:reconnect()
-        CHECK(#changedA == 0)
+        CHECK(#observerA == size)
     end
+
+    observerA:reconnect():clear()
 
     do CASE "Changes recorded again after reconnect"
         local cache = {}
         for i = 1, 1e2 do
             local id = reg:create()
-            reg:set(id, A, i)
-            cache[id] = i
+            reg:set(id, A, id)
+            cache[id] = true
+            table.insert(As, id)
         end
 
-        for id, v in changedA do
-            CHECK(cache[id] == v)
+        for id, v in observerA do
+            CHECK(cache[id])
+            CHECK(v == id)
         end
     end
 
-    do CASE "Valid entities still returned if removed during disconnect"
-        changedA:clear()
+    observerA:clear()
+    table.clear(As)
+
+    do CASE "Observer returns up-to-date values despite being changed while disconnected"
+        local observer = reg:track(A):clear()
         local id1 = reg:create()
         local id2 = reg:create()
+        local id3 = reg:create()
 
         reg:set(id1, A, 1)
         reg:set(id2, A, 2)
+        reg:set(id3, A, 3)
 
-        changedA:disconnect()
+        observer:disconnect()
 
-        reg:remove(id1, A)
+        reg:remove(id1, A) -- remove id1
+        reg:set(id2, A, -2) -- change id2
 
-        CHECK(#changedA == 1)
-        for id in changedA do
-            CHECK(id == id2)
+        local values = {}
+
+        for id, v in observer do
+            values[id] = v
         end
 
-        changedA:reconnect()
+        CHECK(#observer == 2)
+        CHECK(not values[id1])
+        CHECK(values[id2] == -2)
+        CHECK(values[id3] == 3)
     end
 
     do CASE "Observer garbage collection"
         local wref = setmetatable({}, { __mode = "v" })
-        wref.observer = changedA
-        wref.pool = (changedA :: any).includes[1]
-        changedA:disconnect()
-        changedA = nil :: any
+        wref.observer = observerA
+        wref.pool = (observerA :: any).pool
+        observerA:disconnect()
+        observerA = nil :: any
 
         if not game then -- check if running in roblox (collect is sandboxed)
+            collectgarbage("collect" :: any)
+            collectgarbage("collect" :: any)
             collectgarbage("collect" :: any)
             CHECK(not wref.observer)
 
@@ -1009,16 +1463,41 @@ TEST("registry:track()", function()
             reg:remove(id, A) -- internal pool only cleared after event fired again
 
             collectgarbage("collect" :: any)
+            collectgarbage("collect" :: any)
+            collectgarbage("collect" :: any)
             CHECK(not wref.pool)
         end
+    end
+
+    do CASE "Track multiple"
+        local observer = reg:track(A, B, C)
+        observer:clear()
+
+        local id1 = reg:create()
+        reg:set(id1, C, true)
+
+        local id2 = reg:create()
+        reg:set(id2, A, true)
+
+        local id3 = reg:create()
+        reg:set(id3, A, 1)
+        reg:set(id3, B, 2)
+        reg:set(id3, C, 3)
+
+        local runcount = 0
+        for id, a, b, c in observer do
+            runcount += 1
+            CHECK(id == id3)
+            CHECK(a == 1 and b == 2 and c == 3)
+        end
+        CHECK(runcount == 1)
     end
 end)
 
 TEST("registry:group()", function()
-    local N = 1e3
     local function flip() return math.random() > 0.3 end
     local function empty(t) return next(t) == nil end
-    local function viewids(group: ecr.Group<...unknown>): { [ecr.Entity]: { unknown } }
+    local function getids(group: ecr.Group<...unknown>): { [ecr.Entity]: { unknown } }
         local cache = {}
     
         for id, a, b, c, d, e in group do
@@ -1062,7 +1541,7 @@ TEST("registry:group()", function()
     end
 
     do CASE "Group AB cached"
-        local viewed = viewids(groupAB)
+        local viewed = getids(groupAB)
         CHECK(not empty(viewed))
         for _, id in ABs do
             local v = viewed[id]
@@ -1074,7 +1553,7 @@ TEST("registry:group()", function()
     end
 
     do CASE "Group AB"
-        local viewed = viewids(reg:group(A, B))
+        local viewed = getids(reg:group(A, B))
         CHECK(not empty(viewed))
         for _, id in ABs do
             local v = viewed[id]
@@ -1086,7 +1565,7 @@ TEST("registry:group()", function()
     end
 
     do CASE "Group CDE"
-        local viewed = viewids(reg:group(C, D, E))
+        local viewed = getids(reg:group(C, D, E))
         CHECK(not empty(viewed))
         for _, id in CDEs do
             local v = viewed[id]
@@ -1100,7 +1579,7 @@ TEST("registry:group()", function()
 
     do CASE "Late initialized group FG"
         CHECK(#reg:group(F, G) == #FGs)
-        local viewed = viewids(reg:group(F, G))
+        local viewed = getids(reg:group(F, G))
         CHECK(not empty(viewed))
         for _, id in FGs do
             local v = viewed[id]
@@ -1111,22 +1590,13 @@ TEST("registry:group()", function()
         end
     end
 
-    do CASE "Create group with already-owned components errors"
-        CHECK(not pcall(function()
-            reg:group(A, F)
-        end))
-        CHECK(not pcall(function()
-            reg:group(F, H)
-        end))
-    end
-
     do CASE "Removing components during group iteration"
-        local viewed = {}
+        local cache = {}
         local removed = {}
 
         for id, a, b in reg:group(A, B) do
-            CHECK(not viewed[id]) -- ensure iterators arent invalidated
-            viewed[id] = { a, b }
+            CHECK(not cache[id]) -- ensure iterators arent invalidated
+            cache[id] = { a, b }
             if flip() then
                 removed[id] = true
                 reg:remove(id, A)
@@ -1136,15 +1606,20 @@ TEST("registry:group()", function()
         CHECK(#reg:group(A, B) > 0)
 
         for id, a, b in reg:group(A, B) do
-            local v = viewed[id]
+            local v = cache[id]
             CHECK(v)
             CHECK(v[1] == a) -- check association is kept after remove
             CHECK(v[2] == b)
-            viewed[id] = nil
+            cache[id] = nil
         end
 
-        CHECK(not empty(viewed))
-        for id in viewed do
+        CHECK(not empty(cache))
+
+        for id in cache do
+            local v = removed[id]
+            if not v then
+                print(id, KEY(id))
+            end
             CHECK(removed[id]) -- check only removed ids are left
         end
     end
@@ -1165,10 +1640,12 @@ TEST("registry:group()", function()
     end
 
     do CASE "Using owned component for new group errors"
-        local ok = pcall(function()
-            reg:group(F, H)
-        end)
-        CHECK(not ok)
+        CHECK_ERR(
+            "cannot create group; component (arg #2) is not owned by the same group as previous args",
+            function()
+                reg:group(F, H)
+            end
+        )
     end
 
     do CASE "Single component group errors"
@@ -1182,7 +1659,7 @@ TEST("registry:group()", function()
         local reg2 = ecr.registry()
         local ids2 = {}
         for i = 1, 1e2 do
-            local id = reg:create()
+            local id = reg2:create()
             reg2:set(id, A, id)
             reg2:set(id, B, id)
             reg2:set(id, C, id)
@@ -1193,7 +1670,7 @@ TEST("registry:group()", function()
 
         reg2:group(A, B, C, D, E)
 
-        local viewed = viewids(reg2:group(A, B, C, D, E))
+        local viewed = getids(reg2:group(A, B, C, D, E))
 
         CHECK(not empty(viewed))
         for _, id in ids2 do
@@ -1220,4 +1697,4 @@ TEST("ecr:component()", function()
 end)
 
 local success = FINISH()
-if not success then error "Test failed" end
+if not success then error(nil, 0) end

@@ -1,4 +1,4 @@
-local BENCH, START = require("test/testkit").getBenchmarkTools()
+local BENCH, START = require("test/testkit").benchmark()
 
 local function TITLE(name: string)
     print("\27[1;4m"..name.."\27[0m")
@@ -455,6 +455,24 @@ do TITLE "Clear components"
     end)
 end
 
+do TITLE("Create view")
+    local reg = ecr.registry()
+
+    reg:view(A, B, C, D, E, F, G, H) -- register components
+
+    BENCH("View 1 component", function()
+        for i = 1, START(N) do
+            reg:view(A)
+        end
+    end)
+
+    BENCH("View 4 component", function()
+        for i = 1, START(N) do
+            reg:view(A, B, C, D)
+        end
+    end)
+end
+
 do
     local function viewBench(reg: ecr.Registry)
         local function getExactSize(view: ecr.View<...any>): number
@@ -695,17 +713,16 @@ do TITLE("Destroying entities")
         end
     end)
 
-    BENCH("Destroy entity with 1 component (8 component registered)", function()
+    BENCH("Destroy entity with no components (8 component registered)", function()
         local reg = ecr.registry()
         local ids = table.create(N)
 
         for i = 1, N do
             local e = reg:create()
-            reg:set(e, A, true)
             ids[i] = e
         end
 
-        do
+        do -- register all components
             local e = reg:create()
             reg:set(e, A, true)
             reg:set(e, B, true)
@@ -718,6 +735,50 @@ do TITLE("Destroying entities")
         end
 
         for i = 1, START(N) do
+            reg:destroy(ids[i])
+        end
+    end)
+
+    BENCH("Destroy entity with no components (128 component registered)", function()
+        local reg = ecr.registry()
+
+        do
+            local id = reg:create()
+            for i = 1, 128  do
+                local component = ecr.component()
+                reg:set(id, component, true)
+            end
+        end
+
+        local ids = table.create(N)
+
+        for i = 1, N do
+            ids[i] = reg:create()
+        end
+
+        for i = 1, START(N) do
+            reg:destroy(ids[i])
+        end
+    end)
+
+    BENCH("Destroy entity with no components (1024 component registered)", function()
+        local reg = ecr.registry()
+
+        do
+            local id = reg:create()
+            for i = 1, 1024  do
+                local component = ecr.component()
+                reg:set(id, component, true)
+            end
+        end
+
+        local ids = table.create(N)
+
+        for i = 1, N/10 do
+            ids[i] = reg:create()
+        end
+
+        for i = 1, START(N/10) do
             reg:destroy(ids[i])
         end
     end)
@@ -734,7 +795,7 @@ do TITLE("Valid and version checking")
         START(N)
 
         for i = 1, N do
-            reg:valid(ids[i])   
+            reg:contains(ids[i])   
         end
     end)
 

@@ -49,6 +49,6 @@ An array of all values for the given component type.
 
 - **Details**
 
-    Sorted in the same order as [`Pool.entities`](Pool#entities).
+    Sorted in the same order as [`Pool.entities`](Pool#entities.md).
 
 ---

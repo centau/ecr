@@ -1,17 +1,45 @@
-----------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- testkit.luau
--- v0.1.2
-----------------------------------------------------------------------
+-- v0.5
+--------------------------------------------------------------------------------
 
---!strict
+local color = {
+    white_underline = function(s: string)
+        return `\27[1;4m{s}\27[0m`
+    end,
 
-----------------------------------------------------------------------
--- Unit Testing
-----------------------------------------------------------------------
+    green = function(s: string)
+        return `\27[32;1m{s}\27[0m`
+    end,
+
+    red = function(s: string)
+        return `\27[31;1m{s}\27[0m`
+    end,
+
+    yellow =  function(s: string)
+        return `\27[33;1m{s}\27[0m`  
+    end,
+
+    red_highlight = function(s: string)
+        return `\27[41;1;30m{s}\27[0m`
+    end,
+
+    green_highlight = function(s: string)
+        return `\27[42;1;30m{s}\27[0m`
+    end,
+
+    gray = function(s: string)
+        return `\27[31;1;30m{s}\27[0m`
+    end
+}
+
+--------------------------------------------------------------------------------
+-- Testing
+--------------------------------------------------------------------------------
 
 type Test = {
     name: string,
-    activeCase: Case?,
+    case: Case?,
     cases: { Case },
     duration: number,
     error: string?
@@ -23,190 +51,320 @@ type Case = {
     line: number?
 }
 
-local PASS = 1
-local FAIL = 2
-local NONE = 3
-local ERROR = 4
+local PASS, FAIL, NONE, ERROR = 1, 2, 3, 4
 
-local activeTest: Test?
+local test: Test?
 local tests: { Test } = {}
 
-local function outputTestResults(test: Test)
-    print("\27[1;4m"..test.name.."\27[0m")
+local function output_test_result(test: Test)
+    print(color.white_underline(test.name))
+
     for _, case in test.cases do
-        print(
-            "[" ..
-            (if case.result == PASS then
-                "\27[32;1mPASS\27[0m"
-            elseif case.result == FAIL then
-                "\27[31;1mFAIL:"..assert(case.line).."\27[0m"
-            elseif case.result == NONE then  
-                "\27[33;1mNONE\27[0m"
-            else
-                "\27[41;1;30mERROR\27[0m")
-            .. "] " .. case.name
-        )
+        local msg = ({
+            [PASS] = color.green("PASS"),
+            [FAIL] = color.red(case.line and "FAIL:" .. case.line or "FAIL"),
+            [NONE] = color.yellow("NONE"),
+            [ERROR] = color.red_highlight("ERROR")
+        })[case.result]
+
+        print(`[{msg}] {case.name}`)
     end
 
-    if test.error then
-        print("\27[31;1;30merror: " .. test.error .. "\27[0m")
-    end
-
-    print ""
+    print(test.error and color.gray(test.error) or "")
 end
 
 local function CASE(name: string)
-    assert(activeTest, "no active test")
+    assert(test, "no active test")
 
-    local case: Case = {
+    local case = {
         name = name,
         result = NONE
     }
 
-    activeTest.activeCase = case
-    table.insert(activeTest.cases, case)
+    test.case = case
+    table.insert(test.cases, case)
 end
 
-local function CHECK(value: any): boolean
-    assert(activeTest, "no active test")
-    local activeCase = activeTest.activeCase
+local function CHECK<T>(value: T, stack: number?): T
+    assert(test, "no active test")
+    local case = test.case
 
-    if not activeCase then
+    if not case then
         CASE ""
-        activeCase = activeTest.activeCase
-    end; assert(activeCase, "no active case")
-
-    local result = value and PASS or FAIL
-
-    if activeCase.result == NONE or activeCase.result == PASS then
-        activeCase.result = result
-        activeCase.line = debug.info(2, "l")
+        case = test.case
     end
 
-    return result == PASS
+    assert(case, "no active case")
+
+    if case.result ~= FAIL then
+        case.result = value and PASS or FAIL
+        case.line = debug.info(stack and stack + 1 or 2, "l")
+    end
+
+    return value
 end
 
 local function TEST(name: string, fn: () -> ())
-    assert(not activeTest, "new test was started while a test was in progress")
-    local test: Test = {
+    local active = test
+    assert(not active, "cannot start test while another test is in progress")
+
+    test = {
         name = name,
         cases = {},
         duration = 0
-    }
+    }; assert(test)
 
-    activeTest = test
     table.insert(tests, test)
 
     local start = os.clock()
-    local msg: string?
-    local success = xpcall(fn, function(m: string) msg = m .. debug.traceback("", 2) end)
+    local err_msg: string?
+    local success = xpcall(fn, function(m: string) err_msg = m .. debug.traceback("", 2) end)
     test.duration = os.clock() - start
 
-    if not test.activeCase then CASE "" end
-    assert(test.activeCase, "no active case")
+    if not test.case then CASE "" end
+    assert(test.case, "no active case")
 
     if not success then
-        test.activeCase.result = ERROR
-        test.error = msg
+        test.case.result = ERROR
+        test.error = err_msg
     end
 
-    activeTest = nil
-    outputTestResults(test)
+    test = nil
 end
 
 local function FINISH(): boolean
     local success = true
-    local totalCases = 0
-    local passedCases = 0
+    local total_cases = 0
+    local passed_cases = 0
     local duration = 0
 
     for _, test in tests do
         duration += test.duration
         for _, case in test.cases do
-            totalCases += 1
+            total_cases += 1
             if case.result == PASS or case.result == NONE then
-                passedCases += 1
+                passed_cases += 1
             else
                 success = false
             end
         end
+
+        output_test_result(test)
     end
 
-    print(string.format("%d/%d test cases passed in %.3f ms.", passedCases, totalCases, duration*1e3))
+    print(string.format(
+        `{passed_cases}/{total_cases} test cases passed in %.3f ms.`,
+        duration*1e3
+    ))
 
-    local fails = totalCases - passedCases
+    local fails = total_cases - passed_cases
 
-    print(string.format("\27[%d;1;30m%d fail%s\27[0m", fails > 0 and 41 or 42, fails, fails == 1 and "" or "s"))
+    print(
+        (
+            fails > 0
+            and color.red_highlight 
+            or color.green_highlight
+        )(`{fails} {fails == 1 and "fail" or "fails"}`)
+    )
 
     return success, table.clear(tests)
 end
 
-----------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Benchmarking
-----------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 type Bench = {
-    timeStart: number?,
-    memStart: number?,
+    time_start: number?,
+    memory_start: number?,
     iterations: number?
 }
 
-local activeBench: Bench? = nil
+local bench: Bench?
 
 function START(iter: number?): number
     local n = iter or 1
-    if n < 1 then error("iteration count must be greater than 0", 2) end
-    assert(activeBench, "no active benchmark")
-    assert(not activeBench.timeStart, "clock was already started")
+    assert(n > 0, "iterations must be greater than 0")
+    assert(bench, "no active benchmark")
+    assert(not bench.time_start, "clock was already started")
 
-    activeBench.iterations = n
-    activeBench.memStart = gcinfo()
-    activeBench.timeStart = os.clock()
+    bench.iterations = n
+    bench.memory_start = gcinfo()
+    bench.time_start = os.clock()
     return n
 end
 
 local function BENCH(name: string, fn: () -> ())
-    assert(not activeBench, "cannot run benchmark, a benchmark is already in progress")
+    local active = bench
+    assert(not active, "a benchmark is already in progress")
 
-    local bench: Bench = {}
-    activeBench = bench
+    bench = {}; assert(bench)
 
-    local memStart = gcinfo()
-    local timeStart = os.clock()
-    local msg: string?
-    local success = xpcall(fn, function(m: string) msg = m .. debug.traceback("", 2) end)
-    local timeStop = os.clock()
-    local memStop = gcinfo()
+    ;(collectgarbage :: any)("collect")
+
+    local mem_start = gcinfo()
+    local time_start = os.clock()
+    local err_msg: string?
+
+    local success = xpcall(fn, function(m: string)
+        err_msg = m .. debug.traceback("", 2)
+    end)
+
+    local time_stop = os.clock()
+    local mem_stop = gcinfo()
 
     if not success then
-        print("[\27[41;1mERROR\27[0m] " .. name)
-        print("\27[31;1m" .. "error: " .. msg :: string .. "\27[0m")
-        activeBench = nil
-        return
+        print(`[{color.red_highlight("ERROR")}] {name}`)
+        print(color.gray(err_msg :: string))
+    else
+        time_start = bench.time_start or time_start
+        mem_start = bench.memory_start or mem_start
+
+        local n = bench.iterations or 1
+        local duration = time_stop - time_start
+        local allocated = mem_stop - mem_start
+
+        print(string.format(
+            "[ %.3f us | %4.0f B ] %s",
+            duration/n * 1e6,
+            allocated/n * 1e3,
+            name
+        ))
     end
 
-    timeStart = bench.timeStart or timeStart
-    memStart = bench.memStart or memStart
-
-    local n = bench.iterations or 1
-    local duration = timeStop - timeStart
-    local allocated = memStop - memStart
-
-    print(string.format("[ %.3f us | %4.0f B ] %s", duration/n * 1e6, allocated/n * 1e3, name))
-
-    activeBench = nil
+    bench = nil
 end
 
-----------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Printing
+--------------------------------------------------------------------------------
+
+local function print2(v: unknown)
+    type Buffer = { n: number, [number]: string }
+
+    -- overkill concatenationless string buffer
+    local function tos(value: any, stack: number, str: Buffer)
+        local TAB = "    "
+        local indent = table.concat(table.create(stack, TAB))
+
+        if type(value) == "string" then
+            local n = str.n
+            str[n + 1] = "\""
+            str[n + 2] = value
+            str[n + 3] = "\""
+            str.n = n + 3
+        elseif type(value) ~= "table" then
+            local n = str.n
+            str[n + 1] = value == nil and "nil" or tostring(value)
+            str.n = n + 1
+        elseif next(value) == nil then
+            local n = str.n
+            str[n + 1] = "{}"
+            str.n = n + 1
+        else
+            local tabbed_indent = indent .. TAB
+
+            str.n += 1
+            str[str.n] = "{\n"
+
+            local i, v = next(value, nil)
+            while v ~= nil do
+                local n = str.n
+                str[n + 1] = tabbed_indent
+
+                if type(i) ~= "string" then
+                    str[n + 2] = "["
+                    str[n + 3] = tostring(i)
+                    str[n + 4] = "]"
+                    n += 4
+                else
+                    str[n + 2] = tostring(i)
+                    n += 2
+                end
+
+                str[n + 1] = " = "
+                str.n = n + 1
+
+                tos(v, stack + 1, str)
+                
+                i, v = next(value, i)
+
+                n = str.n
+                str[n + 1] = v ~= nil and ",\n" or "\n"
+                str.n = n + 1
+            end
+
+            local n = str.n
+            str[n + 1] = indent 
+            str[n + 2] = "}"
+            str.n = n + 2
+        end
+    end
+
+    local str = { n = 0 }
+    tos(v, 0, str)
+    print(table.concat(str))
+end
+
+--------------------------------------------------------------------------------
+-- Equality
+--------------------------------------------------------------------------------
+
+local function shallow_eq(a: {}, b: {}): boolean
+    if #a ~= #b then return false end
+
+    for i, v in next, a do
+        if b[i] ~= v then
+            return false
+        end
+    end
+
+    for i, v in next, b do
+        if a[i] ~= v then
+            return false
+        end
+    end
+
+    return true
+end
+
+local function deep_eq(a: {}, b: {}): boolean
+    if #a ~= #b then return false end
+
+    for i, v in next, a do
+        if type(b[i]) == "table" and type(v) == "table" then 
+            if deep_eq(b[i], v) == false then return false end   
+        elseif b[i] ~= v then
+            return false
+        end
+    end
+
+    for i, v in next, b do
+        if type(a[i]) == "table" and type(v) == "table" then 
+            if deep_eq(a[i], v) == false then return false end   
+        elseif a[i] ~= v then
+            return false
+        end
+    end
+
+    return true
+end
+
+--------------------------------------------------------------------------------
 -- Return
-----------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 return {
-    getUnitTestTools = function()
+    test = function()
         return TEST, CASE, CHECK, FINISH
     end,
 
-    getBenchmarkTools = function()
+    benchmark = function()
         return BENCH, START
-    end
+    end,
+
+    print2 = print2,
+
+    seq = shallow_eq,
+    deq = deep_eq
 }

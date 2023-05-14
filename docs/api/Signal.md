@@ -3,7 +3,7 @@ permalink: api/Signal
 title: Signal
 ---
 
-`ECR` signal class.
+ECR Signal class.
 
 ## Methods
 
