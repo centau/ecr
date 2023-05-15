@@ -11,9 +11,7 @@ involved with it.
 
 ## Registry
 
-The registry stores and manages entities and their components. It is used to
-create entities, change components and view all entities with particular
-components.
+The registry is a container for entities and their components.
 
 ```lua
 local registry = ecr.registry()
@@ -21,23 +19,24 @@ local registry = ecr.registry()
 
 ## Components
 
-A component is a piece of data associated with an entity. A zombie entity could
-have health, speed and a model. To create a new component type you must do the
-following:
+A component is a piece of data associated with an entity.
 
 ```lua
 local Name = ecr.component() :: string
 local Health = ecr.component() :: number
 ```
 
-This returns a unique id that represents that type of component.
+Component types are represented by unique ids created by `ecr.component()`.
 
 There is no limit on the amount of components you can create.
 
+As the library is built using the Luau typechecker, you can typecast components
+to the type of values they represent to use typechecking features.
+
 ## Entities
 
-An entity is a unique object in the world. Entities are referenced using unique
-integer ids that are returned when you create a new entity.
+An entity represents a unique object in the world. Entities are referenced using
+unique ids.
 
 ```lua
 -- create a new entity and get its id
@@ -48,14 +47,14 @@ registry:destroy(id)
 ```
 
 Entities can have any amount of component types added to or removed from them
-dynamically.
+at runtime.
 
 ```lua
-registry:set(id, Health, 100) -- adds a new component type to the entity with a value of 100
+registry:set(id, Health, 100) -- adds a new component with a value of 100
 print(registry:get(id, Health)) -- "100"
 
-registry:set(id, Health, nil) -- removes the component type from the entity
-print(registry:has(id, Health)) -- "false" 
+registry:set(id, Health, nil) -- removes the component from the entity
+print(registry:get(id, Health)) -- "nil"
 ```
 
 ## Views
@@ -85,7 +84,7 @@ To get all entities in a view you iterate over it.
 
 ```lua
 for id, position, velocity in registry:view(Position, Velocity) do
-    registry:set(id, Position, position + velocity*dt)
+    print(id, position, velocity)
 end
 ```
 
@@ -116,7 +115,7 @@ All three listeners are called with:
 `removing` is fired *before* the component is removed, so you can still retrieve
 it if needed.
 
-You *cannot* add or remove components for entities in these listeners.
+You *cannot* add or remove components from entities in these listeners.
 
 ## Observers
 
@@ -140,15 +139,12 @@ observer:clear()
 After iterating over the changes you can then clear the observer so it can track
 new changes.
 
+Observers provide a concise way to track and act on only specific components
+that have changes since the last time a system ran.
+
 ## Example Usage
 
-All component types should be defined within a single file that any file can
-require to use those types.
-
-The library is also designed using the Luau typechecker. It is recommended
-to cast component types to the type of values they represent.
-
-A simple example of defining components and creating a system:
+All components are defined in a single file to keep things organised.
 
 ```lua
 -- cts.luau
@@ -161,6 +157,9 @@ return {
     Model = ecr.component() :: Model
 }
 ```
+
+The library doesn't have any special API for systems, instead this is left up
+to the user to implement either as plain functions or through a custom scheduler.
 
 ```lua
 -- updatePositions.luau

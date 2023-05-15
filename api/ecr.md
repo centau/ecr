@@ -76,7 +76,9 @@ A null entity.
 
 - **Details**
 
-    This id behaves as a reference to a destroyed entity.
+    This id behaves like the id of an entity that has been destroyed.
+
+    Attempting to add or remove components using this id will error.
   
     The following expression will always return `false`:
 
