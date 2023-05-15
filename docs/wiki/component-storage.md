@@ -115,7 +115,7 @@ Refer to [here](entity-identifier.md) for specifics on keys and ids.
 
 In an ECS, each component type has its own pool. Given the properties of a
 sparse set, this makes adding, removing, changing and checking for components
-a very fast operation. We have the best possible random-access and
+very fast operations. We have the best possible random-access and
 sequential-access speeds because of the sparse and dense arrays. However,
 because component pools are independent from each other, this approach suffers
 when querying for multiple component types.
@@ -141,7 +141,7 @@ fast random-access property of sparse sets.
 This drawback can also be mitigated using a technique called *grouping* which I
 won't get into now.
 
-## Invalid Ids
+## Stale references
 
 This section assumes familiarity with [entity ids](entity-identifier.md).
 
