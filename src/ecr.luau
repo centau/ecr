@@ -264,10 +264,10 @@ local function pool_swap<T>(self: Pool<T>, idx: number, key: number, id: number,
 
     local id_swap = entities[target_idx]
     
-    map[key] = ID_SWAPKEY(id, target_idx)
-    map[ID_KEY(id_swap)] = ID_SWAPKEY(id_swap, idx)
     entities[target_idx], entities[idx] = id, id_swap
     values[target_idx], values[idx] = values[idx], values[target_idx]
+    map[key] = ID_SWAPKEY(id, target_idx)
+    map[ID_KEY(id_swap)] = ID_SWAPKEY(id_swap, idx)
 end
 
 local function pool_clear<T>(self: Pool<T>)
@@ -291,7 +291,7 @@ end
 ------------------------------------------------------------------------------------------------------------------------
 
 local ctype_n = 0
-local ctype_constructors: Map<CType, ((() -> unknown)?)> = {}
+local ctype_constructors: Map<CType, ((() -> unknown)?)> = table.create(1e3)
 
 local function ctype_create<T>(constructors: ( () -> T )?): CType
     ctype_n += 1
@@ -934,9 +934,9 @@ local function registry_create(): Registry
             free = next
             return newid
         else
-            local i = #ids + 1
-            local newid = ID_CREATE(i, INITIAL_ENTITY_VERSION)
-            ids[i] = newid
+            local key = #ids + 1
+            local newid = ID_CREATE(key, INITIAL_ENTITY_VERSION)
+            ids[key] = newid
             return newid
         end  
     end
