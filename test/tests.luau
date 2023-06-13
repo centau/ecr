@@ -1252,9 +1252,9 @@ TEST("registry:track()", function()
 
     local reg = ecr.registry()
     local observerA = reg:track(A)
-    local observerB = reg:track(B)
+    local observerB = reg:track(B):persist()
     local observerABC = reg:track(A, B, C)
-    local observerAnotC = reg:track(A):exclude(C)
+    local observerAnotC = reg:track(A):exclude(C):persist()
 
     local ids = {}
     local As = {}
@@ -1323,6 +1323,7 @@ TEST("registry:track()", function()
             if not CHECK(v) then continue end
             CHECK(v[1] == id)
         end
+        CHECK(#observerA == 0)
     end
 
     do CASE "AnotCs tracked"
@@ -1333,6 +1334,7 @@ TEST("registry:track()", function()
             if not CHECK(v) then continue end
             CHECK(v[1] == id)
         end
+        CHECK(#observerAnotC > 0)
     end
 
     do CASE "ABCs tracked"
@@ -1345,9 +1347,10 @@ TEST("registry:track()", function()
             CHECK(v[2] == id)
             CHECK(v[3] == id)
         end
+        CHECK(#observerA == 0)
     end
 
-    observerA:clear()
+    --observerA:clear()
 
     do CASE "Changed components tracked after clear"
         CHECK(#observerA == 0)
@@ -1373,6 +1376,8 @@ TEST("registry:track()", function()
         for id, v in observerB do
             CHECK(v == id + 1)
         end
+
+        CHECK(#observerB > 0)
     end
 
     do CASE "Removed components are not returned"
@@ -1422,7 +1427,7 @@ TEST("registry:track()", function()
     table.clear(As)
 
     do CASE "Observer returns up-to-date values despite being changed while disconnected"
-        local observer = reg:track(A):clear()
+        local observer = reg:track(A):clear():persist()
         local id1 = reg:create()
         local id2 = reg:create()
         local id3 = reg:create()

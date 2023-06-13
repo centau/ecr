@@ -62,6 +62,7 @@ export type Observer<T...> = typeof(setmetatable({} :: {
     removed: (self: Observer<T...>) -> Observer<T...>,
     released: (self: Observer<T...>) -> Observer<T...>,
 
+    persist: (self: Observer<T...>) -> Observer<T...>,
     clear: (self: Observer<T...>) -> Observer<T...>,
 }, {} :: {
     __iter: (self: Observer<T...>) -> () -> (Entity, T...),
@@ -505,6 +506,7 @@ local View, Observer, Group do
         includes: Array<CType>,
         excludes: Array<CType>?,
         connections: Array<Connection>?,
+        persistent: boolean,
     }
 
     Observer = {}
@@ -519,7 +521,7 @@ local View, Observer, Group do
             includes = {},
             excludes = nil,
             connections = nil,
-            flags = {}
+            persistent = false
         }, Observer) :: any
 
         local includes = self.includes
@@ -577,6 +579,11 @@ local View, Observer, Group do
         return self
     end
 
+    function Observer.persist<T...>(self: _Observer<T...>): Observer<T...>
+        self.persistent = true
+        return self
+    end
+
     function Observer.clear<T...>(self: _Observer<T...>): Observer<T...>
         pool_clear(self.pool)
         return self
@@ -587,6 +594,7 @@ local View, Observer, Group do
         local reg = self.registry
         local includes = get_pools(reg, self.includes)
         local excludes = self.excludes and get_pools(reg, self.excludes)
+        local persist = self.persistent
 
 
         local n = pool.size
@@ -602,7 +610,10 @@ local View, Observer, Group do
                 function()
                     local i = n; n = i - 1
                     local id = entities[i]
-                    if id == nil then return nil :: any end
+                    if id == nil then
+                        if not persist then self:clear() end
+                        return nil :: any
+                    end
                     local key = ID_KEY(id)
                     local value = reg_values[ID_KEY(
                         reg_map[key] :: number
@@ -628,6 +639,7 @@ local View, Observer, Group do
                         n = i - 1
                         return id, unpack(tuple)
                     end
+                    if not persist then self:clear() end
                 return nil :: any, nil :: any
             end
     end
