@@ -96,6 +96,7 @@ Now, back to the ECS. The pool datastructure in ECR is a modified sparse set.
 
 ```lua
 type Pool<T> = {
+    size: number,
     map: Array<number?>, -- sparse array
     entities: Array<Entity>, -- dense array
     values: Array<T> -- second dense array
@@ -128,7 +129,7 @@ array with no cache misses.
 
 ### Multiple component query
 
-Multi component queries, while still fast, become slower the more components
+Multiple component queries, while still fast, become slower the more components
 that are involved in the query. To do so, you pick the smallest pool to iterate
 along its entities (as an entity must contain every component in the query, we
 know that the smallest pool contains every entity in the query so we iterate

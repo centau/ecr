@@ -19,6 +19,7 @@ return table.freeze {
     ...
 }
 ```
+## Server
 
 ```lua
 -- replicate.server.luau
@@ -125,6 +126,8 @@ return function()
     end
 end
 ```
+
+## Client
 
 ```lua
 -- replicate.client.luau
