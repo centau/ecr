@@ -10,6 +10,7 @@ List of things I would like to do with the library:
   - Automatic profiling.
   - Automatic error handling and better reporting.
 - Look into component relationships
+  - `ecr.pair(A, B)` to create new combinational component.
 - Add entity handles
 - Look into tags (value-less components for better memory efficiency)
   - Is this even worth implementing when it only saves 16 bytes per entity?
@@ -19,6 +20,7 @@ List of things I would like to do with the library:
 - Make `Registry:get()` error if entity does not have component
 - Add `Registry:try_get()` which has behavior of current get
 - Make `Registry:patch()` invoke constructor if no component is found.
+  - Some may not want this behavior.
 - Add a queue class for efficient queuing
 - Add method for naming components for debugging
   - `function ecr.name(Map<string, Component>)`?
