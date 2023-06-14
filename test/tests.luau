@@ -434,7 +434,7 @@ TEST("registry:set()", function()
 
         do CASE "Remove component"
             reg:set(id, A, nil)
-            CHECK(reg:get(id, A) == nil)
+            CHECK(reg:try_get(id, A) == nil)
             CHECK(not reg:has(id, A))
         end
     end
@@ -557,14 +557,18 @@ TEST("registry:get()", function()
 
         do CASE "Get nil component"
             reg:remove(id, A)
-            CHECK(reg:get(id, A) == nil)
+            CHECK_ERR("entity does not have component (arg #1)", function()
+                reg:get(id, A)
+            end)
         end
     end
 
     do CASE "Get component of invalid id"
         local id = reg:create()
         reg:release(id)
-        CHECK(reg:get(id, A) == nil)
+        CHECK_ERR("entity does not have component (arg #1)", function()
+            reg:get(id, A)
+        end)
     end
 
     do CASE "Get component of invalid id with used key that has component"
@@ -574,7 +578,38 @@ TEST("registry:get()", function()
         local newid = reg:create()
         reg:set(newid, A, 1)
 
-        CHECK(reg:get(id, A) == nil)
+        CHECK_ERR("invalid entity", function()
+            reg:get(id, A)
+        end)
+    end
+end)
+
+TEST("registry:try_get()", function()
+    local reg = ecr.registry()
+
+    do CASE "Get nil component"
+        local id = reg:create()
+        reg:remove(id, A)
+        CHECK(reg:try_get(id, A) == nil)
+    end
+
+    do CASE "Get component of invalid id"
+        local id = reg:create()
+        reg:release(id)
+        CHECK(reg:try_get(id, A) == nil)
+    end
+
+    do CASE "Get component of invalid id with used key that has component"
+        local id = reg:create()
+        reg:release(id)
+
+        local newid = reg:create()
+        reg:set(newid, A, 1)
+
+        --CHECK(reg:try_get(id, A) == nil)
+        CHECK_ERR("invalid entity", function()
+            reg:try_get(id, A)
+        end)
     end
 end)
 
@@ -1644,7 +1679,7 @@ TEST("registry:group()", function()
         reg:set(id, A, 1)
         reg:set(id, C, 3)
         reg:set(id, A, nil)
-        CHECK(reg:get(id, A) == nil and reg:get(id, C) == 3)
+        CHECK(reg:try_get(id, A) == nil and reg:get(id, C) == 3)
     end
 
     do CASE "Using owned component for new group errors"
@@ -1769,7 +1804,7 @@ TEST("Random usage test", function()
                 if flip() and not inc[id] then
                     inc[id] = 0
                     --
-                    if not reg:get(id, ctype) then
+                    if not reg:try_get(id, ctype) then
                         reg:set(id, ctype, { id = id, v = 0 })
                     end
                 end
@@ -1822,7 +1857,7 @@ TEST("Random usage test", function()
 
         for id in ids do
             ran += 1
-            local component = reg:get(id, ctype)
+            local component = reg:try_get(id, ctype)
             if inc[id] then
                 CHECK(component)
                 CHECK(inc[id] == component.v)  

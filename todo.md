@@ -4,8 +4,8 @@ List of things I would like to do with the library:
 
 - Look into providing a flexible system scheduler
   - Splits frame into phases where certain components are added in one phase so
-  that systems ran in the next phase know that entities operated on will have
-  the needed components.
+    that systems ran in the next phase know that entities operated on will have
+    the needed components.
   - Allows scheduling of systems every frame or every x frames.
   - Automatic profiling.
   - Automatic error handling and better reporting.
@@ -29,8 +29,8 @@ List of things I would like to do with the library:
   - This is very hard to do performantly.
 - Make grouping completely safe
   - Specifically, the case where an entity gets a component needed to add
-  it to the group during view iteration led by a component owned by the same
-  group.
+    it to the group during view iteration led by a component owned by the same
+    group.
   - Try to detect this at the end of iteration and raise an error.
 - Improve docs
 - Optimize entity destruction
@@ -48,3 +48,5 @@ List of things I would like to do with the library:
   - Similar to:
     - `Entt` storage partitioning
     - `Flecs` entities as components
+- Make methods like `Registry:has()` and `Registry:try_get()` error when invalid
+  entities are used?

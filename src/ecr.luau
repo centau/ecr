@@ -27,6 +27,7 @@ export type Registry = {
     patch: <T>(self: Registry, entity: Entity, ctype: T, patcher: (current: T) -> T) -> (),
     has: <T...>(self: Registry, entity: Entity, T...) -> boolean,
     get: <T...>(self: Registry, entity: Entity, T...) -> T...,
+    try_get: <T>(self: Registry, entity: Entity, T) -> T?,
     remove: <T...>(self: Registry, entity: Entity, T...) -> (),
 
     size: (self: Registry) -> number,
@@ -1014,7 +1015,7 @@ local function registry_create(): Registry
     end
 
     function registry:create(id: Entity?): Entity
-        if size >= ID_MAX_KEY then error("cannot create entity; registry is at max entities", 2) end
+        if size >= ID_MAX_KEY then ERROR("cannot create entity; registry is at max entities") end
         return id and create_using(id) or create()
     end
 
@@ -1104,14 +1105,14 @@ local function registry_create(): Registry
         local pool = pools[ctype] :: Pool<T>
         local key = ID_KEY(id)
         local idx_ver = pool.map[key] :: number
-        if idx_ver == nil then error("entity does not have component", 2) end
+        if idx_ver == nil then ERROR("entity does not have component") end
         local idx = ID_KEY(idx_ver)
 
         ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
 
         local values = pool.values
         local value = patcher(values[idx])
-        if value == nil then error("patcher cannot return nil", 2) end
+        if value == nil then ERROR("patcher cannot return nil") end
 
         values[idx] = value :: T
         fire_changed(ctype, id, value)
@@ -1132,23 +1133,31 @@ local function registry_create(): Registry
         end  
     end :: any) :: <T...>(self: Registry, id: Entity, T...) -> boolean
 
-    local function pool_get<T>(self: Pool<T>, key: number, id): T?
+    local function pool_safe_get<T>(self: Pool<T>, key: number, id: number): T
         local idx_ver = self.map[key]
-        if idx_ver == nil or not check_versions_equal(ID_KEY(idx_ver), idx_ver, key, id) then return nil end
-        return self.values[ID_KEY(idx_ver)]
+        if idx_ver == nil then ERROR(`entity does not have {debug_arg(1)}`) end
+        local idx = ID_KEY(idx_ver :: number)
+        ASSERT_VERSIONS_EQUAL(idx, idx_ver :: number, key, id)
+        return self.values[idx]
+    end
+
+    local function pool_get<T>(self: Pool<T>, key: number, id: number): T
+        local idx_ver = self.map[key]
+        if idx_ver == nil then ERROR(`entity does not have component`) end
+        return self.values[ID_KEY(idx_ver:: number)]
     end
 
     registry.get = (function(self: Registry, id: Entity, ...: unknown): ...unknown
         local a, b, c, d, e = ...
         local key = ID_KEY(id)
         if b == nil then
-            return pool_get(pools[a], key, id)
+            return pool_safe_get(pools[a], key, id)
         elseif c == nil then
-            return pool_get(pools[a], key, id), pool_get(pools[b], key, id)
+            return pool_safe_get(pools[a], key, id), pool_get(pools[b], key, id)
         elseif d == nil then
-            return pool_get(pools[a], key, id), pool_get(pools[b], key, id), pool_get(pools[c], key, id)
+            return pool_safe_get(pools[a], key, id), pool_get(pools[b], key, id), pool_get(pools[c], key, id)
         elseif e == nil then
-            return pool_get(pools[a], key, id), pool_get(pools[b], key, id), pool_get(pools[c], key, id), pool_get(pools[d], key, id)
+            return pool_safe_get(pools[a], key, id), pool_get(pools[b], key, id), pool_get(pools[c], key, id), pool_get(pools[d], key, id)
         else
             local tuple: Array<any> = { ... }
             for i, v in next, tuple do
@@ -1157,6 +1166,16 @@ local function registry_create(): Registry
             return unpack(tuple)
         end
     end :: any) :: <T...>(self: Registry, id: Entity, T...) -> T...
+
+    function registry:try_get<T>(id: Entity, ctype: T): T?
+        local key = ID_KEY(id)
+        local pool = pools[ctype]
+        local idx_ver = pool.map[key]
+        if idx_ver == nil then return nil end
+        local idx = ID_KEY(idx_ver)
+        ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
+        return pool.values[idx] :: T
+    end
 
     function registry:remove<T...>(id: Entity, ...: T...)
         local key = ID_KEY(id)
@@ -1262,7 +1281,7 @@ local function registry_create(): Registry
     end
 
     setmetatable(registry :: any, { __index = function(_, index)
-        error(`"{ tostring(index) }" is not a valid member of Registry`, 2)    
+        ERROR(`"{ tostring(index) }" is not a valid member of Registry`)    
     end })
 
     return table.freeze(registry)

@@ -186,6 +186,22 @@ Gets an entity's component values.
 
 - **Details**
 
+    Will error if the entity does not own a component.
+
+---
+
+### try_get()
+
+Gets an entity's component value.
+
+- **Type**
+
+    ```lua
+    function Registry:try_get<T>(id: Entity, components: T): T?
+    ```
+
+- **Details**
+
     Will return `nil` if the entity does not own a component.
 
 ---
