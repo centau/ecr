@@ -91,14 +91,14 @@ export type Group<T...> = typeof(setmetatable({} :: {}, {} :: {
 type GroupData = { size: number } & Array<Pool<unknown>>
 
 export type Signal<T...> = {
-    connect: (self: Signal<T...>, (T...) -> ()) -> Connection,
+    connect: (self: Signal<T...>, self: (T...) -> ()) -> Connection,
 }
 
 export type Connection = {
     disconnect: (self: Connection) -> ()
 }
 
-type Listener<T> = (entity: Entity, value: T) -> ()
+type Listener<T> = (id: Entity, value: T) -> ()
 
 type Pool<T> = {
     size: number,

@@ -56,3 +56,4 @@ List of things I would like to do with the library:
   - Id versioning is an implementation detail that I don't want to expose
 - Refactor and cleanup the codebase.
 - Decide if entities should be referred to as `ids` or `entities` in the docs and API.
+- Remove `Registry:size()` and `Registry:entities()` and replace with `__len` and `__iter` metamethods.
