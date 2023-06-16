@@ -18,9 +18,6 @@ List of things I would like to do with the library:
   - Is this even needed given that you can create custom observers already?
 - Make `Registry:patch()` invoke constructor if no component is found.
   - Is there a case where this behavior is not wanted?
-- Add method for naming components for debugging
-  - `function ecr.name(Map<string, Component>)`?
-  - Also add way to retrieve a name given a component for debugging?
 - Methods for bulk operations with entities and components
 - Make `Registry:release()` safe
   - This is very hard to do performantly.
@@ -45,7 +42,8 @@ List of things I would like to do with the library:
   - Similar to:
     - `Entt` storage partitioning
     - `Flecs` entities as components
-- Make methods like `Registry:has()` and `Registry:try_get()` error when invalid
+- Make methods like `Registry:has()` and `Registry:try_get()` error when invalid entities are passed
+  - Should they?
   entities are used?
 - Address behavior regarding adding to observers/queues during iteration
   - Currently newly added values are not returned during iteration, additionally
