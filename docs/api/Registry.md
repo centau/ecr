@@ -359,6 +359,22 @@ Returns a [signal](Signal) which is fired whenever the given component is being 
 
 ---
 
+### handle()
+
+Returns a [handle](Handle) for an entity.
+
+- **Type**
+
+    ```lua
+    function Registry:handle(id: Entity?): Handle
+    ```
+
+- **Details**
+
+    If no entity is given then a new will one be created.
+
+---
+
 ### version()
 
 Returns the identifier's encoded version.

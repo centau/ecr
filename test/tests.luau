@@ -1728,6 +1728,18 @@ TEST("registry:group()", function()
     end
 end)
 
+TEST("registry:handle()", function()
+    local reg = ecr.registry()
+    local e = reg:handle()
+
+    CHECK(reg:contains(e.entity))
+
+    e:set(A, 1)
+     :set(B, 2)
+
+    CHECK(e:has(A, B))
+end)
+
 TEST("ecr.component()", function()
     do CASE "Components have unique ids"
         local cache = {}

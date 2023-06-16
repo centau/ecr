@@ -11,7 +11,6 @@ List of things I would like to do with the library:
   - Automatic error handling and better reporting.
 - Look into component relationships
   - `ecr.pair(A, B)` to create new combinational component.
-- Add entity handles
 - Look into tags (value-less components for better memory efficiency)
   - Is this even worth implementing when it only saves 16 bytes per entity?
 - More flexible observer API
@@ -55,4 +54,7 @@ List of things I would like to do with the library:
     iterated. Is this the desired behavior?
 - Also address behavior regarding clearing during iteration.
   - Currently should cause an error when it attempts to get the next element.
+- Remove `version()` and `current()`
+  - Id versioning is an implementation detail that I don't want to expose
 - Refactor and cleanup the codebase.
+- Decide if entities should be referred to as `ids` or `entities` in the docs and API.

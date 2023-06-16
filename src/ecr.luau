@@ -12,6 +12,22 @@ type Map<T, U> = { [T]: U }
 type CType = unknown
 export type Entity = number
 
+export type Handle = typeof(setmetatable({} :: { registry: Registry, entity: Entity }, {} :: HandleMT))
+
+type HandleMT = {
+    __index: HandleMT,
+
+    destroy: (self: Handle) -> (),
+    orphaned: (self: Handle) -> boolean,
+    add: <T...>(self: Handle, T...) -> (),
+    set: <T>(self: Handle, ctype: T, value: T?) -> Handle,
+    patch: <T>(self: Handle, ctype: T, patcher: (current: T) -> T) -> (),
+    has: <T...>(self: Handle, T...) -> boolean,
+    get: <T...>(self: Handle, T...) -> T...,
+    try_get: <T>(self: Handle, T) -> T?,
+    remove: <T...>(self: Handle, T...) -> (),
+}
+
 export type Registry = {
     create: (self: Registry, Id: Entity?) -> Entity,
     release: (self: Registry, entity: Entity) -> (),
@@ -43,6 +59,8 @@ export type Registry = {
     added: <T>(self: Registry, ctype: T) -> Signal<Entity, T>,
     changed: <T>(self: Registry, ctype: T) -> Signal<Entity, T>,
     removing: <T>(self: Registry, ctype: T) -> Signal<Entity, nil>,
+
+    handle: (self: Registry, entity: Entity?) -> Handle
 }
 
 export type View<T...> = typeof(setmetatable({} :: {
@@ -787,6 +805,54 @@ local signal_create: () -> (Signal<...any>, Array<(...any) -> ()>) do
 end
 
 ------------------------------------------------------------------------------------------------------------------------
+-- Handle
+------------------------------------------------------------------------------------------------------------------------
+
+local Handle = (function(): HandleMT
+    local Handle = {}
+    Handle.__index = Handle
+
+    function Handle.destroy(self: Handle)
+        self.registry:destroy(self.entity)
+    end
+
+    function Handle.orphaned(self: Handle): boolean
+        return self.registry:orphaned(self.entity)
+    end
+
+    function Handle.add<T...>(self: Handle, ...: T...)
+        self.registry:add(self.entity, ...)
+    end
+
+    function Handle.set<T>(self: Handle, ctype: T, value: T?): Handle
+        self.registry:set(self.entity, ctype, value)
+        return self
+    end
+
+    function Handle.patch<T>(self: Handle, ctype: T, fn: (T) -> T)
+        self.registry:patch(self.entity, ctype, fn)
+    end
+
+    function Handle.has<T...>(self: Handle, ...: T...): boolean
+        return self.registry:has(self.entity, ...)
+    end
+
+    function Handle.get<T...>(self: Handle, ...: T...): T...
+        return self.registry:get(self.entity, ...)
+    end
+
+    function Handle.try_get<T>(self: Handle, ctype: T): T?
+        return self.registry:try_get(self.entity, ctype)
+    end
+
+    function Handle.remove<T...>(self: Handle, ...: T...)
+        self.registry:remove(self.entity, ...)
+    end
+
+    return Handle
+end)()
+
+------------------------------------------------------------------------------------------------------------------------
 -- Registry
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -1280,6 +1346,13 @@ local function registry_create(): Registry
             removing_listeners[ctype] = listeners
             return signal
         end)() :: Signal<Entity, nil>
+    end
+
+    function registry:handle(entity: Entity?): Handle
+        return table.freeze(setmetatable({
+            registry = self,
+            entity = entity or self:create()
+        }, Handle))
     end
 
     -- test method

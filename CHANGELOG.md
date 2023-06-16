@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Function `ecr.queue()` and the `Queue` class.
 - Function `ecr.name()` for associating names with component types.
+- Method `Registry:handle()` and the `Handle` class.
 - Method `Registry:try_get()`
 
 ### Changed
