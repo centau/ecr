@@ -17,11 +17,8 @@ List of things I would like to do with the library:
 - More flexible observer API
   - Specify way to listen to only certain events (e.g. added or/and removed)
   - Is this even needed given that you can create custom observers already?
-- Make `Registry:get()` error if entity does not have component
-- Add `Registry:try_get()` which has behavior of current get
 - Make `Registry:patch()` invoke constructor if no component is found.
   - Is there a case where this behavior is not wanted?
-- Add a queue class for efficient queuing
 - Add method for naming components for debugging
   - `function ecr.name(Map<string, Component>)`?
   - Also add way to retrieve a name given a component for debugging?
@@ -43,8 +40,8 @@ List of things I would like to do with the library:
   - Archetypal tracking?
 - Allow `nil` component values?
   - Could improve memory usage for tags.
-  - But could add ambiguity between `nil` components and not having the component
-  at all.
+  - But could add ambiguity between `nil` components and not having the component at all.
+  - How does this affect creating views and observers?
 - Implement a form of dynamic tags
   - Similar to:
     - `Entt` storage partitioning
@@ -58,3 +55,4 @@ List of things I would like to do with the library:
     iterated. Is this the desired behavior?
 - Also address behavior regarding clearing during iteration.
   - Currently should cause an error when it attempts to get the next element.
+- Refactor and cleanup the codebase.
