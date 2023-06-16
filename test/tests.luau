@@ -1728,7 +1728,7 @@ TEST("registry:group()", function()
     end
 end)
 
-TEST("ecr:component()", function()
+TEST("ecr.component()", function()
     do CASE "Components have unique ids"
         local cache = {}
         for i = 1, 1000 do
@@ -1737,6 +1737,126 @@ TEST("ecr:component()", function()
             cache[c] = true
         end
     end
+end)
+
+TEST("ecr.queue()", function()
+    do
+        local queue = ecr.queue()
+
+        do CASE "Iterate single value"
+            for i = 1, 10 do
+                queue:add(i)
+            end
+
+            CHECK(#queue == 10)
+
+            local i = 0
+            for v in queue do
+                i += 1
+                CHECK(v == i)
+            end
+
+            CHECK(#queue == 0)
+            CHECK(i > 0)
+        end
+
+        do CASE "Iterate multiple values"
+            for i = 1, 10 do
+                queue:add(i+1, i+2, i+3)
+            end
+
+            CHECK(#queue == 10)
+
+            local i = 0
+            for a, b, c in queue do
+                i += 1
+                CHECK(a == i+1)
+                CHECK(b == i+2)
+                CHECK(c == i+3)
+            end
+
+            CHECK(#queue == 0)
+            CHECK(i > 0)
+        end
+    end
+
+    do CASE "Manual clear"
+        local queue = ecr.queue()
+        for i = 1, 10 do
+            queue:add(i, i+1, i+2)
+        end
+
+        CHECK(#queue == 10)
+
+        queue:clear()
+
+        CHECK(#queue == 0)
+
+        for _ in queue do
+            CHECK(false)
+        end
+    end
+
+    do CASE "Uneven values"
+        local queue = ecr.queue()
+        queue:add(1)
+        queue:add(1, 2, nil)
+        queue:add(1, nil, 3)
+
+        local i = 0
+        for a, b, c in queue do
+            i += 1
+            if i == 1 then CHECK(a == 1 and b == nil and c == nil)
+            elseif i == 2 then CHECK(a == 1 and b == 2 and c == nil)
+            elseif i == 3 then CHECK(a == 1 and b == nil and c == 3)
+            else CHECK(false) end
+        end
+    end
+
+    do CASE "Nil value first"
+        local queue = ecr.queue()
+        CHECK_ERR("first value cannot be nil", function()
+            queue:add(nil, 1, 2, 3)
+        end)
+    end
+
+    do CASE "Automatic signal connection"
+        local listener: (...any) -> ()
+        local signal = {
+            connect = function(_, fn)
+                listener = fn
+            end
+        }
+
+        local queue = ecr.queue(signal)
+
+        listener(1, 2, 3)
+
+        CHECK(#queue == 1)
+        for a, b, c in queue do
+            CHECK(a == 1 and b == 2 and c == 3)
+        end
+    end
+end)
+
+TEST("ecr.name()", function()
+    local cts = ecr.name ({
+        A = ecr.component() :: number,
+        B = ecr.component() :: string
+    })
+
+    local reg = ecr.registry()
+
+    local id = reg:create()
+
+    CHECK_ERR(`entity does not have component "A"`, function()
+        reg:get(id, cts.A)
+    end)
+
+    CHECK_ERR(`no constructor defined for component "B"`, function()
+        reg:add(id, cts.B)
+    end)
+
 end)
 
 TEST("Random usage test", function()

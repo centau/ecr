@@ -58,11 +58,6 @@ export type Observer<T...> = typeof(setmetatable({} :: {
     disconnect: (self: Observer<T...>) -> Observer<T...>,
     reconnect: (self: Observer<T...>) -> Observer<T...>,
 
-    added: (self: Observer<T...>) -> Observer<T...>,
-    changed: (self: Observer<T...>) -> Observer<T...>,
-    removed: (self: Observer<T...>) -> Observer<T...>,
-    released: (self: Observer<T...>) -> Observer<T...>,
-
     persist: (self: Observer<T...>) -> Observer<T...>,
     clear: (self: Observer<T...>) -> Observer<T...>,
 }, {} :: {
@@ -94,15 +89,13 @@ type Pool<T> = {
     values: Array<T>
 }
 
-export type EntityMap<T> = typeof(setmetatable({} :: Pool<T>, {} :: EntityMapMetatable))
-
-type EntityMapMetatable = {
-    __index: EntityMapMetatable,
-    set: <T>(self: EntityMap<T>, entity: Entity, value: T?) -> (),
-    replace: <T>(self: EntityMap<T>, entity: Entity, value: T) -> T,
-    remove: <T>(self: EntityMap<T>, entity: Entity) -> T?,
-    clear: <T>(self: EntityMap<T>) -> ()
-}
+export type Queue<T...> = typeof(setmetatable({} :: {
+    add: (self: Queue<T...>, T...) -> (),
+    clear: (self: Queue<T...>) -> ()
+}, {} :: {
+    __iter: (self: Queue<T...>) -> () -> (T...),
+    __len: (self: View<T...>) -> number  
+}))
 
 local ERROR = function<T>(msg: T): never
     local stack = 1
@@ -120,10 +113,6 @@ local ASSERT = function<T>(v: T, msg: string): T
     ERROR(msg)
     return nil :: never
 end :: typeof(assert)
-
-local function debug_arg(i: number): string
-    return `component (arg #{i})`
-end
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Entity Id
@@ -293,6 +282,7 @@ end
 ------------------------------------------------------------------------------------------------------------------------
 
 local ctype_n = 0
+local ctype_names: Map<CType, string> = {}
 local ctype_constructors: Map<CType, ((() -> unknown)?)> = table.create(1e3)
 
 local function ctype_create<T>(constructors: ( () -> T )?): CType
@@ -304,6 +294,20 @@ end
 
 local function ctype_valid(v: unknown): boolean
     return type(v) == "number" and math.floor(v) == v and v > 0 and v <= ctype_n  
+end
+
+local function ctype_name(ctype: CType, name: unknown)
+    ASSERT(ctype_valid(ctype), `{name} refers to an invalid component`)
+    ctype_names[ctype] = tostring(name)
+end
+
+local function ctype_debug(ctype: CType?, idx: number?)
+    local name = ctype_names[ctype]
+
+    return
+        if name then `component "{name}"`
+        elseif idx then `component (arg #{idx})`
+        else "component (unknown)"
 end
 
 ------------------------------------------------------------------------------------------------------------------------
@@ -366,8 +370,8 @@ local View, Observer, Group do
 
         for i = 1, select("#", ...) do
             local ctype = select(i, ...)
-            ASSERT(ctype_valid(ctype), `invalid { debug_arg(i) }`)
-            ASSERT(not table.find(includes, ctype), `duplicate { debug_arg(i) } included`)
+            ASSERT(ctype_valid(ctype), `invalid { ctype_debug(nil, i) }`)
+            ASSERT(not table.find(includes, ctype), `duplicate { ctype_debug(ctype, i) } included`)
             table.insert(includes, ctype)
         end
 
@@ -384,8 +388,8 @@ local View, Observer, Group do
 
         for i = 1, select("#", ...) do
             local ctype = select(i, ...)
-            ASSERT(ctype_valid(ctype), `invalid { debug_arg(i) }`)
-            ASSERT(not table.find(includes, ctype), `cannot exclude { debug_arg(i) }, component is a part of the view`)
+            ASSERT(ctype_valid(ctype), `invalid { ctype_debug(nil, i) }`)
+            ASSERT(not table.find(includes, ctype), `cannot exclude { ctype_debug(ctype, i) }, component is a part of the view`)
             if table.find(excludes, ctype) then continue end
             table.insert(excludes, ctype)
         end
@@ -529,8 +533,8 @@ local View, Observer, Group do
 
         for i = 1, select("#", ...) do
             local ctype = select(i, ...)
-            ASSERT(ctype_valid(ctype), `invalid { debug_arg(i) }`)
-            ASSERT(not table.find(includes, ctype), `duplicate { debug_arg(i) } included`)
+            ASSERT(ctype_valid(ctype), `invalid { ctype_debug(nil, i) }`)
+            ASSERT(not table.find(includes, ctype), `duplicate { ctype_debug(ctype, i) } included`)
             table.insert(includes, ctype)
         end
 
@@ -654,8 +658,8 @@ local View, Observer, Group do
 
         for i = 1, select("#", ...) do
             local ctype = select(i, ...)
-            ASSERT(ctype_valid(ctype), `invalid { debug_arg(i) }`)
-            ASSERT(not table.find(self.includes, ctype), `cannot exclude { debug_arg(i) }, component is being tracked`)
+            ASSERT(ctype_valid(ctype), `invalid { ctype_debug(nil, i) }`)
+            ASSERT(not table.find(self.includes, ctype), `cannot exclude { ctype_debug(ctype, i) }, component is being tracked`)
             if table.find(excludes, ctype) then continue end
             table.insert(excludes, ctype)
         end
@@ -806,6 +810,7 @@ local function registry_create(): Registry
     local changed_listeners: Map<CType, Array<Listener<unknown>>?> = table.create(ctype_n)
     local removing_listeners: Map<CType, Array<Listener<unknown>>?> = table.create(ctype_n)
 
+    -- lazily create pools on nil index to avoid having to check everywhere
     setmetatable(pools, {
         __index = function(self, v: unknown): Pool<unknown>
             ASSERT(ctype_valid(v), "invalid component type")
@@ -1068,9 +1073,9 @@ local function registry_create(): Registry
             local pool = pools[ctype]
             if pool.map[key] then continue end
 
-            local constructor = ctype_constructors[ctype] or ERROR(`no constructor defined for {debug_arg(i)}`)
+            local constructor = ctype_constructors[ctype] or ERROR(`no constructor defined for {ctype_debug(ctype, i)}`)
             local value = constructor()
-            if value == nil then ERROR(`{ debug_arg(i) } constructor did not return a value`) end
+            if value == nil then ERROR(`{ ctype_debug(ctype, i) } constructor did not return a value`) end
 
             add(ctype, pool, key, id, value)
             fire_added(ctype, id, value)
@@ -1133,35 +1138,37 @@ local function registry_create(): Registry
         end  
     end :: any) :: <T...>(self: Registry, id: Entity, T...) -> boolean
 
-    local function pool_safe_get<T>(self: Pool<T>, key: number, id: number): T
-        local idx_ver = self.map[key]
-        if idx_ver == nil then ERROR(`entity does not have {debug_arg(1)}`) end
+    local function pool_safe_get(ctype: CType, key: number, id: number): unknown
+        local pool = pools[ctype]
+        local idx_ver = pool.map[key]
+        if idx_ver == nil then ERROR(`entity does not have {ctype_debug(ctype, 1)}`) end
         local idx = ID_KEY(idx_ver :: number)
         ASSERT_VERSIONS_EQUAL(idx, idx_ver :: number, key, id)
-        return self.values[idx]
+        return pool.values[idx]
     end
 
-    local function pool_get<T>(self: Pool<T>, key: number, id: number): T
-        local idx_ver = self.map[key]
-        if idx_ver == nil then ERROR(`entity does not have component`) end
-        return self.values[ID_KEY(idx_ver:: number)]
+    local function pool_get(ctype: CType, key: number, id: number): unknown
+        local pool = pools[ctype]
+        local idx_ver = pool.map[key]
+        if idx_ver == nil then ERROR(`entity does not have {ctype_debug(ctype)}`) end
+        return pool.values[ID_KEY(idx_ver:: number)]
     end
 
     registry.get = (function(self: Registry, id: Entity, ...: unknown): ...unknown
         local a, b, c, d, e = ...
         local key = ID_KEY(id)
         if b == nil then
-            return pool_safe_get(pools[a], key, id)
+            return pool_safe_get(a, key, id)
         elseif c == nil then
-            return pool_safe_get(pools[a], key, id), pool_get(pools[b], key, id)
+            return pool_safe_get(a, key, id), pool_get(b, key, id)
         elseif d == nil then
-            return pool_safe_get(pools[a], key, id), pool_get(pools[b], key, id), pool_get(pools[c], key, id)
+            return pool_safe_get(a, key, id), pool_get(b, key, id), pool_get(c, key, id)
         elseif e == nil then
-            return pool_safe_get(pools[a], key, id), pool_get(pools[b], key, id), pool_get(pools[c], key, id), pool_get(pools[d], key, id)
+            return pool_safe_get(a, key, id), pool_get(b, key, id), pool_get(c, key, id), pool_get(d, key, id)
         else
             local tuple: Array<any> = { ... }
             for i, v in next, tuple do
-                tuple[i] = pool_get(pools[v], key, id)
+                tuple[i] = pool_get(v, key, id)
             end
             return unpack(tuple)
         end
@@ -1224,9 +1231,9 @@ local function registry_create(): Registry
 
         for i = 1, argn do
             local ctype = select(i, ...)
-            ASSERT(ctype_valid(ctype), `invalid { debug_arg(i) }`)
+            ASSERT(ctype_valid(ctype), `invalid { ctype_debug(nil, i) }`)
             ASSERT(groups[ctype] == group,
-                `cannot create group; { debug_arg(i) } is not owned by the same group as previous args`)
+                `cannot create group; { ctype_debug(ctype, i) } is not owned by the same group as previous args`)
         end
 
         return Group.new(registry, group or group_init(...), ...)
@@ -1288,13 +1295,128 @@ local function registry_create(): Registry
 end
 
 ------------------------------------------------------------------------------------------------------------------------
+-- Queue
+------------------------------------------------------------------------------------------------------------------------
+
+local Queue = {} do
+    Queue.__index = Queue
+
+    type _Queue = Queue<...unknown> & {
+        size: number,
+        columns: Array<Array<unknown>>
+    }
+
+    function Queue.new(): Queue<...unknown>
+        local self: _Queue = setmetatable({
+            size = 0,
+            columns = {}
+        }, Queue) :: any
+
+        -- create new column lazily on nil index to avoid
+        -- having to check when adding every time
+        setmetatable(self.columns, {
+            __index = function(columns: Array<Array<unknown>>, idx: number)
+                local new = {}
+                columns[idx] = new
+                return new
+            end
+        })
+
+        return self
+    end
+
+    function Queue.add(self: _Queue, ...: unknown)
+        -- otherwise value will not be returned during iteration
+        if ... == nil then ERROR("first value cannot be nil") end
+
+        local columns = self.columns
+        local n = self.size + 1; self.size = n
+
+        for i = 1, select("#", ...) do
+            local arg = select(i, ...)
+            columns[i][n] = arg
+        end
+    end
+
+    function Queue.clear(self: _Queue)
+        self.size = 0
+        for _, column in next, self.columns do
+            table.clear(column)
+        end
+    end
+
+    function Queue.__len(self: _Queue)
+        return self.size
+    end
+
+    function Queue.__iter(self: _Queue)
+        local n = self.size
+        local i = 0
+        local columns = self.columns
+
+        if #columns == 0 then
+            return function() end
+
+        elseif #columns == 1 then
+            local column = columns[1]
+            return function()
+                i += 1
+                if i == n then return self:clear() end
+                return column[i]
+            end
+
+        else--if #columns > 1 then
+            local tuple = {}
+            return function()
+                i += 1
+                if i == n then return self:clear() end
+                for ci, column in next, columns do
+                    tuple[ci] = column[i]
+                end
+                return unpack(tuple)
+            end
+        end
+    end
+end
+
+type SignalInterface<T...> = {
+    connect: (self: SignalInterface<T...>, listener: (T...) -> ()) -> ()
+} | {
+    Connect: (self: SignalInterface<T...>, listener: (T...) -> ()) -> ()
+}
+
+local queue_create = function(signal: SignalInterface<...any>?)
+    local queue = Queue.new()
+
+    -- todo: fix type error
+    if signal then
+        local connector = (signal :: any).connect or (signal :: any).Connect
+        ASSERT(connector, "signal has no connector")
+        connector(signal, function(...: unknown)
+            queue:add(...)
+        end)
+    end
+
+    return queue
+end :: ( () -> Queue<...unknown> ) & ( <T...>(signal: SignalInterface<T...>) -> Queue<T...> )
+
+------------------------------------------------------------------------------------------------------------------------
 -- Return
 ------------------------------------------------------------------------------------------------------------------------
 
 local ecr = {
     component = ctype_create :: (() -> unknown) & (<T>(constructor: () -> T) -> T),
     registry = registry_create,
+    queue = queue_create,
     null = ID_NULL,
+
+    name = function<T>(names: T & {}): T
+        for name, ctype in next, names do
+            ctype_name(ctype, name)
+        end
+        table.freeze(names)
+        return names
+    end
 }
 
 -- test functions

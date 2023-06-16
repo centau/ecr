@@ -20,10 +20,11 @@ List of things I would like to do with the library:
 - Make `Registry:get()` error if entity does not have component
 - Add `Registry:try_get()` which has behavior of current get
 - Make `Registry:patch()` invoke constructor if no component is found.
-  - Some may not want this behavior.
+  - Is there a case where this behavior is not wanted?
 - Add a queue class for efficient queuing
 - Add method for naming components for debugging
   - `function ecr.name(Map<string, Component>)`?
+  - Also add way to retrieve a name given a component for debugging?
 - Methods for bulk operations with entities and components
 - Make `Registry:release()` safe
   - This is very hard to do performantly.
@@ -50,3 +51,10 @@ List of things I would like to do with the library:
     - `Flecs` entities as components
 - Make methods like `Registry:has()` and `Registry:try_get()` error when invalid
   entities are used?
+- Address behavior regarding adding to observers/queues during iteration
+  - Currently newly added values are not returned during iteration, additionally
+    clearing the observer/queue when iteration is completed means that any value
+    that was added during iteration will not be returned the next time it is
+    iterated. Is this the desired behavior?
+- Also address behavior regarding clearing during iteration.
+  - Currently should cause an error when it attempts to get the next element.

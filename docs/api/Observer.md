@@ -111,6 +111,9 @@ Components can be added, changed and removed during iteration. Newly added compo
 
 Will automatically clear the observer unless `Observer:persist()` was called.
 
+> ⚠️ Adding values during iteration can cause them to be cleared when
+> iteration completes and they will never be iterated.
+
 > ⚠️ During iteration, adding or removing components from entities not currently being iterated can invalidate the iterator.
 
 ---
