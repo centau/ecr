@@ -57,3 +57,6 @@ List of things I would like to do with the library:
 - Refactor and cleanup the codebase.
 - Decide if entities should be referred to as `ids` or `entities` in the docs and API.
 - Remove `Registry:size()` and `Registry:entities()` and replace with `__len` and `__iter` metamethods.
+- Investigate if it is possible to free a bit in key and version parts of an id
+  - Since we never use 0 and know that first bit is always 1 does this allow us to implicitly gain an extra bit?
+  - This would double the total amount of keys we can have and double the total amount of versions.
