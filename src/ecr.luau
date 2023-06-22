@@ -1,7 +1,7 @@
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- ecr.luau
 -- v0.5.0
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 local INITIAL_ENTITY_VERSION = 1
 local MAX_ENTITIES = 0x000F_FFFF
@@ -12,7 +12,10 @@ type Map<T, U> = { [T]: U }
 type CType = unknown
 export type Entity = number
 
-export type Handle = typeof(setmetatable({} :: { registry: Registry, entity: Entity }, {} :: HandleMT))
+export type Handle = typeof(setmetatable(
+    {} :: { registry: Registry, entity: Entity },
+    {} :: HandleMT
+))
 
 type HandleMT = {
     __index: HandleMT,
@@ -29,22 +32,22 @@ type HandleMT = {
 }
 
 export type Registry = {
-    create: (self: Registry, Id: Entity?) -> Entity,
-    release: (self: Registry, entity: Entity) -> (),
-    destroy: (self: Registry, entity: Entity) -> (),
+    create: (self: Registry, id: Entity?) -> Entity,
+    release: (self: Registry, id: Entity) -> (),
+    destroy: (self: Registry, id: Entity) -> (),
 
-    contains: (self: Registry, entity: Entity) -> boolean,
-    version: (self: Registry, entity: Entity) -> number,
-    current: (self: Registry, entity: Entity) -> number,
+    contains: (self: Registry, id: Entity) -> boolean,
+    version: (self: Registry, id: Entity) -> number,
+    current: (self: Registry, id: Entity) -> number,
 
-    orphaned: (self: Registry, entity: Entity) -> boolean,
-    add: <T...>(self: Registry, entity: Entity, T...) -> (),
-    set: <T>(self: Registry, entity: Entity, ctype: T, value: T?) -> (),
-    patch: <T>(self: Registry, entity: Entity, ctype: T, patcher: (current: T) -> T) -> (),
-    has: <T...>(self: Registry, entity: Entity, T...) -> boolean,
-    get: <T...>(self: Registry, entity: Entity, T...) -> T...,
-    try_get: <T>(self: Registry, entity: Entity, T) -> T?,
-    remove: <T...>(self: Registry, entity: Entity, T...) -> (),
+    orphaned: (self: Registry, id: Entity) -> boolean,
+    add: <T...>(self: Registry, id: Entity, T...) -> (),
+    set: <T>(self: Registry, id: Entity, ctype: T, value: T?) -> (),
+    patch: <T>(self: Registry, id: Entity, ctype: T, patcher: (T) -> T) -> (),
+    has: <T...>(self: Registry, id: Entity, T...) -> boolean,
+    get: <T...>(self: Registry, id: Entity, T...) -> T...,
+    try_get: <T>(self: Registry, id: Entity, T) -> T?,
+    remove: <T...>(self: Registry, id: Entity, T...) -> (),
 
     size: (self: Registry) -> number,
     clear: <T...>(self: Registry, T...) -> (),
@@ -60,7 +63,7 @@ export type Registry = {
     changed: <T>(self: Registry, ctype: T) -> Signal<Entity, T>,
     removing: <T>(self: Registry, ctype: T) -> Signal<Entity, nil>,
 
-    handle: (self: Registry, entity: Entity?) -> Handle
+    handle: (self: Registry, id: Entity?) -> Handle
 }
 
 export type View<T...> = typeof(setmetatable({} :: {
@@ -115,6 +118,7 @@ export type Queue<T...> = typeof(setmetatable({} :: {
     __len: (self: View<T...>) -> number  
 }))
 
+-- error trace will always begin at callsite outside of file
 local ERROR = function<T>(msg: T): never
     local stack = 1
 
@@ -125,23 +129,18 @@ local ERROR = function<T>(msg: T): never
     error(msg, stack)  
 end :: typeof(error)
 
--- assert but stack trace will always start at the callsite of library functions outside of this file
 local ASSERT = function<T>(v: T, msg: string): T
     if v then return v end
     ERROR(msg)
     return nil :: never
 end :: typeof(assert)
 
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Entity Id
-------------------------------------------------------------------------------------------------------------------------
-
--- entity ids are composed of two parts: key and version
--- key (lower bits) used to index into arrays
--- version (upper bits) used to keep id unique when keys are reused
+--------------------------------------------------------------------------------
 
 ASSERT(
-    bit32.band(MAX_ENTITIES + 1, MAX_ENTITIES) == 0 -- is one less than a power of 2
+    bit32.band(MAX_ENTITIES + 1, MAX_ENTITIES) == 0 -- is 1 less than power of 2
     and MAX_ENTITIES <= 0xFFFF_FFFF -- can be represented using 32 bits
     and MAX_ENTITIES > 0,
     "invalid max entities limit"
@@ -184,14 +183,9 @@ end
 
 local ID_NULL = ID_CREATE(0, ID_MAX_VERSION)
 
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Pool
-------------------------------------------------------------------------------------------------------------------------
-
--- pools are a datastructure (known as sparse-sets) used to store entities and components
--- one pool for each component type
--- entities and values are packed arrays of entity ids and corresponding component value
--- map maps the key portion of an id to an internal packed array index for that entity
+--------------------------------------------------------------------------------
 
 local function pool_create(size: number?): Pool<unknown>
     local n = size or 1
@@ -209,21 +203,6 @@ local function pool_add<T>(self: Pool<T>, key: number, id: Entity, v: T)
     self.entities[n] = id
     self.values[n] = v     
 end
-
---[[
-local function pool_add_or_change<T>(self: Pool<T>, key: number, id: Entity, v: T)
-    local map = self.map
-    local idx_ver = map[key]
-    if idx_ver then
-        self.values[ID_KEY(idx_ver)] = v
-    else
-        local n = self.size + 1; self.size = n
-        map[key] = ID_SWAPKEY(id, n)
-        self.entities[n] = id
-        self.values[n] = v   
-    end 
-end
-]]
 
 local function pool_remove<T>(self: Pool<T>, idx: number, key: number)
     local n = self.size; self.size = n - 1
@@ -266,7 +245,13 @@ local function pool_remove_id<T>(self: Pool<T>, id: Entity)
     end
 end
 
-local function pool_swap<T>(self: Pool<T>, idx: number, key: number, id: number, target_idx: number)
+local function pool_swap<T>(
+    self: Pool<T>,
+    idx: number,
+    key: number,
+    id: number,
+    target_idx: number
+)
     local map = self.map
     local entities = self.entities
     local values = self.values
@@ -295,9 +280,9 @@ local function pool_clone<T>(self: Pool<T>): Pool<T>
     }
 end
 
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Component Type
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 local ctype_n = 0
 local ctype_names: Map<CType, string> = {}
@@ -305,7 +290,10 @@ local ctype_constructors: Map<CType, ((() -> unknown)?)> = table.create(1e3)
 
 local function ctype_create<T>(constructors: ( () -> T )?): CType
     ctype_n += 1
-    ASSERT(constructors == nil or type(constructors) == "function", "constructor must be a function")
+    ASSERT(
+        constructors == nil or type(constructors) == "function",
+        "constructor must be a function"
+    )
     ctype_constructors[ctype_n] = constructors
     return ctype_n
 end
@@ -328,9 +316,9 @@ local function ctype_debug(ctype: CType?, idx: number?)
         else "component (unknown)"
 end
 
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Views
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 local View, Observer, Group do
     local WEAK_VALUES = { __mode = "v" }
@@ -350,7 +338,10 @@ local View, Observer, Group do
         return assert(s, "no pools given")
     end
 
-    local function get_pools(registry: Registry, ctypes: Array<CType>): Array<Pool<unknown>>
+    local function get_pools(
+        registry: Registry,
+        ctypes: Array<CType>
+    ): Array<Pool<unknown>>
         local pools = table.create(#ctypes)
         for i, ctype in next, ctypes do
             pools[i] = registry:storage(ctype)
@@ -389,7 +380,8 @@ local View, Observer, Group do
         for i = 1, select("#", ...) do
             local ctype = select(i, ...)
             ASSERT(ctype_valid(ctype), `invalid { ctype_debug(nil, i) }`)
-            ASSERT(not table.find(includes, ctype), `duplicate { ctype_debug(ctype, i) } included`)
+            ASSERT(not table.find(includes, ctype),
+                `duplicate { ctype_debug(ctype, i) } included`)
             table.insert(includes, ctype)
         end
 
@@ -406,8 +398,8 @@ local View, Observer, Group do
 
         for i = 1, select("#", ...) do
             local ctype = select(i, ...)
-            ASSERT(ctype_valid(ctype), `invalid { ctype_debug(nil, i) }`)
-            ASSERT(not table.find(includes, ctype), `cannot exclude { ctype_debug(ctype, i) }, component is a part of the view`)
+            ASSERT(ctype_valid(ctype), `invalid {ctype_debug(nil, i)}`)
+            ASSERT(not table.find(includes, ctype), `cannot exclude {ctype_debug(ctype, i)}, component is a part of the view`)
             if table.find(excludes, ctype) then continue end
             table.insert(excludes, ctype)
         end
@@ -496,7 +488,7 @@ local View, Observer, Group do
                     for ii, pool in next, includes do
                         local idx_ver = pool.map[key]
                         if idx_ver == nil then has_all = false; break end
-                        tuple[ii] = pool.values[ID_KEY(idx_ver :: number) :: number]
+                        tuple[ii] = pool.values[ID_KEY(idx_ver :: number)]
                     end
                     if has_all == false then continue end
     
@@ -655,7 +647,7 @@ local View, Observer, Group do
                         for ii, pool in next, includes do
                             local idx_ver = pool.map[key]
                             if idx_ver == nil then has_all = false; break end
-                            tuple[ii] = pool.values[ID_KEY(idx_ver :: number) :: number]
+                            tuple[ii] = pool.values[ID_KEY(idx_ver :: number)]
                         end
                         if has_all == false then continue end
 
@@ -764,9 +756,9 @@ local View, Observer, Group do
     end
 end
 
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Signal
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 local signal_create: () -> (Signal<...any>, Array<(...any) -> ()>) do
     type _Signal<T...> = {
@@ -804,9 +796,9 @@ local signal_create: () -> (Signal<...any>, Array<(...any) -> ()>) do
     end
 end
 
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Handle
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 local Handle = (function(): HandleMT
     local Handle = {}
@@ -852,9 +844,9 @@ local Handle = (function(): HandleMT
     return Handle
 end)()
 
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Registry
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 local function registry_create(): Registry
     local registry = {} :: Registry
@@ -1367,9 +1359,9 @@ local function registry_create(): Registry
     return table.freeze(registry)
 end
 
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Queue
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 local Queue = {} do
     Queue.__index = Queue
@@ -1473,9 +1465,9 @@ local queue_create = function(signal: SignalInterface<...any>?)
     return queue
 end :: ( () -> Queue<...unknown> ) & ( <T...>(signal: SignalInterface<T...>) -> Queue<T...> )
 
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Return
-------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 local ecr = {
     component = ctype_create :: (() -> unknown) & (<T>(constructor: () -> T) -> T),
