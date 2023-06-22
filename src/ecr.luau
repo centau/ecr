@@ -1489,6 +1489,10 @@ local ecr = {
         end
         table.freeze(names)
         return names
+    end,
+
+    extract = function(id: Entity): (number, number)
+        return ID_KEY_VER(id)
     end
 }
 
