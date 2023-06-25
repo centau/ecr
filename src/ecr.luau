@@ -32,7 +32,7 @@ type HandleMT = {
 }
 
 export type Registry = {
-    create: (self: Registry, id: Entity?) -> Entity,
+    create: ((self: Registry, id: Entity) -> Entity) & ((self: Registry) -> Entity),
     release: (self: Registry, id: Entity) -> (),
     destroy: (self: Registry, id: Entity) -> (),
 
@@ -63,7 +63,7 @@ export type Registry = {
     changed: <T>(self: Registry, ctype: T) -> Signal<Entity, T>,
     removing: <T>(self: Registry, ctype: T) -> Signal<Entity, nil>,
 
-    handle: (self: Registry, id: Entity?) -> Handle
+    handle: ((self: Registry, id: Entity) -> Handle) & ((self: Registry) -> Handle)
 }
 
 export type View<T...> = typeof(setmetatable({} :: {
