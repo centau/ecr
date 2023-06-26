@@ -1738,15 +1738,13 @@ TEST("registry:group()", function()
         local e2 = reg:handle()
         e2:set(Z, true)
 
-        local ok = pcall(function()
+        CHECK_ERR("group reordered during iteration, iterator invalidaton occurred", function()
             for id in reg:view(Z) do
                 reg:set(id, X, true)
             end
         end)
 
         CHECK(not e1:has(X)) -- confirm invalidation occured
-        CHECK(not ok) -- check invalidation was caught
-        
     end
 end)
 

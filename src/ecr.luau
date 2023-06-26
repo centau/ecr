@@ -383,14 +383,27 @@ local function disconnect_all(connections: Array<Connection>)
     end
 end
 
+local function clear_invalidation_flag<T>(pool: Pool<T>)
+    if pool.group then pool.group.added = false end
+end
+
+local function ASSERT_INVALIDATION<T>(pool: Pool<T>): ...any
+    if pool.group and pool.group.added then
+        pool.group.added = false
+        ASSERT(false, "group reordered during iteration, iterator invalidaton occurred")
+    end
+end
+
 local function single<A>(pool: Pool<A>): () -> (Entity, A)
     local n = pool.size
     local entities = pool.entities
     local values = pool.values
 
+    clear_invalidation_flag(pool)
+
     return function()
         local i = n; n = i - 1
-        return entities[i], values[i]
+        return entities[i] or ASSERT_INVALIDATION(pool), values[i]
     end
 end
 
@@ -402,6 +415,8 @@ local function double<A, B>(a: Pool<A>, b: Pool<B>): () -> (Entity, A, B)
         local entities = a.entities
         local values = a.values
 
+        clear_invalidation_flag(a)
+
         return function()
             for i = n, 1, -1 do
                 local entity = entities[i]
@@ -412,12 +427,14 @@ local function double<A, B>(a: Pool<A>, b: Pool<B>): () -> (Entity, A, B)
                 n = i - 1
                 return entity, values[i], vb :: B
             end
-            return nil :: any, nil :: any, nil :: any
+            return ASSERT_INVALIDATION(a)
         end
     else
         local n = nb
         local entities = b.entities
         local values = b.values
+
+        clear_invalidation_flag(b)
 
         return function()
             for i = n, 1, -1 do
@@ -429,7 +446,7 @@ local function double<A, B>(a: Pool<A>, b: Pool<B>): () -> (Entity, A, B)
                 n = i - 1
                 return entity, va :: A, values[i]   
             end
-            return nil :: any, nil :: any, nil :: any
+            return ASSERT_INVALIDATION(b)
         end
     end
 end
@@ -444,6 +461,8 @@ local function multi(
     local n = source.size
     local entities = source.entities
     local tuple = table.create(#includes)
+
+    clear_invalidation_flag(source)
 
     return function()
         for i = n, 1, -1 do
@@ -463,7 +482,7 @@ local function multi(
             n = i - 1
             return entity, unpack(tuple)
         end
-        return nil :: any
+        return ASSERT_INVALIDATION(source)
     end
 end
 
@@ -711,7 +730,7 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
 
     local connections = {}
     local pool = self.pool
-    local weakref = setmetatable({ self = self }, WEAK_VALUES)
+    local weakref = setmetatable({ self = self }, WEAK_VALUES) :: any
     local function try_remove(id: number)
         if weakref.self == nil then disconnect_all(connections) end
         pool_remove_id(pool, id)
@@ -924,7 +943,7 @@ local function registry_create(): Registry
     local ids = table.create(1) :: Array<Entity>
 
     local pools: Map<CType, Pool<unknown>> = table.create(ctype_n)
-    local groups: Map<CType, GroupData?> = table.create(ctype_n)
+    local groups: Map<CType, GroupData?> = table.create(ctype_n) -- todo: is this needed?
 
     local signals = {
         added = {} :: Map<CType, Signal<Entity, unknown>>,
@@ -984,6 +1003,7 @@ local function registry_create(): Registry
             local ctype = select(i, ...)
             local pool = pools[ctype]
             group[i] = pool
+            groups[ctype] = group
             pool.group = group
         end
 
