@@ -1726,6 +1726,28 @@ TEST("registry:group()", function()
             CHECK(v[5] == id)
         end
     end
+
+    do CASE "Invalidation check"
+        local Z, X = ecr.component(), ecr.component()
+
+        reg:group(Z, X)
+
+        local e1 = reg:handle()
+        e1:set(Z, true)
+
+        local e2 = reg:handle()
+        e2:set(Z, true)
+
+        local ok = pcall(function()
+            for id in reg:view(Z) do
+                reg:set(id, X, true)
+            end
+        end)
+
+        CHECK(not e1:has(X)) -- confirm invalidation occured
+        CHECK(not ok) -- check invalidation was caught
+        
+    end
 end)
 
 TEST("registry:handle()", function()
