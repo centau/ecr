@@ -79,7 +79,7 @@ export type Observer<T...> = typeof(setmetatable({} :: {
     __len: (self: Observer<T...>) -> number
 }))
 
-type Group<T...> = typeof(setmetatable({} :: {
+export type Group<T...> = typeof(setmetatable({} :: {
 }, {} :: {
     __iter: (self: Group<T...>) -> () -> (Entity, T...),
     __len: (self: Group<T...>) -> number     
@@ -125,7 +125,7 @@ export type Queue<T...> = typeof(setmetatable({} :: {
     clear: (self: Queue<T...>) -> ()
 }, {} :: {
     __iter: (self: Queue<T...>) -> () -> (T...),
-    __len: (self: View<T...>) -> number  
+    __len: (self: Queue<T...>) -> number  
 }))
 
 -- error trace will always begin at callsite outside of file

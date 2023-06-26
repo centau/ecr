@@ -2009,7 +2009,7 @@ TEST("Random usage test", function()
 
         for id in ids do
             ran += 1
-            local component = reg:try_get(id, ctype)
+            local component = reg:try_get(id, ctype) :: any
             if inc[id] then
                 CHECK(component)
                 CHECK(inc[id] == component.v)  
