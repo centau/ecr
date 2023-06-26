@@ -3,7 +3,7 @@ permalink: /api/Group
 title: Group
 ---
 
-Groups are used to iterate over a grouped set of components.
+Groups are used to efficiently iterate over a set of components.
 
 ---
 

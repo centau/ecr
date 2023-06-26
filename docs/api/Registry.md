@@ -266,6 +266,27 @@ Creates an [`observer`](Observer) which records changes that occur for a given c
 
 ---
 
+### group()
+
+[`Groups`](Group.md) the given components.
+
+- **Type**
+
+    ```lua
+    function Registry:group<T...>(...: T...): Group<T...>
+    ```
+
+- **Details**
+
+    Rearranges the internal storage of the given set of components the first time
+    this method is called. Subsequent calls return a cached group object.
+
+    Will error if attempting to add a group-owned component to a new group.
+
+    > ⚠️ This method introduces restrictions on adding components during views. Read them [here](../tuts/groups.md#limitations).
+
+---
+
 ### size()
 
 Returns the current amount of entities in the registry.
