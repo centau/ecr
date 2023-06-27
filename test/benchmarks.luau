@@ -349,6 +349,12 @@ do TITLE("Getting components")
             reg:get(ids[i], A, B, C, D, E, F, G, H)
         end
     end)
+
+    BENCH("Try get component", function()
+        for i = 1, START(N) do
+            reg:try_get(ids[i], A)
+        end
+    end)
 end
 
 do TITLE("Removing components")
@@ -594,6 +600,25 @@ do
         end
 
         viewBench(reg)
+    end
+
+    do TITLE("View tags")
+        local reg = ecr.registry()
+
+        for i = 1, N do
+            local e = reg:handle()
+            e:add(TA, TB, TC, TD)
+        end
+
+        BENCH("View 1 tag", function()
+            START(N)
+            for id, a in reg:view(TA) do end
+        end)
+
+        BENCH("View 4 tag", function()
+            START(N)
+            for id, a, b, c, d in reg:view(TA, TB, TC, TD) do end
+        end)
     end
 end
 
@@ -903,4 +928,36 @@ do TITLE "Observers"
         START(N)
         observer:clear()
     end)
+end
+
+do TITLE "Queues"
+    do
+        local q = ecr.queue()
+
+        BENCH("Add 1", function()
+            for i = 1, START(N) do
+                q:add(i)
+            end
+        end)
+
+        BENCH("Iter 1", function()
+            START(N)
+            for i in q do end
+        end)
+    end
+
+    do
+        local q = ecr.queue()
+
+        BENCH("Add 4", function()
+            for i = 1, START(N) do
+                q:add(i, i, i, i)
+            end
+        end)
+
+        BENCH("Iter 4", function()
+            START(N)
+            for a, b, c, d in q do end
+        end)
+    end
 end

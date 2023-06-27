@@ -1526,7 +1526,7 @@ local Queue = {} do
             end
 
         else--if #columns > 1 then
-            local tuple = {}
+            local tuple = table.create(#columns)
             return function()
                 i += 1
                 if i == n then return self:clear() end

@@ -23,6 +23,8 @@ Adds a set of values to a queue.
 
     All arguments given are later returned altogether in the same iteration.
 
+    Queues are FIFO.
+
     > ⚠️ The first value in the argument list cannot be `nil` since that will
     > cause iteration to stop early.
 
