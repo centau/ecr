@@ -892,45 +892,45 @@ TEST("registry:destroy()", function()
     end
 end)
 
-TEST("registry:size()", function()
+TEST("#registry", function()
     local reg = ecr.registry()
 
     do CASE "Initial registry size is 0"
-        CHECK(reg:size() == 0)
+        CHECK(#reg == 0)
     end
 
     local id = reg:create()
 
     do CASE "Size after entity creation"
-        CHECK(reg:size() == 1)
+        CHECK(#reg == 1)
     end
 
     reg:release(id)
 
     do CASE "Size after entity release"
-        CHECK(reg:size() == 0)
+        CHECK(#reg == 0)
     end
 
     for i = 1, 100 do reg:create() end
 
     do CASE "Mass creation"
-        CHECK(reg:size() == 100)
+        CHECK(#reg == 100)
     end
 
     reg:clear()
 
     do CASE "Size after clear"
-        CHECK(reg:size() == 0)
+        CHECK(#reg == 0)
     end
 
     reg:create(id)
 
     do CASE "Size after specific entity creation"
-        CHECK(reg:size() == 1)
+        CHECK(#reg == 1)
     end
 end)
 
-TEST("registry:entities()", function()
+TEST("registry:__iter()", function()
     do
         local reg = ecr.registry()
 
@@ -945,11 +945,9 @@ TEST("registry:entities()", function()
         end
 
         do CASE "All entities are valid"
-            local list = reg:entities()
-
             local cache = {}
 
-            for _, entity in list do
+            for entity in reg do
                 cache[entity] = true
             end
 
@@ -961,12 +959,17 @@ TEST("registry:entities()", function()
 
     do CASE "Deprecated id not returned"
         local reg = ecr.registry()
-        CREATE_DEPRECATED_ID(reg)
-        local id2 = reg:create()
+        CREATE_DEPRECATED_ID(reg) -- deprecate key1
+        local id2 = reg:create() -- key2
 
-        local ids = reg:entities()
+        local ids = {}
+        for id in reg do
+            table.insert(ids, id)
+        end
 
-        CHECK(#ids == 1 and ids[1] == id2)
+        local r_id = ids[1] -- should be key2
+
+        CHECK(#ids == 1 and r_id == id2)
     end
 end)
 
@@ -2097,7 +2100,7 @@ TEST("Random usage test", function()
         end
     end
 
-    for _, id in reg:entities() do
+    for id in reg do
         CHECK(ids[id])
     end
 

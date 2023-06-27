@@ -43,6 +43,7 @@ List of things I would like to do with the library:
   - Currently should cause an error when it attempts to get the next element.
 - Refactor and cleanup the codebase.
 - Remove `Registry:size()` and `Registry:entities()` and replace with `__len` and `__iter` metamethods.
+  - Define behavior when creating/destroying entities during iteration.
 - Investigate if it is possible to free a bit in key and version parts of an id
   - Since we never use 0 and know that first bit is always 1 does this allow us to implicitly gain an extra bit?
   - This would double the total amount of keys we can have and double the total amount of versions.

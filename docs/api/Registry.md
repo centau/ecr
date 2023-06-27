@@ -287,30 +287,6 @@ Creates an [`observer`](Observer) which records changes that occur for a given c
 
 ---
 
-### size()
-
-Returns the current amount of entities in the registry.
-
-- **Type**
-
-    ```lua
-    function Registry:size(): number
-    ```
-
----
-
-### entities()
-
-Creates an array with all entities in the registry.
-
-- **Type**
-
-    ```lua
-    function Registry:entities(): Array<Entity>
-    ```
-
----
-
 ### storage()
 
 Returns a [pool](Pool) containing every entity and corresponding value for a given component
@@ -393,5 +369,28 @@ Returns a [handle](Handle) for an entity.
 - **Details**
 
     If no entity is given then a new will one be created.
+
+---
+
+## Iteration
+
+Iterates over all entities in the registry.
+
+```lua
+for id: Entity in Registry do
+```
+
+> ⚠️ Creating new entities during iteration may cause them to be returned
+> during the same iteration.
+
+---
+
+## Length
+
+Returns the amount of entities in the registry.
+
+```lua
+#Registry<T...>: number
+```
 
 ---

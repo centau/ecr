@@ -85,7 +85,7 @@ export type Group<T...> = typeof(setmetatable({} :: {
     __len: (self: Group<T...>) -> number     
 }))
 
-export type Registry = {
+export type Registry = typeof(setmetatable({} :: {
     create: ((self: Registry, id: Entity) -> Entity) & ((self: Registry) -> Entity),
     release: (self: Registry, id: Entity) -> (),
     destroy: (self: Registry, id: Entity) -> (),
@@ -100,9 +100,6 @@ export type Registry = {
     try_get: <T>(self: Registry, id: Entity, T) -> T?,
     remove: <T...>(self: Registry, id: Entity, T...) -> (),
 
-    size: (self: Registry) -> number,
-    entities: (self: Registry) -> Array<Entity>,
-
     view: <T...>(self: Registry, T...) -> View<T...>,
     track: <T...>(self: Registry, T...) -> Observer<T...>,
     group: <T...>(self: Registry, T...) -> Group<T...>,
@@ -115,7 +112,10 @@ export type Registry = {
     removing: <T>(self: Registry, ctype: T) -> Signal<Entity, nil>,
 
     handle: ((self: Registry, id: Entity) -> Handle) & ((self: Registry) -> Handle)
-}
+}, {} :: {
+    __iter: (self: Registry) -> () -> Entity,
+    __len: (self: Registry) -> number
+}))
 
 export type Queue<T...> = typeof(setmetatable({} :: {
     add: (self: Queue<T...>, T...) -> (),
@@ -141,6 +141,12 @@ local ASSERT = function<T>(v: T, msg: string): T
     ERROR(msg)
     return nil :: never
 end :: typeof(assert)
+
+local function strict(name: string)
+    return function(_, idx: unknown)
+        ERROR(`{tostring(idx)} is not a valid member of {name}`)
+    end
+end
 
 --------------------------------------------------------------------------------
 -- Entity Id
@@ -341,12 +347,12 @@ end
 
 local View, Observer, Group do
 
-type IRegistry = {
+type IRegistry = typeof(setmetatable({} :: {
     storage: <T>(self: IRegistry, ctype: T) -> Pool<T>,
     added: <T>(self: IRegistry, ctype: T) -> Signal<Entity, T>,
     changed: <T>(self: IRegistry, ctype: T) -> Signal<Entity, T>,
     removing: <T>(self: IRegistry, ctype: T) -> Signal<Entity, nil>,
-}
+}, {}))
 
 local WEAK_VALUES = { __mode = "v" }
 
@@ -557,7 +563,9 @@ function View.new<T...>(reg: IRegistry, ...: T...): View<T...>
 
         __len = function(self: _View<T...>): number
             return smallest(get_pools(self.registry, self.includes)).size
-        end
+        end,
+
+        --__index = strict("View")
     })
 
     local includes = self.includes
@@ -721,7 +729,9 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
 
         __len = function(self: _Observer<T...>): number
             return self.pool.size
-        end
+        end,
+
+        --__index = strict("Observer")
     })
 
     local includes = self.includes
@@ -813,7 +823,9 @@ function Group.new<T...>(reg: Registry, data: GroupData, ...: T...): Group<T...>
 
         __len = function(self: _Group<T...>): number
             return self.data.size
-        end
+        end,
+
+        --__index = strict("Group")
     })
 
     for i = 1, select("#", ...) do
@@ -896,6 +908,8 @@ local Handle = (function(): HandleMT
     local Handle = {}
     Handle.__index = Handle
 
+    setmetatable(Handle :: any, { __index = strict("Handle") })
+
     function Handle.destroy(self: Handle)
         self.registry:destroy(self.entity)
     end
@@ -941,7 +955,7 @@ end)()
 --------------------------------------------------------------------------------
 
 local function registry_create(): Registry
-    local registry = {} :: Registry
+    local registry = {}
 
     local size = 0
     local free = ID_INVALID_KEY
@@ -1166,17 +1180,17 @@ local function registry_create(): Registry
         end
     end
 
-    function registry:create(id: Entity?): Entity
+    function registry.create(self: Registry, id: Entity?): Entity
         if size >= ID_MAX_KEY then ERROR("cannot create entity; registry is at max entities") end
         return id and create_using(id) or create()
     end
 
-    function registry:release(id: Entity)
+    function registry.release(self: Registry, id: Entity)
         ASSERT_VALID_ENTITY(ID_KEY(id), id)
         release(id)
     end
 
-    function registry:destroy(id: Entity)
+    function registry.destroy(self: Registry, id: Entity)
         local key = ID_KEY(id)
         ASSERT_VALID_ENTITY(key, id)
         
@@ -1191,11 +1205,11 @@ local function registry_create(): Registry
         release(id)
     end
 
-    function registry:contains(id: Entity): boolean
+    function registry.contains(self: Registry, id: Entity): boolean
         return ids[ID_KEY(id)] == id
     end
 
-    function registry:orphaned(id: Entity): boolean
+    function registry.orphaned(self: Registry, id: Entity): boolean
         local key = ID_KEY(id)
         for _, pool in next, pools do
             if pool.map[key] then return false end
@@ -1203,7 +1217,7 @@ local function registry_create(): Registry
         return true
     end
 
-    function registry:add<T...>(id: Entity, ...: T...)
+    function registry.add<T...>(self: Registry, id: Entity, ...: T...)
         local key = ID_KEY(id)
         ASSERT_VALID_ENTITY(key, id)
 
@@ -1224,7 +1238,7 @@ local function registry_create(): Registry
         end
     end
 
-    function registry:set<T>(id: Entity, ctype: T, value: T?)
+    function registry.set<T>(self: Registry, id: Entity, ctype: T, value: T?)
         local pool = get_pool(ctype)
         local key = ID_KEY(id)
         local idx_ver = pool.map[key]
@@ -1248,7 +1262,7 @@ local function registry_create(): Registry
         end
     end
     
-    function registry:patch<T>(id: Entity, ctype: T, patcher: (T) -> T?)
+    function registry.patch<T>(self: Registry, id: Entity, ctype: T, patcher: (T) -> T?)
         local pool = get_pool(ctype)
         local key = ID_KEY(id)
         local idx_ver = pool.map[key] :: number
@@ -1316,7 +1330,7 @@ local function registry_create(): Registry
         end
     end :: any) :: <T...>(self: Registry, id: Entity, T...) -> T...
 
-    function registry:try_get<T>(id: Entity, ctype: T): T?
+    function registry.try_get<T>(self: Registry, id: Entity, ctype: T): T?
         local key = ID_KEY(id)
         local pool = pools[ctype]
         local idx_ver = pool.map[key]
@@ -1326,7 +1340,7 @@ local function registry_create(): Registry
         return pool.values[idx] :: T
     end
 
-    function registry:remove<T...>(id: Entity, ...: T...)
+    function registry.remove<T...>(self: Registry, id: Entity, ...: T...)
         local key = ID_KEY(id)
         for i = 1, select("#", ...) do
             local ctype = select(i, ...)
@@ -1342,11 +1356,7 @@ local function registry_create(): Registry
         end
     end
 
-    function registry:size(): number
-        return size
-    end
-
-    function registry:clear<T...>(...: T...)
+    function registry.clear<T...>(self: Registry, ...: T...)
         local argn = select("#", ...)
         if argn > 0 then
             for i = 1, argn do
@@ -1358,17 +1368,17 @@ local function registry_create(): Registry
         end 
     end
 
-    function registry:view<T...>(...: T...): View<T...>
+    function registry.view<T...>(self: Registry, ...: T...): View<T...>
         ASSERT(select("#", ...) > 0, "view must contain at least 1 component")
-        return View.new(registry, ...)
+        return View.new(self, ...)
     end 
 
-    function registry:track<T...>(...: T...): Observer<T...>
+    function registry.track<T...>(self: Registry, ...: T...): Observer<T...>
         ASSERT(select("#", ...) > 0, "view must contain at least 1 component")
-        return Observer.new(registry, ...)
+        return Observer.new(self, ...)
     end
 
-    function registry:group<T...>(...: T...): Group<T...>
+    function registry.group<T...>(self: Registry, ...: T...): Group<T...>
         local argn = select("#", ...)
         ASSERT(argn > 1, "groups must contain at least 2 components")
         local group = groups[select(1, ...)]
@@ -1380,26 +1390,14 @@ local function registry_create(): Registry
                 `cannot create group; { ctype_debug(ctype, i) } is not owned by the same group as previous args`)
         end
 
-        return Group.new(registry, group or group_init(...), ...)
+        return Group.new(self, group or group_init(...), ...)
     end
 
-    function registry:entities(): Array<Entity>
-        local entities = table.create(size)
-
-        for i, id in next, ids do
-            if ID_KEY(id) == i then
-                table.insert(entities, id)
-            end
-        end
-
-        return entities
-    end
-
-    function registry:storage<T>(ctype: T): Pool<T>
+    function registry.storage<T>(self: Registry, ctype: T): Pool<T>
         return get_pool(ctype)
     end
 
-    function registry:added<T>(ctype: T): Signal<Entity, T>
+    function registry.added<T>(self: Registry, ctype: T): Signal<Entity, T>
         return (signals.added[ctype] or (function() 
             local signal, listeners = signal_create()
             signals.added[ctype] = signal
@@ -1408,7 +1406,7 @@ local function registry_create(): Registry
         end)()) :: Signal<Entity, T>
     end
 
-    function registry:changed<T>(ctype: T): Signal<Entity, T>
+    function registry.changed<T>(self: Registry, ctype: T): Signal<Entity, T>
         return (signals.changed[ctype] or (function() 
             local signal, listeners = signal_create()
             signals.changed[ctype] = signal
@@ -1417,7 +1415,7 @@ local function registry_create(): Registry
         end)()) :: Signal<Entity, T>    
     end
 
-    function registry:removing<T>(ctype: T): Signal<Entity, nil>
+    function registry.removing<T>(self: Registry, ctype: T): Signal<Entity, nil>
         return signals.removing[ctype] or (function() 
             local signal, listeners = signal_create()
             signals.removing[ctype] = signal
@@ -1426,7 +1424,7 @@ local function registry_create(): Registry
         end)() :: Signal<Entity, nil>
     end
 
-    function registry:handle(entity: Entity?): Handle
+    function registry.handle(self: Registry, entity: Entity?): Handle
         return table.freeze(setmetatable({
             registry = self,
             entity = entity or self:create()
@@ -1442,9 +1440,27 @@ local function registry_create(): Registry
         return ID_VER(ids[ID_KEY(id)])
     end
 
-    setmetatable(registry :: any, { __index = function(_, index)
-        ERROR(`"{ tostring(index) }" is not a valid member of Registry`)    
-    end })
+    setmetatable(registry, {
+        __iter = function(self: Registry): () -> Entity
+            local n = #ids
+
+            return function()
+                for i = n, 1, -1 do
+                    if ID_KEY(ids[i]) == i then
+                        n = i - 1
+                        return ids[i]
+                    end
+                end
+                return nil :: any
+            end
+        end,
+
+        __len = function(self: Registry): number
+            return size
+        end,
+
+        __index = strict("Registry")
+    })
 
     return table.freeze(registry)
 end

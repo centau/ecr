@@ -117,3 +117,13 @@ Will automatically clear the observer unless `Observer:persist()` was called.
 > ⚠️ During iteration, adding or removing components from entities not currently being iterated can invalidate the iterator.
 
 ---
+
+## Length
+
+Returns the amount of entities in the observer.
+
+```lua
+#Observer<T...>: number
+```
+
+---

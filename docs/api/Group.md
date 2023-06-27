@@ -22,3 +22,13 @@ Components can be added, changed and removed during iteration. Newly added compo
 > ⚠️ During iteration, adding or removing components from entities not currently being iterated can invalidate the iterator.
 
 ---
+
+## Length
+
+Returns the amount of entities in the group.
+
+```lua
+#Group<T...>: number
+```
+
+---

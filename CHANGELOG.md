@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Method `Registry:handle()` and the `Handle` class.
 - Method `Registry:try_get()`.
 - Method `Observer:persist()`.
+- Length operator for registry `#Registry`.
+- Iteration over registry `for id in Registry do`.
 
 ### Changed
 
@@ -26,6 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Method `Registry:version()`.
 - Method `Registry:current()`.
+- Method `Registry:entities()`.
+- Method `Registry:Size()`.
 
 ---
 
