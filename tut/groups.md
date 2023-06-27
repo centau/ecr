@@ -34,8 +34,8 @@ group is created it is stored permanently inside the registry, future
 `registry:group()` calls will just return the same group for the same set of
 components.
 
-Groups are initialized on the first call and will automatically add and remove
-entities from itself when you change components.
+Groups are initialized on the first call and will automatically re-arrange
+entities in itself as you change components.
 
 ## Usage
 
@@ -61,18 +61,21 @@ local size = #registry:group(A, B)
 Groups, while powerful, do impose some limitations on the registry.
 
 - As mentioned before, each component type can only be owned by one group,
-- groups cannot share components so you are required to plan ahead for what
-- components you would like to group.
+  groups cannot share components so you are required to plan ahead for what
+  components you would like to group.
 
-- Due to how groups organise their components in memory, creating a group means
-- you can no longer freely add group-owned components during a view iteration
-- where the view includes a component owned by the same group. Specifics can be
-- read [here](../api/restrictions#groups-and-views).
+- Due to how groups organise their components in memory, when iterating a view
+  that includes group-owned components, you cannot add any component owned by
+  any of those groups unless you:
+    1. specify a component to lead that is not owned by the same group as the components you intend to add.
+    2. know that adding those group-owned components will not cause the entity to enter the group.
+
+The library can detect and will error if the above rules are broken.
 
 ## Why use groups?
 
 While views are fast, in certain situations like where a view contains many
-components, iterating a view may become the bottleneck of a system.
+components, iteration of a view may be the bottleneck of a system.
 In such cases, by grouping components together, iteration becomes as fast as
 possible at the cost of the above limitations.
 

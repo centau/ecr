@@ -56,3 +56,18 @@ Components can be added, changed and removed during iteration. Newly added compo
 > ⚠️ During iteration, adding or removing components from entities not currently being iterated can invalidate the iterator.
 
 ---
+
+## Length
+
+Returns the amount of entities in the view.
+
+```lua
+#View<T...>: number
+```
+
+For single component views, this returns the exact amount of entities in the view.
+
+For multiple component views, this returns an estimate of the amount of entities.
+This estimate will never be greater than the actual amount of entities.
+
+---

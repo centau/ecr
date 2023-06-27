@@ -23,18 +23,6 @@ This applies to the iteration of views, observers and groups.
 
 - During iteration, adding or removing components from entities not currently being iterated can *invalidate the iterator*.
 
-## Groups and Views
-
-Using `Registry:group()` adds extra limitations to adding components during views.
-
-- When iterating a view of a single component that is owned by a group, adding all the components required to add an entity to the group may *invalidate the iterator*.
-
-- When iterating a view of multiple components lead by a group-owned component, adding all components required to add the entity to that same group will *invalidate the iterator*. [`View:use()`](View#use.md) can be used to specify a component to lead that is not owned by the same group to get around this.
-
-    In short, when iterating a view that includes group-owned components, do not add any component owned by any of those groups unless you
-    1. specify a component to lead that is not owned by the same group as the components you intend to add.
-    2. know that adding those group-owned components will not cause the entity to enter the group.
-
 ## Pools
 
 [`Registry:storage()`](Registry#storage.md) returns the underlying storages used in the registry to store data. You can iterate over these for more direct access than views and also modify the values of `Pool.values` directly. Changing `Pool.entities` or adding or removing fields from either table however will result in *undefined behavior*.

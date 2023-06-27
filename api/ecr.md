@@ -60,6 +60,68 @@ Creates a new registry.
 
 ---
 
+### tag()
+
+Creates a new valueless component type.
+
+- **Type**
+
+    ```lua
+    function ecr.tag(): unknown
+    ```
+
+- **Details**
+
+    Returns a unique identifier representing a new component type.
+
+    Tag components behave the same as normal components.
+
+    It is recommend to only use tag components with [`add()`](Registry.md#add),
+    [`remove()`](Registry.md#remove) and [`has()`](Registry.md#has).
+    Using [`set()`](Registry.md#set) will not apply the valueless optimization
+    and [`get()`](Registry.md#get) will return `nil`.
+
+---
+
+### queue()
+
+Creates a new queue.
+
+- **Type**
+
+    ```lua
+    function ecr.queue(): Queue<...unknown>
+    function ecr.queue<T...>(signal: ISignal<T...>) -> Queue<T...>
+
+    type ISignal<T...> = 
+        { connect: (ISignal, (T...) -> ()) -> () } |
+        { Connect: (ISignal, (T...) -> ()) -> () }
+    ```
+
+- **Details**
+
+    Accepts any signal object that matches the given interface,
+    any values passed into the signal callback will automatically be queued.
+
+---
+
+### name()
+
+Associates names with components for debugging.
+
+- **Type**
+
+    ```lua
+    function ecr.name<T>(names: T & Map<string, Component>) -> T
+    ```
+
+- **Details**
+
+    Allows for errors raised to display the component name instead of its
+    argument list position.
+
+    The table returned is the same table object given and is also frozen.
+
 <br><br>
 
 ## Constants

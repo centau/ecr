@@ -39,7 +39,7 @@ Disconnects the observer, stopping any new changes from being tracked
 
 - **Details**
 
-    Returns the same view that it was called on.
+    Returns the same observer that it was called on.
 
     > ⚠️ This must be called for the observer to be garbage collected.
 
@@ -57,7 +57,25 @@ Reconnects the Observer and allows it to track future changes again.
 
 - **Details**
 
-    Returns the same view that it was called on.
+    Returns the same observer that it was called on.
+
+---
+
+### persist()
+
+Stops automatic clearing of the observer.
+
+- **Type**
+
+    ```lua
+    function Observer:persist<T...>(): Observer<T...>
+    ```
+
+- **Details**
+
+    Returns the same observer that it was called on.
+
+    Stops the observer from automatically clearing after it is iterated.
 
 ---
 
@@ -73,7 +91,7 @@ Clears all recorded changes.
 
 - **Details**
 
-    Returns the same view that it was called on.
+    Returns the same observer that it was called on.
 
     Use to clear all recorded changes after they have been processed to avoid reprocessing the same changes again later.
 
@@ -91,6 +109,21 @@ The entity id followed by the group components are returned.
 
 Components can be added, changed and removed during iteration. Newly added components and their entities will not be returned until the next iteration.
 
+Will automatically clear the observer unless `Observer:persist()` was called.
+
+> ⚠️ Adding values during iteration can cause them to be cleared when
+> iteration completes and they will never be iterated.
+
 > ⚠️ During iteration, adding or removing components from entities not currently being iterated can invalidate the iterator.
+
+---
+
+## Length
+
+Returns the amount of entities in the observer.
+
+```lua
+#Observer<T...>: number
+```
 
 ---

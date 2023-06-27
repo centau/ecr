@@ -186,6 +186,22 @@ Gets an entity's component values.
 
 - **Details**
 
+    Will error if the entity does not own a component.
+
+---
+
+### try_get()
+
+Gets an entity's component value.
+
+- **Type**
+
+    ```lua
+    function Registry:try_get<T>(id: Entity, components: T): T?
+    ```
+
+- **Details**
+
     Will return `nil` if the entity does not own a component.
 
 ---
@@ -250,27 +266,24 @@ Creates an [`observer`](Observer) which records changes that occur for a given c
 
 ---
 
-### size()
+### group()
 
-Returns the current amount of entities in the registry.
-
-- **Type**
-
-    ```lua
-    function Registry:size(): number
-    ```
-
----
-
-### entities()
-
-Creates an array with all entities in the registry.
+[`Groups`](Group.md) the given components.
 
 - **Type**
 
     ```lua
-    function Registry:entities(): Array<Entity>
+    function Registry:group<T...>(...: T...): Group<T...>
     ```
+
+- **Details**
+
+    Rearranges the internal storage of the given set of components the first time
+    this method is called. Subsequent calls return a cached group object.
+
+    Will error if attempting to add a group-owned component to a new group.
+
+    > ⚠️ This method introduces restrictions on adding components during views. Read them [here](../tuts/groups.md#limitations).
 
 ---
 
@@ -343,30 +356,41 @@ Returns a [signal](Signal) which is fired whenever the given component is being 
 
 ---
 
-### version()
+### handle()
 
-Returns the identifier's encoded version.
-
-- **Type**
-
-    ```lua
-    function Registry:version(id: Entity): number
-    ```
-
----
-
-### current()
-
-Returns the current version of the given identifier.
+Returns a [handle](Handle) for an entity.
 
 - **Type**
 
     ```lua
-    function Registry:current(id: Entity): number
+    function Registry:handle(id: Entity?): Handle
     ```
 
 - **Details**
 
-    Not to be confused with [`Registry:version()`](Registry#version).
+    If no entity is given then a new will one be created.
+
+---
+
+## Iteration
+
+Iterates over all entities in the registry.
+
+```lua
+for id: Entity in Registry do
+```
+
+> ⚠️ Creating new entities during iteration may cause them to be returned
+> during the same iteration.
+
+---
+
+## Length
+
+Returns the amount of entities in the registry.
+
+```lua
+#Registry<T...>: number
+```
 
 ---

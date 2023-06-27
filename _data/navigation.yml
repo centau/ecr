@@ -13,8 +13,6 @@ tut:
         url: /tut/crashcourse
       - title: Groups
         url: /tut/groups
-      - title: Replication
-        url: /tut/replication
 
 api:
   - title: API
@@ -31,6 +29,10 @@ api:
       url: /api/Group
     - title: Signal
       url: /api/Signal
+    - title: Handle
+      url: /api/Handle
+    - title: Queue
+      url: /api/Queue
     - title: Pool
       url: /api/Pool
     - title: Restrictions
