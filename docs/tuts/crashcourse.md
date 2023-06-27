@@ -19,19 +19,19 @@ local registry = ecr.registry()
 
 ## Components
 
-A component is a piece of data associated with an entity.
+A component is a type of value that can be assigned to entities.
 
 ```lua
 local Name = ecr.component() :: string
 local Health = ecr.component() :: number
 ```
 
-Component types are represented by unique ids created by `ecr.component()`.
+- `ecr.component()` returns a unique id which represents that type.
 
-There is no limit on the amount of components you can create.
+- There is no limit on the amount of components you can create.
 
-As the library is built using the Luau typechecker, you can typecast components
-to the type of values they represent to use typechecking features.
+- You can typecast components to the type of values they represent for
+  typechecking.
 
 ## Entities
 
@@ -41,20 +41,28 @@ unique ids.
 ```lua
 -- create a new entity and get its id
 local id = registry:create()
-
--- destroy entity, removing it and all of its components
-registry:destroy(id)
 ```
 
-Entities can have any amount of component types added to or removed from them
+Entities can have any amount of components added to or removed from them
 at runtime.
 
 ```lua
 registry:set(id, Health, 100) -- adds a new component with a value of 100
+
 print(registry:get(id, Health)) -- "100"
 
 registry:set(id, Health, nil) -- removes the component from the entity
-print(registry:get(id, Health)) -- "nil"
+
+print(registry:has(id, Health)) -- "nil"
+```
+
+Eventually when an entity needs to be removed from the world you can destroy
+the entity which will mark its id as dead and remove any components added to it.
+
+```lua
+registry:destroy(id)
+
+print(registry:contains(id)) -- "false"
 ```
 
 ## Views
@@ -62,7 +70,7 @@ print(registry:get(id, Health)) -- "nil"
 A view allows you to look into the registry and get all entities with a specific
 set of components.
 
-A view guarantees that all entities returned will have *at least* all the
+A view guarantees that all entities returned will have *at least* all of the
 components specified.
 
 ```lua
@@ -115,13 +123,11 @@ All three listeners are called with:
 `removing` is fired *before* the component is removed, so you can still retrieve
 it if needed.
 
-You *cannot* add or remove components from entities in these listeners.
-
 ## Observers
 
 An observer is similar to a view, except it only returns entities whose
-components have been changed or added and still has those components at the time
-of iteration.
+components have been changed or added and still have those components at the
+time of iteration.
 
 An observer can be created using the `Registry:track()` method.
 
@@ -129,18 +135,15 @@ An observer can be created using the `Registry:track()` method.
 local observer = registry:track(Position, Model)
 
 for entity, position, model in observer do
-    print("new position: ", position)
-    print("model: ", model)
+    print("changed: ", position, model)
 end
-
-observer:clear()
 ```
 
-After iterating over the changes you can then clear the observer so it can track
-new changes.
+After iterating, the observer automatically clears so that only fresh changes
+are iterated.
 
 Observers provide a concise way to track and act on only specific components
-that have changes since the last time a system ran.
+that have changed since the last time a system ran.
 
 ## Example Usage
 
@@ -154,11 +157,11 @@ local ecr = require(ecr)
 return {
     Position = ecr.component() :: Vector3
     Velocity = ecr.component() :: Vector3
-    Model = ecr.component() :: Model
+    Health = ecr.component() :: number
 }
 ```
 
-The library doesn't have any special API for systems, instead this is left up
+The library doesn't have any bult-in support for systems, instead this is left
 to the user to implement either as plain functions or through a custom scheduler.
 
 ```lua
@@ -167,10 +170,23 @@ to the user to implement either as plain functions or through a custom scheduler
 local cts = require(cts)
 
 return function(world: ecr.Registry, dt: number)
-    for id, pos, vel, model in world:view(cts.Position, cts.Velocity, cts.Model) do
+    for id, pos, vel in world:view(cts.Position, cts.Velocity) do
         local newpos = pos + vel*dt
         world:set(id, cts.Position, newpos)
-        model.Position = newpos
+    end
+end
+```
+
+```lua
+-- killEntities.luau
+
+local cts = require(cts)
+
+return function(world: ecr.Registry)
+    for id, health in world:view(cts.Health) do
+        if health < 0 then
+            world:destroy(id)
+        end
     end
 end
 ```
