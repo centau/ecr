@@ -306,16 +306,19 @@ end
 
 local ctype_n = 0
 local ctype_names: Map<CType, string> = {}
-local ctype_constructors: Map<CType, ((() -> unknown)?)> = table.create(1e3)
+local ctype_constructors: Map<CType, ((() -> unknown) | nil | true)> = table.create(1e3)
 
-local function ctype_create<T>(constructors: ( () -> T )?): CType
+-- a constructor set to `ctype_TAG` indicates that the component is a tag
+local ctype_TAG: true = true
+
+local function ctype_create<T>(constructor: (() -> T)? | true): CType
     ctype_n += 1
-    ASSERT(
-        constructors == nil or type(constructors) == "function",
-        "constructor must be a function"
-    )
-    ctype_constructors[ctype_n] = constructors
+    ctype_constructors[ctype_n] = constructor 
     return ctype_n
+end
+
+local function ctype_tag(): CType
+    return ctype_create(true)
 end
 
 local function ctype_valid(v: unknown): boolean
@@ -329,7 +332,6 @@ end
 
 local function ctype_debug(ctype: CType?, idx: number?)
     local name = ctype_names[ctype]
-
     return
         if name then `component "{name}"`
         elseif idx then `component (arg #{idx})`
@@ -351,6 +353,7 @@ type IRegistry = {
 
 local WEAK_VALUES = { __mode = "v" }
 
+-- checks if any of the given pools contain a key
 local function has_any(pools: Array<Pool<unknown>>, key: number): boolean
     for _, pool in next, pools do
         if pool.map[key] then return true end
@@ -358,6 +361,7 @@ local function has_any(pools: Array<Pool<unknown>>, key: number): boolean
     return false
 end
 
+-- gets the smallest pool from an array of pools
 local function smallest(pools: Array<Pool<unknown>>): Pool<unknown>
     local s: Pool<unknown>?
     for _, pool in next, pools do
@@ -366,6 +370,7 @@ local function smallest(pools: Array<Pool<unknown>>): Pool<unknown>
     return assert(s, "no pools given")
 end
 
+-- gets an array of pools given an array of ctypes
 local function get_pools(
     registry: IRegistry,
     ctypes: Array<CType>
@@ -394,6 +399,7 @@ local function ASSERT_INVALIDATION<T>(pool: Pool<T>): ...any
     end
 end
 
+-- specialized single-type view iterator
 local function single<A>(pool: Pool<A>): () -> (Entity, A)
     local n = pool.size
     local entities = pool.entities
@@ -407,6 +413,7 @@ local function single<A>(pool: Pool<A>): () -> (Entity, A)
     end
 end
 
+-- specialized double-type view iterator
 local function double<A, B>(a: Pool<A>, b: Pool<B>): () -> (Entity, A, B)
     local na, nb = a.size, b.size
 
@@ -451,6 +458,7 @@ local function double<A, B>(a: Pool<A>, b: Pool<B>): () -> (Entity, A, B)
     end
 end
 
+-- generic multi-type view iterator
 local function multi(
     includes: Array<Pool<unknown>>,
     excludes: Array<Pool<unknown>>?,
@@ -674,7 +682,7 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
             local reg_map = reg_pool.map
             local reg_values = reg_pool.values
         
-            local tuple = {} :: Array<any>
+            local tuple = table.create(#includes) :: Array<any>
         
             return if #includes == 1 and not excludes then 
                     function()
@@ -830,7 +838,7 @@ end
 local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
     type _Signal<T...> = {
         pool: Pool<(T...) -> ()>,
-        size: number,
+        count: number,
 
         connect: (_Signal<T...>, (T...) -> ()) -> _Connection<T...>,
     }
@@ -865,10 +873,10 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
     function Signal.new<T...>(): _Signal<T...>
         local self: _Signal<T...> = {
             pool = pool_create(),
-            size = 0,
+            count = 0,
 
             connect = function(self: _Signal<T...>, listener: (T...) -> ()): _Connection<T...>
-                local n = self.size + 1; self.size = n
+                local n = self.count + 1; self.count = n
                 pool_add(self.pool, n, n, listener)
                 return Connection.new(self, n)  
             end
@@ -1216,9 +1224,12 @@ local function registry_create(): Registry
             if pool.map[key] then continue end
 
             local constructor = ctype_constructors[ctype] or ERROR(`no constructor defined for {ctype_debug(ctype, i)}`)
-            local value = constructor()
-            if value == nil then ERROR(`{ ctype_debug(ctype, i) } constructor did not return a value`) end
-
+            local value
+            if constructor ~= ctype_TAG then
+                value = (constructor :: () -> unknown)()
+                if value == nil then ERROR(`{ ctype_debug(ctype, i) } constructor did not return a value`) end   
+            end
+            
             add(pool, key, id, value)
             fire_added(pool, id, value)
         end
@@ -1230,17 +1241,17 @@ local function registry_create(): Registry
         local idx_ver = pool.map[key]
         
         if value ~= nil then
-            if idx_ver then
+            if idx_ver then -- change
                 local idx = ID_KEY(idx_ver)
                 ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
                 pool.values[idx] = value
                 fire_changed(pool, id, value)
-            else
+            else -- add
                 ASSERT_VALID_ENTITY(key, id)
                 add(pool, key, id, value)
                 fire_added(pool, id, value)
             end
-        elseif idx_ver then
+        elseif idx_ver then -- remove
             local idx = ID_KEY(idx_ver)
             ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
             fire_removing(pool, id)
@@ -1554,10 +1565,18 @@ end :: ( () -> Queue<...unknown> ) & ( <T...>(signal: SignalInterface<T...>) -> 
 --------------------------------------------------------------------------------
 
 local ecr = {
-    component = ctype_create :: (() -> unknown) & (<T>(constructor: () -> T) -> T),
+    tag = ctype_tag :: () -> nil,
     registry = registry_create,
     queue = queue_create,
     null = ID_NULL,
+
+    component = function(constructor)
+        ASSERT(
+            constructor == nil or type(constructor) == "function",
+            "constructor must be a function"
+        )
+        return ctype_create(constructor)
+    end :: (() -> unknown) & (<T>(constructor: () -> T) -> T),
 
     name = function<T>(names: T & {}): T
         for name, ctype in next, names do
@@ -1574,6 +1593,5 @@ local ecr = {
 
 -- test functions
 (ecr :: any).id = ID_CREATE
-
 
 return table.freeze(ecr)

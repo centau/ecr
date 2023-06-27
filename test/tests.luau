@@ -1891,6 +1891,74 @@ TEST("ecr.name()", function()
 
 end)
 
+TEST("ecr.tag()", function()
+    local TA, TB, TC, TD = ecr.tag(), ecr.tag(), ecr.tag(), ecr.tag()
+
+    local reg = ecr.registry()
+
+    local e = reg:handle()
+
+    do CASE "Add"
+        local ran = false
+        reg:added(TA):connect(function(id, v)
+            ran = true
+            CHECK(id == e.entity)
+            CHECK(v == nil)
+        end)
+
+        e:add(TA)
+
+        CHECK(e:has(TA))
+        CHECK(e:get(TA) == nil)
+        CHECK(ran)
+    end
+
+    do CASE "View"
+        local i = 0
+        for id, tag in reg:view(TA) do
+            i += 1
+            CHECK(i == 1)
+            CHECK(tag == nil)
+        end
+    end
+
+    -- multi-type views return values by unpacking a table
+    -- the concern here is since tag values are nil, there is potential for
+    -- undefined behavior with unpacking an array with holes
+    -- we pre-allocate the arrays so the above should not be an issue
+    do CASE "View unpack"
+        e:add(TB, TC, TD)
+        e:set(A, true)
+
+        local ran = 0
+
+        for id, ta, tb, tc, td, a in reg:view(TA, TB, TC, TD, A) do
+            ran += 1
+            CHECK(a == true)
+        end
+
+        for id, ta, tb, tc, td, a in reg:track(TA, TB, TC, TD, A) do
+            ran += 1
+            CHECK(a == true)
+        end
+
+        for id, ta, tb, tc, td, a in reg:group(TA, TB, TC, TD, A) do
+            ran += 1
+            CHECK(a == true)
+        end
+
+        CHECK(ran == 3)
+    end
+
+    do CASE "Remove"
+        e:remove(TA)
+        CHECK(not e:has(TA))
+    end
+
+    -- tags are implemented as normal components internally
+    -- further testing should not be necessary
+end)
+
 TEST("Random usage test", function()
     --[[
         This test simulates modifying a registry through a sequence of systems

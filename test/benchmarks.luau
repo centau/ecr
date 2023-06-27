@@ -10,6 +10,8 @@ local function rtrue() return true :: any end
 local A, B, C, D = ecr.component(rtrue), ecr.component(rtrue), ecr.component(rtrue), ecr.component(rtrue)
 local E, F, G, H = ecr.component(), ecr.component(), ecr.component(), ecr.component()
 
+local TA, TB, TC, TD = ecr.tag(), ecr.tag(), ecr.tag(), ecr.tag()
+
 -- power of 2 so arrays are better alined for accurate memory usage reading
 local N = 2^18 --~ 262k
 
@@ -100,8 +102,25 @@ do TITLE "Adding components"
             end
         end)
     end
-end
 
+    do
+        local reg, ids = setup()
+        BENCH("Add 1 tag", function()
+            for i = 1, START(N) do
+                reg:add(ids[i], TA)
+            end
+        end)
+    end
+
+    do
+        local reg, ids = setup()
+        BENCH("Add 4 tags", function()
+            for i = 1, START(N) do
+                reg:add(ids[i], TA, TB, TC, TD)
+            end
+        end)
+    end
+end
 
 do TITLE "Setting components"
     local function setup()

@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------
 -- testkit.luau
--- v0.5
+-- v0.5.1
 --------------------------------------------------------------------------------
 
 local color = {
@@ -225,9 +225,9 @@ local function BENCH(name: string, fn: () -> ())
         local allocated = mem_stop - mem_start
 
         print(string.format(
-            "[ %.3f us | %4.0f B ] %s",
-            duration/n * 1e6,
-            allocated/n * 1e3,
+            "[ %.3f us |%4.0f B ] %s",
+            duration * 1e6 / n,
+            allocated * 1e3 / n,
             name
         ))
     end

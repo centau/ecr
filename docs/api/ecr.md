@@ -60,6 +60,29 @@ Creates a new registry.
 
 ---
 
+### tag()
+
+Creates a new valueless component type.
+
+- **Type**
+
+    ```lua
+    function ecr.tag(): unknown
+    ```
+
+- **Details**
+
+    Returns a unique identifier representing a new component type.
+
+    Tag components behave the same as normal components.
+
+    It is recommend to only use tag components with [`add()`](Registry.md#add),
+    [`remove()`](Registry.md#remove) and [`has()`](Registry.md#has).
+    Using [`set()`](Registry.md#set) will not apply the valueless optimization
+    and [`get()`](Registry.md#get) will return `nil`.
+
+---
+
 ### queue()
 
 Creates a new queue.
