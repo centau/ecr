@@ -23,9 +23,18 @@ local E, F, G, H = ecr.component(), ecr.component(), ecr.component(), ecr.compon
 local MAX_VER = 2^33-1
 
 local function KEY(id: ecr.Entity): number
-    return bit32.band(id, 2^20-1)
+    local key = ecr.extract(id)
+    return key
 end
 
+local function VER(id: ecr.Entity): number
+    local _, ver = ecr.extract(id)
+    return ver
+end
+
+local function CURRENT_VER(reg: ecr.Registry, id: ecr.Entity): number
+    return (reg :: any):get_current_entity_version(id)
+end
 local function CREATE_ID(key: number, ver: number)
     return (ecr :: any).id(key, ver)
 end
@@ -173,7 +182,7 @@ TEST("registry:create()", function()
         local id = CREATE_DEPRECATED_ID(reg)
         reg:create(id)
         CHECK(reg:contains(id))
-        CHECK(reg:version(id) == MAX_VER)
+        CHECK(VER(id) == MAX_VER)
     end
 
     do CASE "Error if key is already in use"
@@ -277,16 +286,16 @@ TEST("registry:version()", function()
 
     do CASE "Get version"
         local id = reg:create()
-        CHECK(reg:version(id) == 1)
+        CHECK(VER(id) == 1)
     end
 
     do CASE "Version increments on reuse"
         local id_old = reg:create()
-        CHECK(reg:version(id_old) == 1)
+        CHECK(VER(id_old) == 1)
         reg:destroy(id_old)
         local id_new = reg:create()
-        CHECK(reg:version(id_old) == 1)
-        CHECK(reg:version(id_new) == 2)
+        CHECK(VER(id_old) == 1)
+        CHECK(VER(id_new) == 2)
     end
 
     do CASE "Version overflow"
@@ -298,23 +307,23 @@ TEST("registry:version()", function()
 
         -- verify version was set to MAX-1 correctly
         local id = reg2:create()
-        CHECK(reg2:version(id) == MAX_VER - 1)
+        CHECK(VER(id) == MAX_VER - 1)
         CHECK(KEY(id) == 1)
         -- trigger version increment
         reg2:release(id)
 
         -- verify version is now MAX
         id = reg2:create()
-        CHECK(reg2:version(id) == MAX_VER)
+        CHECK(VER(id) == MAX_VER)
         CHECK(KEY(id) == 1)
 
         -- id deprecated
         reg2:release(id)
-        CHECK(reg2:version(id) == MAX_VER)
+        CHECK(VER(id) == MAX_VER)
         
         -- should produce a new key and not recycle as the previous key is at MAX version
         id = reg2:create()
-        CHECK(reg2:version(id) == 1)
+        CHECK(VER(id) == 1)
         CHECK(KEY(id) == 2)
     end
 end)
@@ -326,17 +335,17 @@ TEST("registry:current()", function()
     local id_new = reg:create()
 
     do CASE "Gets current version"
-        CHECK(reg:version(id_old) == 1)
-        CHECK(reg:current(id_old) == 2)
+        CHECK(VER(id_old) == 1)
+        CHECK(CURRENT_VER(reg, id_old) == 2)
     end
 
     do CASE "Version increments on release"
         reg:release(id_new)
-        CHECK(reg:current(id_new) == 3)
+        CHECK(CURRENT_VER(reg, id_new) == 3)
     end
 
     do CASE "Deprecated key"
-        CHECK(reg:current(CREATE_DEPRECATED_ID(reg)) == MAX_VER)
+        CHECK(CURRENT_VER(reg, CREATE_DEPRECATED_ID(reg)) == MAX_VER)
     end
 end)
 
@@ -807,7 +816,7 @@ TEST("registry:clear()", function()
         do
             local id = reg:create()
             assert(KEY(id) == 2)
-            assert(reg:version(id) == MAX_VER)
+            assert(VER(id) == MAX_VER)
         end
 
         local ids = BULK_CREATE_IDS(reg, N)
@@ -822,7 +831,7 @@ TEST("registry:clear()", function()
         for i = 1, N do
             CHECK(KEY(ids_after[i]) ~= 1)
             CHECK(KEY(ids_after[i]) ~= 2)
-            CHECK(reg:version(ids[i]) + 1 == reg:version(ids_after[i]))
+            CHECK(VER(ids[i]) + 1 == VER(ids_after[i]))
         end
     end
 end)

@@ -22,6 +22,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Call `Observer:persist()` to stop this.
 - `Registry:get()` will now error if the entity does not have every component.
 
+### Removed
+
+- Method `Registry:version()`.
+- Method `Registry:current()`.
+
 ---
 
 ## [0.5.0] - 2023-05-14

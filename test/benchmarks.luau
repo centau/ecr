@@ -828,8 +828,8 @@ do TITLE("Destroying entities")
     end)
 end
 
-do TITLE("Valid and version checking")
-    BENCH("registry::valid", function()
+do TITLE("Valid id checking")
+    BENCH("registry::contains", function()
         local reg = ecr.registry()
         local ids = table.create(N)
         for i = 1, N do
@@ -840,20 +840,6 @@ do TITLE("Valid and version checking")
 
         for i = 1, N do
             reg:contains(ids[i])   
-        end
-    end)
-
-    BENCH("registry::version", function()
-        local reg = ecr.registry()
-        local ids = table.create(N)
-        for i = 1, N do
-            ids[i] = reg:create()
-        end
-
-        START(N)
-
-        for i = 1, N do
-            reg:version(ids[i])   
         end
     end)
 end

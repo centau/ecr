@@ -89,10 +89,7 @@ export type Registry = {
     create: ((self: Registry, id: Entity) -> Entity) & ((self: Registry) -> Entity),
     release: (self: Registry, id: Entity) -> (),
     destroy: (self: Registry, id: Entity) -> (),
-
     contains: (self: Registry, id: Entity) -> boolean,
-    version: (self: Registry, id: Entity) -> number,
-    current: (self: Registry, id: Entity) -> number,
 
     orphaned: (self: Registry, id: Entity) -> boolean,
     add: <T...>(self: Registry, id: Entity, T...) -> (),
@@ -104,13 +101,13 @@ export type Registry = {
     remove: <T...>(self: Registry, id: Entity, T...) -> (),
 
     size: (self: Registry) -> number,
-    clear: <T...>(self: Registry, T...) -> (),
+    entities: (self: Registry) -> Array<Entity>,
 
     view: <T...>(self: Registry, T...) -> View<T...>,
     track: <T...>(self: Registry, T...) -> Observer<T...>,
     group: <T...>(self: Registry, T...) -> Group<T...>,
 
-    entities: (self: Registry) -> Array<Entity>,
+    clear: <T...>(self: Registry, T...) -> (),
     storage: <T>(self: Registry, ctype: T) -> Pool<T>,
 
     added: <T>(self: Registry, ctype: T) -> Signal<Entity, T>,
@@ -1198,14 +1195,6 @@ local function registry_create(): Registry
         return ids[ID_KEY(id)] == id
     end
 
-    function registry:version(id: Entity): number
-        return ID_VER(id)
-    end
-
-    function registry:current(id: Entity): number
-        return ID_VER(ids[ID_KEY(id)])
-    end
-
     function registry:orphaned(id: Entity): boolean
         local key = ID_KEY(id)
         for _, pool in next, pools do
@@ -1442,9 +1431,13 @@ local function registry_create(): Registry
         }, Handle))
     end
 
-    -- test method
+    -- test methods
     (registry :: any).set_entity_version = function(_, key: number, ver: number)
         ids[key] = ID_CREATE(ID_KEY(ids[key]), ver)
+    end
+
+    (registry :: any).get_current_entity_version = function(_, id: Entity): number
+        return ID_VER(ids[ID_KEY(id)])
     end
 
     setmetatable(registry :: any, { __index = function(_, index)
