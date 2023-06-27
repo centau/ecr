@@ -19,6 +19,7 @@ return table.freeze {
     ...
 }
 ```
+
 ## Server
 
 ```lua
@@ -28,20 +29,20 @@ type CType = unknown
 
 -- shape of serialized data
 type Diff = {
-    changes: Map<string, {
-        added_or_changed: {
+    changes: Map<string, { -- map component name to data
+        added_or_changed: { -- entities with added or changed component values
             entities: Array<ecr.Entity>,
             values: Array<unknown>
         },
-        removed: Array<ecr.Entity>
+        removed: Array<ecr.Entity> -- entities with removed components
     }>,
-    destroyed: Array<ecr.Entity>,
+    destroyed: Array<ecr.Entity>, -- destroyed entities
 }
 
 -- components to replicate
 local cts = require(shared.components)
 
--- unique value to mark a nil index since we cannot store nil indexes in tables
+-- unique value to mark a component that was removed
 local REMOVED = {} 
 
 -- structure used to serialize changes
