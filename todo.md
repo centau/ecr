@@ -41,8 +41,6 @@ List of things I would like to do with the library:
     iterated. Is this the desired behavior?
 - Also address behavior regarding clearing during iteration.
   - Currently should cause an error when it attempts to get the next element.
-- Remove `version()` and `current()`
-  - Id versioning is an implementation detail that shouldn't (?) be exposed
 - Refactor and cleanup the codebase.
 - Remove `Registry:size()` and `Registry:entities()` and replace with `__len` and `__iter` metamethods.
 - Investigate if it is possible to free a bit in key and version parts of an id

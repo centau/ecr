@@ -1359,10 +1359,12 @@ local function registry_create(): Registry
     end
 
     function registry:view<T...>(...: T...): View<T...>
+        ASSERT(select("#", ...) > 0, "view must contain at least 1 component")
         return View.new(registry, ...)
     end 
 
     function registry:track<T...>(...: T...): Observer<T...>
+        ASSERT(select("#", ...) > 0, "view must contain at least 1 component")
         return Observer.new(registry, ...)
     end
 
