@@ -1224,6 +1224,8 @@ local function registry_create(): Registry
 
     function registry.orphaned(self: Registry, id: Entity): boolean
         local key = ID_KEY(id)
+        ASSERT_VALID_ENTITY(key, id)
+
         for _, pool in next, pools do
             if pool.map[key] then return false end
         end

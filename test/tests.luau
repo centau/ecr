@@ -855,6 +855,14 @@ TEST("registry:orphaned()", function()
     do CASE "Orphan after removing last component"
         CHECK(reg:orphaned(id))
     end
+
+    reg:release(id) -- UB
+
+    do CASE "Rejects invalid entity"
+        CHECK_ERR("invalid entity", function()
+            reg:orphaned(id)
+        end)
+    end
 end)
 
 TEST("registry:destroy()", function()
