@@ -57,3 +57,5 @@ List of things I would like to do with the library:
     - A component would only take 32 B and a tag only 16 B!!
   - Using Vector3s for ids also makes extracting key and version faster
   - Should significantly improve cpu cache perf (by 2x in some cases?)
+- Look into prepopulating all pools when creating entities to avoid needing to
+  check during component add.

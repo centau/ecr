@@ -576,12 +576,11 @@ do
     end
 
     do TITLE("View all entities with common component (50% distr.)")
-        --[[
-            7 components are randomly assigned to entities,
-            any entities that receive all 7 will be tagged with an 8th component.
-            This guarantees that when iterating over this 8th component, all
-            entities iterated will also contain the other 7.
-        ]]
+        -- 7 components are randomly assigned to entities,
+        -- any entities that receive all 7 will be tagged with an 8th component.
+        -- This guarantees that when iterating over this 8th component, all
+        -- entities iterated will also contain the other 7.
+
         local reg = ecr.registry()
 
         local function flip() return math.random() > 0.5 end
@@ -946,4 +945,77 @@ do TITLE "Queues"
             for a, b, c, d in q do end
         end)
     end
+end
+
+do TITLE "Practical tests"
+    local world = ecr.registry()
+
+    local Position = ecr.component() :: number
+    local Velocity = ecr.component() :: number
+    local Health = ecr.component() :: number
+
+    local Dead = ecr.tag()
+
+    world:group(Position, Velocity)
+
+    local function init()
+        for i = 1, 2^12 do -- ~4k
+            local id = world:create()
+            world:set(id, Position, i)
+            world:set(id, Velocity, i)
+            world:set(id, Health, 0)
+        end
+    end
+
+    do -- pre-alloc
+        init()
+
+        for id in world do
+            world:add(id, Dead)
+        end
+
+        world:clear()
+    end
+
+    init()
+
+    BENCH("Create ~4k entities with 3 components", function()
+        for i = 1, 2^13 do -- ~4k
+            local id = world:create()
+            world:set(id, Position, i)
+            world:set(id, Velocity, i)
+            world:set(id, Health, 0)
+        end
+    end)
+
+    BENCH("Update position ~4k entities", function()
+        for id, pos, vel in world:group(Position, Velocity) do
+            world:set(id, Position, pos + vel*1/60)
+        end
+    end)
+
+    BENCH("Raw update position ~4k entities", function()
+        local n = #world:group(Position, Velocity)
+        local positions  = world:storage(Position).values
+        local velocities = world:storage(Velocity).values
+        
+        for i = 1, n do
+            positions[i] = positions[i] + velocities[i] * 1/60
+        end
+            
+    end)
+
+    BENCH("Add tag ~4k entities", function()
+        for id, health in world:view(Health) do
+            if health <= 0 then
+                world:add(id, Dead)
+            end
+        end
+    end)
+
+    BENCH("Destroy ~4k entities", function()
+        for id in world:view(Dead) do
+            world:destroy(id)
+        end
+    end)
 end
