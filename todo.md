@@ -52,3 +52,8 @@ List of things I would like to do with the library:
   - What `Flecs`' C++ API does with `world.entity()` and being able to call
     methods on the entity directly is very appealing. Implementing the exact same
     in Luau however would have serious performance implications.
+- Investigate if using Vector3s for internal storage can improve perf
+  - Can reduce 16 B per component (map and entities arrays combined into 1)
+    - A component would only take 32 B and a tag only 16 B!!
+  - Using Vector3s for ids also makes extracting key and version faster
+  - Should significantly improve cpu cache perf (by 2x in some cases?)
