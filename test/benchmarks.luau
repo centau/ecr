@@ -977,15 +977,8 @@ do TITLE "Practical tests"
         world:clear()
     end
 
-    init()
-
     BENCH("Create ~4k entities with 3 components", function()
-        for i = 1, 2^13 do -- ~4k
-            local id = world:create()
-            world:set(id, Position, i)
-            world:set(id, Velocity, i)
-            world:set(id, Health, 0)
-        end
+       init()
     end)
 
     BENCH("Update position ~4k entities", function()
