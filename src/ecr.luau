@@ -572,9 +572,15 @@ function View.new<T...>(reg: IRegistry, ...: T...): View<T...>
 
     for i = 1, select("#", ...) do
         local ctype = select(i, ...)
-        ASSERT(ctype_valid(ctype), `invalid { ctype_debug(nil, i) }`)
-        ASSERT(not table.find(includes, ctype),
-            `duplicate { ctype_debug(ctype, i) } included`)
+
+        if not ctype_valid(ctype) then
+            ERROR(`invalid { ctype_debug(nil, i) }`)
+        end
+
+        if table.find(includes, ctype) then
+            ERROR(`duplicate { ctype_debug(ctype, i) } included`)
+        end
+
         table.insert(includes, ctype)
     end
 
@@ -623,8 +629,15 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
         
             for i = 1, select("#", ...) do
                 local ctype = select(i, ...)
-                ASSERT(ctype_valid(ctype), `invalid { ctype_debug(nil, i) }`)
-                ASSERT(not table.find(self.includes, ctype), `cannot exclude { ctype_debug(ctype, i) }, component is being tracked`)
+
+                if not ctype_valid(ctype) then
+                    ERROR(`invalid { ctype_debug(nil, i) }`)
+                end
+
+                if table.find(self.includes, ctype) then
+                    ERROR(`cannot exclude { ctype_debug(ctype, i) }, component is being tracked`)
+                end
+
                 if table.find(excludes, ctype) then continue end
                 table.insert(excludes, ctype)
             end
