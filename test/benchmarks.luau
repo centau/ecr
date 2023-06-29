@@ -1012,3 +1012,70 @@ do TITLE "Practical tests"
         end
     end)
 end
+
+-- attempt to repeat the same test above but with regular OOP instead of ECS
+-- this is just curiosity to see how ECS really fares against OOP in Luau
+do TITLE "Practical test OOP"
+    local world = {}
+
+    local cache = {}
+
+    type Obj = {
+        Position: number,
+        Velocity: number,
+        Health: number,
+        Dead: boolean
+    }
+
+    -- luaus table allocator is really good and allocates tables in linear
+    -- pages in memory, causing sequential access to tables to hit cache.
+    -- i dont think this would occur in complex real games unless you
+    -- specifically design for it so attempt to randomize here to try
+    -- eliminate cache hits (this reduces performance by around ~5x)
+    do
+        for i = 1, 2^15 do
+            cache[i] =  {
+                Position = 0,
+                Velocity = 0,
+                Health = 0,
+                -- dummy fields
+                A = 0,
+                B = 0,
+                C = 0,
+                D = 0
+            }
+        end
+
+        for i = 1, 2^12 do
+            world[i] = cache[math.random(1, #cache)]
+            table.clear(world[i])
+        end
+    end
+
+    BENCH("Create ~4k entities with 3 components", function()
+        for i = 1, 2^12 do
+            world[i].Position = i
+            world[i].Velocity = i
+            world[i].Health = 0
+        end
+    end)
+
+    BENCH("Update position ~4k entities", function()
+        for _, obj in world do
+            obj.Position = obj.Position + obj.Velocity * 1/60
+        end
+    end)
+
+    BENCH("Add tag ~4k entities", function()
+        for _, obj in world do
+            if obj.Health <= 0 then
+                obj.Dead = true
+            end
+        end
+    end)
+
+    BENCH("Destroy ~4k entities", function()
+        table.clear(world)
+        collectgarbage("collect" :: any) -- this probably isnt a fair test
+    end)
+end
