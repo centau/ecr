@@ -1,11 +1,15 @@
 --------------------------------------------------------------------------------
 -- testkit.luau
--- v0.5.1
+-- v0.6.0
 --------------------------------------------------------------------------------
 
 local color = {
     white_underline = function(s: string)
         return `\27[1;4m{s}\27[0m`
+    end,
+
+    white = function(s: string)
+        return `\27[37;1m{s}\27[0m`
     end,
 
     green = function(s: string)
@@ -29,9 +33,55 @@ local color = {
     end,
 
     gray = function(s: string)
-        return `\27[31;1;30m{s}\27[0m`
-    end
+        return `\27[30;1m{s}\27[0m`
+    end,
 }
+
+local function convert_units(unit: string, value: number): (number, string)
+    local prefix_colors = {
+        [3] = color.red,
+        [2] = color.yellow,
+        [1] = color.yellow,
+        [0] = color.green,
+        [-1] = color.red,
+        [-2] = color.yellow,
+        [-3] = color.green
+    }
+
+    local prefixes = {
+        [3] ="G",
+        [2] ="M",
+        [1] = "k",
+        [0] = " ",
+        [-1] = "m",
+        [-2] = "u",
+        [-3] = "n"
+    }
+
+    local order = 0
+    
+    while value >= 1000 do
+        order += 1
+        value /= 1000
+    end
+
+    while value ~= 0 and value < 1 do
+        order -= 1
+        value *= 1000
+    end
+
+    if value >= 100 then
+        value = math.floor(value)
+    elseif value >= 10 then
+        value = math.floor(value * 1e1) / 1e1
+    elseif value >= 1 then
+        value = math.floor(value * 1e2) / 1e2
+    end
+
+    return value, prefix_colors[order](prefixes[order] .. unit)
+end
+
+local WALL = color.gray "│"
 
 --------------------------------------------------------------------------------
 -- Testing
@@ -42,7 +92,10 @@ type Test = {
     case: Case?,
     cases: { Case },
     duration: number,
-    error: string?
+    error: {
+        message: string,
+        trace: string
+    }?
 }
 
 type Case = {
@@ -57,20 +110,27 @@ local test: Test?
 local tests: { Test } = {}
 
 local function output_test_result(test: Test)
-    print(color.white_underline(test.name))
+    print(color.white(test.name))
 
     for _, case in test.cases do
-        local msg = ({
-            [PASS] = color.green("PASS"),
-            [FAIL] = color.red(case.line and "FAIL:" .. case.line or "FAIL"),
-            [NONE] = color.yellow("NONE"),
-            [ERROR] = color.red_highlight("ERROR")
+        local status = ({
+            [PASS] = color.green "PASS",
+            [FAIL] = color.red "FAIL",
+            [NONE] = color.yellow "NONE",
+            [ERROR] = color.red "FAIL"
         })[case.result]
 
-        print(`[{msg}] {case.name}`)
+        local line = case.result == FAIL and color.red(`{case.line}:`) or ""
+
+        print(`{status}{WALL} {line}{color.gray(case.name)}`)
     end
 
-    print(test.error and color.gray(test.error) or "")
+    if test.error then
+        print(color.gray "error: " .. color.red(test.error.message))  
+        print(color.gray "trace: " .. color.red(test.error.trace))
+    else
+        print()
+    end
 end
 
 local function CASE(name: string)
@@ -117,8 +177,10 @@ local function TEST(name: string, fn: () -> ())
     table.insert(tests, test)
 
     local start = os.clock()
-    local err_msg: string?
-    local success = xpcall(fn, function(m: string) err_msg = m .. debug.traceback("", 2) end)
+    local err
+    local success = xpcall(fn, function(m: string)
+        err = { message = m, trace = debug.traceback(nil, 2) }
+    end)
     test.duration = os.clock() - start
 
     if not test.case then CASE "" end
@@ -126,7 +188,7 @@ local function TEST(name: string, fn: () -> ())
 
     if not success then
         test.case.result = ERROR
-        test.error = err_msg
+        test.error = err
     end
 
     test = nil
@@ -152,18 +214,18 @@ local function FINISH(): boolean
         output_test_result(test)
     end
 
-    print(string.format(
+    print(color.gray(string.format(
         `{passed_cases}/{total_cases} test cases passed in %.3f ms.`,
         duration*1e3
-    ))
+    )))
 
     local fails = total_cases - passed_cases
 
     print(
         (
             fails > 0
-            and color.red_highlight 
-            or color.green_highlight
+            and color.red 
+            or color.green
         )(`{fails} {fails == 1 and "fail" or "fails"}`)
     )
 
@@ -207,28 +269,36 @@ local function BENCH(name: string, fn: () -> ())
     local err_msg: string?
 
     local success = xpcall(fn, function(m: string)
-        err_msg = m .. debug.traceback("", 2)
+        err_msg = m .. debug.traceback(nil, 2)
     end)
 
     local time_stop = os.clock()
     local mem_stop = gcinfo()
 
     if not success then
-        print(`[{color.red_highlight("ERROR")}] {name}`)
+        print(`{WALL}{color.red("ERROR")}{WALL} {name}`)
         print(color.gray(err_msg :: string))
     else
         time_start = bench.time_start or time_start
         mem_start = bench.memory_start or mem_start
 
         local n = bench.iterations or 1
-        local duration = time_stop - time_start
-        local allocated = mem_stop - mem_start
+        local d, d_unit = convert_units("s", (time_stop - time_start) / n)
+        local a, a_unit = convert_units("B", math.floor((mem_stop - mem_start) / n * 1e3))
 
+        local function round(x: number): string
+            return x > 0 and x < 10 and (x - math.floor(x)) > 0
+                and string.format("%2.1f", x)
+                or  string.format("%3.f", x)
+        end
+        
         print(string.format(
-            "[ %.3f us |%4.0f B ] %s",
-            duration * 1e6 / n,
-            allocated * 1e3 / n,
-            name
+            `%s %s %s %s{WALL} %s`,
+            color.gray(tostring(round(d))),
+            d_unit,
+            color.gray(tostring(round(a))),
+            a_unit,
+            color.gray(name)
         ))
     end
 
@@ -366,5 +436,7 @@ return {
     print2 = print2,
 
     seq = shallow_eq,
-    deq = deep_eq
+    deq = deep_eq,
+
+    color = color
 }

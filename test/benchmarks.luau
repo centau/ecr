@@ -1,7 +1,9 @@
-local BENCH, START = require("test/testkit").benchmark()
+local testkit = require("test/testkit")
+local BENCH, START = testkit.benchmark()
 
 local function TITLE(name: string)
-    print("\27[1;4m"..name.."\27[0m")
+    print()
+    print(testkit.color.white(name))
 end
 
 local ecr = require "src/ecr"
