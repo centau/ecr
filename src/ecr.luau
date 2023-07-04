@@ -1547,18 +1547,19 @@ local Queue = {} do
             local column = columns[1]
             return function()
                 i += 1
-                if i == n then return self:clear() end
-                return column[i]
+                local value = column[i]
+                if i == n then self:clear() end
+                return value
             end
 
         else--if #columns > 1 then
             local tuple = table.create(#columns)
             return function()
                 i += 1
-                if i == n then return self:clear() end
                 for ci, column in next, columns do
                     tuple[ci] = column[i]
                 end
+                if i == n then self:clear() end
                 return unpack(tuple)
             end
         end

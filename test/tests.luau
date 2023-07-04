@@ -1809,7 +1809,7 @@ TEST("ecr.queue()", function()
             end
 
             CHECK(#queue == 0)
-            CHECK(i > 0)
+            CHECK(i == 10)
         end
 
         do CASE "Iterate multiple values"
@@ -1828,7 +1828,7 @@ TEST("ecr.queue()", function()
             end
 
             CHECK(#queue == 0)
-            CHECK(i > 0)
+            CHECK(i == 10)
         end
     end
 
