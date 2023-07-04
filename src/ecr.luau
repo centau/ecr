@@ -1499,12 +1499,12 @@ end
 local Queue = {} do
     Queue.__index = Queue
 
-    type _Queue = Queue<...unknown> & {
+    type _Queue = Queue<...any> & {
         size: number,
         columns: Array<Array<unknown>>
     }
 
-    function Queue.new(): Queue<...unknown>
+    function Queue.new<T...>(): Queue<T...>
         local self: _Queue = setmetatable({
             size = 0,
             columns = {}
@@ -1520,7 +1520,7 @@ local Queue = {} do
             end
         })
 
-        return self
+        return (self :: any) :: Queue<T...>
     end
 
     function Queue.add(self: _Queue, ...: unknown)
@@ -1579,25 +1579,25 @@ local Queue = {} do
 end
 
 type SignalInterface<T...> = {
-    connect: (self: SignalInterface<T...>, listener: (T...) -> ()) -> ()
+    connect: (self: any, listener: (T...) -> ()) -> ()
 } | {
-    Connect: (self: SignalInterface<T...>, listener: (T...) -> ()) -> ()
+    Connect: (self: any, listener: (T...) -> ()) -> ()
 }
 
-local queue_create = function(signal: SignalInterface<...any>?)
+local queue_create = function<T...>(signal: SignalInterface<T...>?): Queue<T...>
     local queue = Queue.new()
 
     -- todo: fix type error
     if signal then
         local connector = (signal :: any).connect or (signal :: any).Connect
         ASSERT(connector, "signal has no connector")
-        connector(signal, function(...: unknown)
+        connector(signal, function(...: T...)
             queue:add(...)
         end)
     end
 
     return queue
-end :: ( () -> Queue<...unknown> ) & ( <T...>(signal: SignalInterface<T...>) -> Queue<T...> )
+end :: ( <T...>() -> Queue<T...> ) & ( <T...>(signal: SignalInterface<T...>) -> Queue<T...> )
 
 --------------------------------------------------------------------------------
 -- Return
