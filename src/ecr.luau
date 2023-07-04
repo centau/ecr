@@ -1285,13 +1285,13 @@ local function registry_create(): Registry
             ASSERT_VALID_ENTITY(key, id)
 
             local constructor = ctype_constructors[ctype]
-            if constructor == nil then
+            if constructor == nil or constructor == true then
                 ERROR(`entity does not have component and no constructor for {ctype_debug(ctype)}`)
             end
-            local value = patcher(constructor())
+            local value = patcher((constructor :: () -> T)())
             if value == nil then ERROR("patcher cannot return nil") end
-            add(pool, key, id, value)
-            fire_added(pool, id, value)
+            add(pool, key, id, value :: T)
+            fire_added(pool, id, value :: T)
         else
             local idx = ID_KEY(idx_ver)
     
