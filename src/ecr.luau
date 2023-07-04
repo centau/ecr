@@ -1281,17 +1281,29 @@ local function registry_create(): Registry
         local pool = get_pool(ctype)
         local key = ID_KEY(id)
         local idx_ver = pool.map[key] :: number
-        if idx_ver == nil then ERROR("entity does not have component") end
-        local idx = ID_KEY(idx_ver)
+        if idx_ver == nil then
+            ASSERT_VALID_ENTITY(key, id)
 
-        ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
-
-        local values = pool.values
-        local value = patcher(values[idx])
-        if value == nil then ERROR("patcher cannot return nil") end
-
-        values[idx] = value :: T
-        fire_changed(pool, id, value :: T)
+            local constructor = ctype_constructors[ctype]
+            if constructor == nil then
+                ERROR(`entity does not have component and no constructor for {ctype_debug(ctype)}`)
+            end
+            local value = patcher(constructor())
+            if value == nil then ERROR("patcher cannot return nil") end
+            add(pool, key, id, value)
+            fire_added(pool, id, value)
+        else
+            local idx = ID_KEY(idx_ver)
+    
+            ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
+    
+            local values = pool.values
+            local value = patcher(values[idx])
+            if value == nil then ERROR("patcher cannot return nil") end
+    
+            values[idx] = value :: T
+            fire_changed(pool, id, value :: T)
+        end
     end
 
     registry.has = (function(self: Registry, id: Entity, ...: unknown): boolean

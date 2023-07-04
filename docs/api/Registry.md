@@ -146,7 +146,12 @@ Updates an entity's component.
     Takes a callback which is given the current component value as the only argument.
     The value returned by the callback is then set as the new value.
 
-    > ⚠️ Attempting to patch a component that an entity does not have will throw an error.
+    If there is a constructor defined for the given component and the entity does
+    not have the component, the constructor will be called and the returned value
+    passed into the callback.
+
+    > ⚠️ Attempting to patch a component that an entity does not have and that has
+    > no constructor will throw an error.
 
 - **Example**
 

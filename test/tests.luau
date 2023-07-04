@@ -667,11 +667,17 @@ TEST("registry:patch()", function()
         local id = reg:create()
         reg:set(id, A, 0)
 
+        local ran = false
+        reg:changed(A):connect(function()
+            ran = true
+        end)
+
         reg:patch(id, A :: number, function(v)
             CHECK(v == 0)
             return v + 1
         end)
         CHECK(reg:get(id, A) == 1)
+        CHECK(ran)
     end
 
     do CASE "Patch returns nil"
@@ -688,10 +694,33 @@ TEST("registry:patch()", function()
     do CASE "Change non-existent component"
         local id = reg:create()
         
-        CHECK_ERR("entity does not have component", function()
+        CHECK_ERR("entity does not have component and no constructor for component (unknown)", function()
             reg:patch(id, A :: number, function(v)
                 CHECK(false)
                 return v + 1
+            end)
+        end)
+    end
+
+    do CASE "Change non-existent component with constructor"
+        local id = reg:create()
+        
+        local ran = false
+        reg:added(H):connect(function()
+            ran = true
+        end)
+        
+        reg:patch(id, H, function(v)
+            CHECK(v == true)
+            return not v
+        end)
+
+        CHECK(ran)
+        CHECK(reg:get(id, H) == false)
+
+        CHECK_ERR("patcher cannot return nil", function()
+            reg:patch(id, H, function(v)
+                return nil
             end)
         end)
     end
@@ -700,7 +729,7 @@ TEST("registry:patch()", function()
         local id = reg:create()
         reg:release(id)
         
-        CHECK_ERR("entity does not have component", function()
+        CHECK_ERR("invalid entity", function()
             reg:patch(id, A :: number, function(v)
                 CHECK(false)
                 return v + 1

@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Changed
+
+- `Registry:patch()` will invoke the component constructor if the entity
+  does not have the given component.
+
 ### Fixed
 
 - `Registry:orphaned()` not erroring with destroyed id.
