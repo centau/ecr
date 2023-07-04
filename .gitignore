@@ -6,3 +6,5 @@ vendor
 Gemfile.lock
 .vscode
 _local
+aftman.toml
+sourcemap.json
