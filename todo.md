@@ -1,6 +1,20 @@
 # To do
 
-List of things I would like to do with the library:
+Things I would like to do with the library.
+
+## High Priority
+
+- Support for singleton/context components
+- Address behavior regarding adding to observers/queues during iteration
+  - Currently newly added values are not returned during iteration, additionally
+    clearing the observer/queue when iteration is completed means that any value
+    that was added during iteration will not be returned the next time it is
+    iterated. Is this the desired behavior?
+- Address behavior regarding clearing during iteration.
+  - Currently should cause an error when it attempts to get the next element.
+- Define behavior when creating/destroying entities during iteration of registry __len.
+
+## Low Priority
 
 - Look into providing a flexible system scheduler
   - Splits frame into phases where certain components are added in one phase so
@@ -15,11 +29,11 @@ List of things I would like to do with the library:
 - More flexible observer API
   - Specify way to listen to only certain events (e.g. added or/and removed)
   - Is this even needed given that you can create custom observers already?
-- Make `Registry:patch()` invoke constructor if no component is found.
-  - Is there a case where this behavior is not wanted?
 - Methods for bulk operations with entities and components
 - Make `Registry:release()` safe
   - This is very hard to do performantly.
+  - Remove it altogether?
+- Add insert and remove methods to pools exposed to the user.
 - Improve docs
 - Optimize entity destruction
   - The O(n) check for all registered components is perturbing when in large
@@ -33,17 +47,8 @@ List of things I would like to do with the library:
   - But could add ambiguity between `nil` components and not having the component at all.
   - Could then remove `ecr.tag()`.
 - Make methods like `Registry:has()` and `Registry:try_get()` error when invalid entities are passed
-  - Should they?
-- Address behavior regarding adding to observers/queues during iteration
-  - Currently newly added values are not returned during iteration, additionally
-    clearing the observer/queue when iteration is completed means that any value
-    that was added during iteration will not be returned the next time it is
-    iterated. Is this the desired behavior?
-- Also address behavior regarding clearing during iteration.
-  - Currently should cause an error when it attempts to get the next element.
+  - Should they? (they currently just return `nil`)
 - Refactor and cleanup the codebase.
-- Remove `Registry:size()` and `Registry:entities()` and replace with `__len` and `__iter` metamethods.
-  - Define behavior when creating/destroying entities during iteration.
 - Investigate if it is possible to free a bit in key and version parts of an id
   - Since we never use 0 and know that first bit is always 1 does this allow us to implicitly gain an extra bit?
   - This would double the total amount of keys we can have and double the total amount of versions.
@@ -58,4 +63,8 @@ List of things I would like to do with the library:
   - Using Vector3s for ids also makes extracting key and version faster
   - Should significantly improve cpu cache perf (by 2x in some cases?)
 - Look into prepopulating all pools when creating entities to avoid needing to
-  check during component add.
+  check validity during component add.
+- Address how some registry private members are captured as constant upvalues
+  - This means that doing `registryA.create(registryB)` can cause undefined behavior.
+  - No one should be doing the above anyways so is it ok to leave it?
+  - Switch from `:` to `.` to call methods? Not standard.
