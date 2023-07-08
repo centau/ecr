@@ -720,7 +720,7 @@ TEST("registry:patch()", function()
 
         CHECK_ERR("patcher cannot return nil", function()
             reg:patch(id, H, function(v)
-                return nil
+                return nil :: any
             end)
         end)
     end
@@ -1799,14 +1799,48 @@ end)
 
 TEST("registry:handle()", function()
     local reg = ecr.registry()
-    local e = reg:handle()
 
-    CHECK(reg:contains(e.entity))
+    do CASE "Call with nil"
+        local e = reg:handle()
 
-    e:set(A, 1)
-     :set(B, 2)
+        CHECK(reg:contains(e.entity))
 
-    CHECK(e:has(A, B))
+        e:set(A, 1)
+        :set(B, 2)
+
+        CHECK(e:has(A, B))
+    end
+
+    do CASE "Call with existing"
+        local id = reg:create()
+        local e = reg:handle(id)
+        CHECK(e.entity == id)
+    end
+
+    do CASE "Caching"
+        local e = reg:handle()
+        local e2 = reg:handle(e.entity)
+        CHECK(e == e2)
+
+        local id = reg:create() 
+        local e_b = reg:handle(id)
+        local e_b2 = reg:handle(id)
+        CHECK(e_b == e_b2)
+    end
+
+    do CASE "Garbage collection"
+        local weak = setmetatable({}, { __mode = "v" })
+
+        local id = reg:create()
+
+        do
+            weak.v = reg:handle(id)
+        end
+
+        (collectgarbage :: any)("collect")
+
+        CHECK(weak.v == nil)
+    end
 end)
 
 TEST("ecr.component()", function()
@@ -1881,8 +1915,8 @@ TEST("ecr.queue()", function()
     do CASE "Uneven values"
         local queue = ecr.queue()
         queue:add(1)
-        queue:add(1, 2, nil)
-        queue:add(1, nil, 3)
+        ;(queue :: any):add(1, 2, nil)
+        ;(queue :: any):add(1, nil, 3)
 
         local i = 0
         for a, b, c in queue do

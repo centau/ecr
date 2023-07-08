@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## Unreleased
+
+### Changed
+
+- `Registry:handle()` calls are now memoized, passing the same ids will return
+  the same handle objects.
+
+---
+
 ## [0.6.1] - 2023-07-04
 
 ### Changed

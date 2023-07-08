@@ -1451,11 +1451,24 @@ local function registry_create(): Registry
         end)() :: Signal<Entity, nil>
     end
 
-    function registry.handle(self: Registry, entity: Entity?): Handle
-        return table.freeze(setmetatable({
-            registry = self,
-            entity = entity or self:create()
-        }, Handle))
+    local handle_cache = {} :: Map<Entity?, Handle?>
+    setmetatable(handle_cache :: any, { __mode = "v" })
+
+    function registry.handle(self: Registry, id: Entity?): Handle
+        id = id or self:create()
+
+        local handle = handle_cache[id]
+
+        if handle == nil then
+            handle = table.freeze(setmetatable({
+                registry = self,
+                entity = id :: Entity
+            }, Handle))
+
+            handle_cache[id] = handle
+        end
+
+        return handle :: Handle
     end
 
     -- test methods
