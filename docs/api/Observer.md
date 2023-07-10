@@ -116,6 +116,8 @@ Will automatically clear the observer unless `Observer:persist()` was called.
 
 > ⚠️ During iteration, adding or removing components from entities not currently being iterated can invalidate the iterator.
 
+> ⚠️ Clearing during iteration can result in an error.
+
 ---
 
 ## Length

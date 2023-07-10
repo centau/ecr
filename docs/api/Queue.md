@@ -60,4 +60,6 @@ The queue automatically clears itself after iteration.
 > ⚠️ Adding values during iteration will cause them to be cleared when
 > iteration completes and they will never be iterated.
 
+> ⚠️ Clearing during iteration can result in an error.
+
 ---

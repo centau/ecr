@@ -1,54 +1,40 @@
 # To do
 
-Things I would like to do with the library.
-
 ## High Priority
 
 - Support for singleton/context components
-- Address behavior regarding adding to observers/queues during iteration
-  - Currently newly added values are not returned during iteration, additionally
-    clearing the observer/queue when iteration is completed means that any value
-    that was added during iteration will not be returned the next time it is
-    iterated. Is this the desired behavior?
-- Address behavior regarding clearing during iteration.
-  - Currently should cause an error when it attempts to get the next element.
 - Define behavior when creating/destroying entities during iteration of registry __len.
+- Optimize entity destruction
+  - The O(n) check for all registered components is perturbing when in large amount.
+  - Potential for parallelized checks?
+  - Defer destruction to end of frame and perform bulk removal?
+  - Bitset tracking?
+  - Archetypal tracking?
 
 ## Low Priority
 
-- Look into providing a flexible system scheduler
-  - Splits frame into phases where certain components are added in one phase so
-    that systems ran in the next phase know that entities operated on will have
-    the needed components.
-  - Allows scheduling of systems every frame or every x frames.
-  - Automatic profiling.
-  - Automatic error handling and better reporting.
-  - Is this something ecr should provide?
+- Add more docs
+- Make codebase nicer.
+- Disallow creation of handles for invalid entities?
 - Look into component relationships
   - `ecr.pair(A, B)` to create new combinational component.
+  - Why is this useful?
 - More flexible observer API
   - Specify way to listen to only certain events (e.g. added or/and removed)
   - Is this even needed given that you can create custom observers already?
-- Methods for bulk operations with entities and components
 - Make `Registry:release()` safe
   - This is very hard to do performantly.
-  - Remove it altogether?
-- Add insert and remove methods to pools exposed to the user.
-- Improve docs
-- Optimize entity destruction
-  - The O(n) check for all registered components is perturbing when in large
-  amount.
-  - Potential for parallelized checks?
-  - Defer destruction to end of frame and perform bulk removal?
-  - Track the components an entity has using a bitset?
-  - Archetypal tracking?
+  - Remove it altogether? We want a completely safe API.
+- Lower level access to underlying datastructures.
+  - An API for pools returned by `Registry:storage()` like adding and removing.
+  - Bulk operations
 - Allow `nil` component values?
   - Could improve memory usage for valueless components.
   - But could add ambiguity between `nil` components and not having the component at all.
   - Could then remove `ecr.tag()`.
 - Make methods like `Registry:has()` and `Registry:try_get()` error when invalid entities are passed
   - Should they? (they currently just return `nil`)
-- Refactor and cleanup the codebase.
+  - Doing this will reduce performance.
 - Create a class for snapshotting/serialization/loading of registries
 - Consider revising `Handle` class to be a more natural part of the API.
   - What `Flecs`' C++ API does with `world.entity()` and being able to call
@@ -59,8 +45,6 @@ Things I would like to do with the library.
     - A component would only take 32 B and a tag only 16 B!!
   - Using Vector3s for ids also makes extracting key and version faster
   - Should significantly improve cpu cache perf (by 2x in some cases?)
-- Look into prepopulating all pools when creating entities to avoid needing to
-  check validity during component add.
 - Address how some registry private members are captured as constant upvalues
   - This means that doing `registryA.create(registryB)` can cause undefined behavior.
   - No one should be doing the above anyways so is it ok to leave it?
