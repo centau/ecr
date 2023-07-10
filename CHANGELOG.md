@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Added
+
+- `ecr.is_tag()` to check if a given component is a tag type.
+
 ### Changed
 
 - `Registry:handle()` calls are now memoized, passing the same ids will return

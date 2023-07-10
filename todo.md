@@ -49,9 +49,6 @@ Things I would like to do with the library.
 - Make methods like `Registry:has()` and `Registry:try_get()` error when invalid entities are passed
   - Should they? (they currently just return `nil`)
 - Refactor and cleanup the codebase.
-- Investigate if it is possible to free a bit in key and version parts of an id
-  - Since we never use 0 and know that first bit is always 1 does this allow us to implicitly gain an extra bit?
-  - This would double the total amount of keys we can have and double the total amount of versions.
 - Create a class for snapshotting/serialization/loading of registries
 - Consider revising `Handle` class to be a more natural part of the API.
   - What `Flecs`' C++ API does with `world.entity()` and being able to call

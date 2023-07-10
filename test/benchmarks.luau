@@ -17,7 +17,6 @@ local TA, TB, TC, TD = ecr.tag(), ecr.tag(), ecr.tag(), ecr.tag()
 -- power of 2 so arrays are better alined for accurate memory usage reading
 local N = 2^18 --~ 262k
 
---[[
 do TITLE "Entity creation and release"
     BENCH("Entity creation", function()
         local reg = ecr.registry()
@@ -622,7 +621,7 @@ do
             for id, a, b, c, d in reg:view(TA, TB, TC, TD) do end
         end)
     end
-end]]
+end
 
 do TITLE ("Handles")
     local N2 = N/32

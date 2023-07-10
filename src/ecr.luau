@@ -3,8 +3,13 @@
 -- v0.6.1
 --------------------------------------------------------------------------------
 
-local INITIAL_ENTITY_VERSION = 1
+local ID_SIZE_BITS = 53
 local MAX_ENTITIES = 0x000F_FFFF
+local INIT_STORAGE_SIZE = 100
+
+assert(ID_SIZE_BITS <= 53 and ID_SIZE_BITS > 1)
+assert(MAX_ENTITIES < 0xFFFF_FFFF and MAX_ENTITIES > 0)
+assert(bit32.band(MAX_ENTITIES + 1, MAX_ENTITIES) == 0)
 
 type Array<T> = { [number]: T }
 type Map<T, U> = { [T]: U }
@@ -111,7 +116,7 @@ export type Registry = typeof(setmetatable({} :: {
     changed: <T>(self: Registry, ctype: T) -> Signal<Entity, T>,
     removing: <T>(self: Registry, ctype: T) -> Signal<Entity, nil>,
 
-    handle: ((self: Registry, id: Entity) -> Handle) & ((self: Registry) -> Handle)
+    handle: ((self: Registry, id: Entity) -> Handle) & ((self: Registry) -> Handle),
 }, {} :: {
     __iter: (self: Registry) -> () -> Entity,
     __len: (self: Registry) -> number
@@ -152,49 +157,45 @@ end
 -- Entity Id
 --------------------------------------------------------------------------------
 
-ASSERT(
-    bit32.band(MAX_ENTITIES + 1, MAX_ENTITIES) == 0 -- is 1 less than power of 2
-    and MAX_ENTITIES <= 0xFFFF_FFFF -- can be represented using 32 bits
-    and MAX_ENTITIES > 0,
-    "invalid max entities limit"
-)
+local ID_MAX = 2^ID_SIZE_BITS - 1
 
+local ID_INIT_VER = 1
 local ID_INVALID_KEY = 0
-local ID_MAX_INT = 2^53-1
+
 local ID_MASK_KEY = MAX_ENTITIES
-local ID_MASK_VER = ID_MAX_INT - ID_MASK_KEY
+local ID_MASK_VER = ID_MAX - ID_MASK_KEY
 
 local ID_LSHIFT = ID_MASK_KEY + 1
 local ID_RSHIFT = 1/ID_LSHIFT
 
 local ID_MAX_KEY = ID_MASK_KEY
-local ID_MAX_VERSION = ID_MASK_VER * ID_RSHIFT
+local ID_MAX_VER = ID_MASK_VER * ID_RSHIFT
 
 local function ID_CREATE(key: number, ver: number): number
     --assert(key <= ID_MAX_KEY)
-    --assert(ver <= ID_MAX_VERSION)
+    --assert(ver <= ID_MAX_VER)
     return ver * ID_LSHIFT + key
 end
 
-local function ID_KEY(ID: number): number
-    return bit32.band(ID, ID_MASK_KEY)
+local function ID_KEY(id: number): number
+    return bit32.band(id, ID_MASK_KEY)
 end
 
-local function ID_KEY_VER(ID: number): (number, number)
-    local key = ID_KEY(ID)
-    local ver = (ID - key) * ID_RSHIFT
+local function ID_KEY_VER(id: number): (number, number)
+    local key = ID_KEY(id)
+    local ver = (id - key) * ID_RSHIFT
     return key, ver
 end
 
-local function ID_VER(ID: number): number
-    return (ID - ID_KEY(ID)) * ID_RSHIFT
+local function ID_VER(id: number): number
+    return (id - ID_KEY(id)) * ID_RSHIFT
 end
 
-local function ID_SWAPKEY(ID: number, key: number): number
-    return ID - ID_KEY(ID) + key
+local function ID_SWAPKEY(id: number, key: number): number
+    return id - ID_KEY(id) + key
 end
 
-local ID_NULL = ID_CREATE(0, ID_MAX_VERSION)
+local ID_NULL = ID_CREATE(0, ID_MAX_VER)
 
 --------------------------------------------------------------------------------
 -- Pool
@@ -324,12 +325,15 @@ local function ctype_tag(): CType
     return ctype_create(true)
 end
 
+local function ctype_is_tag(ctype: CType): boolean
+    return ctype_constructors[ctype] == true
+end
+
 local function ctype_valid(v: unknown): boolean
     return type(v) == "number" and math.floor(v) == v and v > 0 and v <= ctype_n  
 end
 
 local function ctype_name(ctype: CType, name: unknown)
-    ASSERT(ctype_valid(ctype), `{name} refers to an invalid component`)
     ctype_names[ctype] = tostring(name)
 end
 
@@ -972,7 +976,7 @@ local function registry_create(): Registry
 
     local size = 0
     local free = ID_INVALID_KEY
-    local ids = table.create(1) :: Array<Entity>
+    local ids = {} :: Array<Entity>
 
     local pools: Map<CType, Pool<unknown>> = table.create(ctype_n)
     local groups: Map<CType, GroupData?> = table.create(ctype_n) -- todo: is this needed?
@@ -987,7 +991,7 @@ local function registry_create(): Registry
     setmetatable(pools, {
         __index = function(self, v: unknown): Pool<unknown>
             ASSERT(ctype_valid(v), "invalid component type")
-            local pool = pool_create(1)
+            local pool = pool_create(INIT_STORAGE_SIZE)
             self[v] = pool
             return pool
         end
@@ -1084,7 +1088,7 @@ local function registry_create(): Registry
         local key, ver = ID_KEY_VER(id)
         size -= 1
 
-        if ver < ID_MAX_VERSION then
+        if ver < ID_MAX_VER then
             ids[key] = ID_CREATE(free, ver + 1) -- recycle key
             free = key
         else
@@ -1127,7 +1131,7 @@ local function registry_create(): Registry
             return newid
         else
             local key = #ids + 1
-            local newid = ID_CREATE(key, INITIAL_ENTITY_VERSION)
+            local newid = ID_CREATE(key, ID_INIT_VER)
             ids[key] = newid
             return newid
         end  
@@ -1137,16 +1141,16 @@ local function registry_create(): Registry
         local key, ver = ID_KEY_VER(id)
         ASSERT(
             key >= 1 and ver >= 1 and
-            key <= ID_MAX_KEY and ver <= ID_MAX_VERSION,
+            key <= ID_MAX_KEY and ver <= ID_MAX_VER,
             "malformed id"
         )
 
         local n = #ids
         if key > n + 1 then -- if key has not been created yet
             for i = n+1, key-2 do
-                ids[i] = ID_CREATE(i + 1, INITIAL_ENTITY_VERSION)
+                ids[i] = ID_CREATE(i + 1, ID_INIT_VER)
             end
-            ids[key-1] = ID_CREATE(free, INITIAL_ENTITY_VERSION)
+            ids[key-1] = ID_CREATE(free, ID_INIT_VER)
             free = n+1
         elseif key <= n then -- if key has been created before
             if ids[key] == ID_NULL then -- id is deprecated
@@ -1617,10 +1621,7 @@ end :: ( <T...>() -> Queue<T...> ) & ( <T...>(signal: SignalInterface<T...>) -> 
 --------------------------------------------------------------------------------
 
 local ecr = {
-    tag = ctype_tag :: () -> nil,
     registry = registry_create,
-    queue = queue_create,
-    null = ID_NULL,
 
     component = function(constructor)
         ASSERT(
@@ -1630,13 +1631,24 @@ local ecr = {
         return ctype_create(constructor)
     end :: (() -> unknown) & (<T>(constructor: () -> T) -> T),
 
+    tag = ctype_tag :: () -> nil,
+
+    is_tag = function<T>(ctype: T): boolean
+        ASSERT(ctype_valid(ctype), "invalid component")
+        return ctype_is_tag(ctype)
+    end,
+
     name = function<T>(names: T & {}): T
         for name, ctype in next, names do
+            ASSERT(ctype_valid(ctype), `{name} refers to an invalid component`)
             ctype_name(ctype, name)
         end
         table.freeze(names)
         return names
     end,
+
+    queue = queue_create,
+    null = ID_NULL,
 
     extract = function(id: Entity): (number, number)
         return ID_KEY_VER(id)
