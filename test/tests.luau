@@ -1839,7 +1839,44 @@ TEST("registry:handle()", function()
 
         (collectgarbage :: any)("collect")
 
-        CHECK(weak.v == nil)
+        CHECK(weak.v == nil :: any)
+    end
+end)
+
+TEST("registry:context()", function()
+    local reg = ecr.registry()
+
+    local ctx = reg:context()
+
+    do CASE "Context valid"
+        CHECK(reg:contains(ctx.entity))
+    end
+
+    ctx:set(A, 1):set(B, 2)
+
+    do CASE "Components"
+        CHECK(ctx:get(A) == 1)
+        CHECK(ctx:get(B) == 2)
+    end
+
+    do CASE "Sizes"
+        CHECK(#reg == 0)
+        CHECK(#reg:view(A) == 1)
+    end
+
+    do CASE "Attempt to destroy"
+        CHECK_ERR("cannot release id", function()
+            ctx:destroy()
+        end)
+        CHECK_ERR("cannot release id", function()
+            reg:release(ctx.entity)
+        end)
+    end
+
+    reg:clear()
+
+    do CASE "Clearing does not affect"
+        CHECK(reg:contains(ctx.entity))
     end
 end)
 
@@ -1877,7 +1914,7 @@ TEST("ecr.queue()", function()
 
         do CASE "Iterate multiple values"
             for i = 1, 10 do
-                queue:add(i+1, i+2, i+3)
+                (queue :: any):add(i+1, i+2, i+3)
             end
 
             CHECK(#queue == 10)

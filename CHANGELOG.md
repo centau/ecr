@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - `ecr.is_tag()` to check if a given component is a tag type.
+- `Registry:context()` to store components not specific to an entity.
 
 ### Changed
 

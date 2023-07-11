@@ -363,7 +363,7 @@ Returns a [signal](Signal) which is fired whenever the given component is being 
 
 ### handle()
 
-Returns a [handle](Handle) for an entity.
+Returns a [handle](Handle) to an entity.
 
 - **Type**
 
@@ -374,6 +374,32 @@ Returns a [handle](Handle) for an entity.
 - **Details**
 
     If no entity is given then a new will one be created.
+
+---
+
+### context()
+
+Returns a [handle](Handle) to a special context entity.
+
+- **Type**
+
+    ```lua
+    function Registry:context(): Handle
+    ```
+
+- **Details**
+
+    The context is a special entity that always exists and cannot be
+    destroyed. Components added to it will still be returned by views and fire
+    signals.
+
+    The purpose of the context is to store components that are not specific
+    to entities but instead are concerned with the world itself.
+
+    Examples of when this can be used is to store data such as time, gravity,
+    difficulty, etc.
+
+    The same context entity handle is always returned when called.
 
 ---
 

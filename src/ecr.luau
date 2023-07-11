@@ -117,6 +117,7 @@ export type Registry = typeof(setmetatable({} :: {
     removing: <T>(self: Registry, ctype: T) -> Signal<Entity, nil>,
 
     handle: ((self: Registry, id: Entity) -> Handle) & ((self: Registry) -> Handle),
+    context: (self: Registry) -> Handle
 }, {} :: {
     __iter: (self: Registry) -> () -> Entity,
     __len: (self: Registry) -> number
@@ -196,6 +197,7 @@ local function ID_SWAPKEY(id: number, key: number): number
 end
 
 local ID_NULL = ID_CREATE(0, ID_MAX_VER)
+local ID_CONTEXT = ID_CREATE(0, 1)
 
 --------------------------------------------------------------------------------
 -- Pool
@@ -975,8 +977,11 @@ local function registry_create(): Registry
     local registry = {}
 
     local size = 0
+    local idn = 0
     local free = ID_INVALID_KEY
     local ids = {} :: Array<Entity>
+
+    ids[0] = ID_CONTEXT
 
     local pools: Map<CType, Pool<unknown>> = table.create(ctype_n)
     local groups: Map<CType, GroupData?> = table.create(ctype_n) -- todo: is this needed?
@@ -1097,7 +1102,7 @@ local function registry_create(): Registry
     end
 
     local function release_all()
-        for i = #ids, 1, -1 do
+        for i = idn, 1, -1 do
             local id = ids[i]
             if ID_KEY(id) == i then -- if in use
                 release(id)
@@ -1130,9 +1135,10 @@ local function registry_create(): Registry
             free = next
             return newid
         else
-            local key = #ids + 1
+            local key = idn + 1
             local newid = ID_CREATE(key, ID_INIT_VER)
             ids[key] = newid
+            idn += 1
             return newid
         end  
     end
@@ -1145,13 +1151,17 @@ local function registry_create(): Registry
             "malformed id"
         )
 
-        local n = #ids
-        if key > n + 1 then -- if key has not been created yet
-            for i = n+1, key-2 do
-                ids[i] = ID_CREATE(i + 1, ID_INIT_VER)
+        local n = idn
+
+        if key > n then -- if key has not been created yet
+            if key > n + 1 then
+                for i = n+1, key-2 do
+                    ids[i] = ID_CREATE(i + 1, ID_INIT_VER)
+                end
+                ids[key-1] = ID_CREATE(free, ID_INIT_VER)
+                free = n+1
             end
-            ids[key-1] = ID_CREATE(free, ID_INIT_VER)
-            free = n+1
+            idn = key
         elseif key <= n then -- if key has been created before
             if ids[key] == ID_NULL then -- id is deprecated
                 ids[key] = id   
@@ -1197,6 +1207,12 @@ local function registry_create(): Registry
         end
     end
 
+    local function ASSERT_NOT_RESERVED(key: number, id: Entity)
+        if key == 0 then
+            ERROR("cannot release id")
+        end
+    end
+
     function registry.create(self: Registry, id: Entity?): Entity
         if size >= ID_MAX_KEY then ERROR("cannot create entity; registry is at max entities") end
         return id and create_using(id) or create()
@@ -1204,12 +1220,14 @@ local function registry_create(): Registry
 
     function registry.release(self: Registry, id: Entity)
         ASSERT_VALID_ENTITY(ID_KEY(id), id)
+        ASSERT_NOT_RESERVED(ID_KEY(id), id)
         release(id)
     end
 
     function registry.destroy(self: Registry, id: Entity)
         local key = ID_KEY(id)
         ASSERT_VALID_ENTITY(key, id)
+        ASSERT_NOT_RESERVED(ID_KEY(id), id)
         
         for _, pool in next, pools do
             local idx_ver = pool.map[key]
@@ -1475,6 +1493,15 @@ local function registry_create(): Registry
         return handle :: Handle
     end
 
+    local ctx_handle = table.freeze(setmetatable({
+        registry = registry :: any,
+        entity = ID_CONTEXT
+    }, Handle))
+
+    function registry.context(self: Registry): Handle
+        return ctx_handle   
+    end
+
     -- test methods
     (registry :: any).set_entity_version = function(_, key: number, ver: number)
         ids[key] = ID_CREATE(ID_KEY(ids[key]), ver)
@@ -1486,7 +1513,7 @@ local function registry_create(): Registry
 
     setmetatable(registry, {
         __iter = function(self: Registry): () -> Entity
-            local n = #ids
+            local n = idn
 
             return function()
                 for i = n, 1, -1 do
