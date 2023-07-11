@@ -227,6 +227,24 @@ Removes the given components from an entity.
 
 ---
 
+### clear()
+
+Removes all entities and components from the registry.
+
+- **Type**
+
+    ```lua
+    function Registry:clear<T...>(components: T...): ()
+    ```
+
+- **Details**
+
+    Removes all components given from all entities that have that compoent.
+
+    If no components are given, then all entities in the registry will be destroyed.
+
+---
+
 ### view()
 
 Creates a [`view`](View) for all entities with the specified components.
