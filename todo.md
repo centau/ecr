@@ -4,6 +4,13 @@
 
 - Support for singleton/context components
 - Define behavior when creating/destroying entities during iteration of registry __len.
+- One of two:
+  - Make `Registry:set()` error on `nil` set.
+    - Avoids bug where user intends to set a value but value was `nil`.
+    - Makes `Registry:remove()` less redundant.
+  - Allow `nil` component values?
+    - Could add ambiguity between `nil` components and not having the component at all.
+    - Could then remove `ecr.tag()`.
 - Optimize entity destruction
   - The O(n) check for all registered components is perturbing when in large amount.
   - Potential for parallelized checks?
@@ -28,10 +35,6 @@
 - Lower level access to underlying datastructures.
   - An API for pools returned by `Registry:storage()` like adding and removing.
   - Bulk operations
-- Allow `nil` component values?
-  - Could improve memory usage for valueless components.
-  - But could add ambiguity between `nil` components and not having the component at all.
-  - Could then remove `ecr.tag()`.
 - Make methods like `Registry:has()` and `Registry:try_get()` error when invalid entities are passed
   - Should they? (they currently just return `nil`)
   - Doing this will reduce performance.
