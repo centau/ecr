@@ -29,6 +29,7 @@
 
 - Add more docs
 - Make codebase nicer.
+- Optimize adding to group.
 - Disallow creation of handles for invalid entities?
 - Look into component relationships
   - `ecr.pair(A, B)` to create new combinational component.

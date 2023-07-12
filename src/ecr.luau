@@ -200,113 +200,6 @@ local ID_NULL = ID_CREATE(0, ID_MAX_VER)
 local ID_CONTEXT = ID_CREATE(0, 1)
 
 --------------------------------------------------------------------------------
--- Pool
---------------------------------------------------------------------------------
-
-local function pool_create<T>(size: number?): Pool<T>
-    local n = size or 1
-    return {
-        size = 0,
-        map = table.create(n),
-        entities = table.create(n),
-        values = table.create(n),
-
-        added = false,
-        changed = false,
-        removing = false,
-        group = false
-    }
-end
-
-local function pool_add<T>(self: Pool<T>, key: number, id: Entity, v: T)
-    local n = self.size + 1; self.size = n
-    self.map[key] = ID_SWAPKEY(id, n)
-    self.entities[n] = id
-    self.values[n] = v     
-end
-
-local function pool_remove<T>(self: Pool<T>, idx: number, key: number)
-    local n = self.size; self.size = n - 1
-    local map = self.map
-    local entities = self.entities
-    local values = self.values
-
-    local lastid = entities[n]
-    map[ID_KEY(lastid)] = ID_SWAPKEY(lastid, idx); map[key] = nil
-    entities[idx] = lastid; entities[n] = nil
-    values[idx] = values[n]; values[n] = nil
-end
-
-local function pool_add_id<T>(self: Pool<T>, id: Entity)
-    local map = self.map
-
-    local key = ID_KEY(id)
-    local idx_ver = map[key]
-
-    if idx_ver == nil then
-        local n = self.size + 1; self.size = n
-        map[key] = ID_SWAPKEY(id, n)
-        self.entities[n] = id
-    end 
-end
-
-local function pool_remove_id<T>(self: Pool<T>, id: Entity)
-    local map = self.map
-    local entities = self.entities
-
-    local key = ID_KEY(id)
-    local idx_ver = map[key]
-
-    if idx_ver then
-        local n = self.size; self.size = n - 1
-        local idx = ID_KEY(idx_ver)
-        local lastid = entities[n]
-        map[ID_KEY(lastid)] = ID_SWAPKEY(lastid, idx); map[key] = nil
-        entities[idx] = lastid; entities[n] = nil
-    end
-end
-
-local function pool_swap<T>(
-    self: Pool<T>,
-    idx: number,
-    key: number,
-    id: number,
-    target_idx: number
-)
-    local map = self.map
-    local entities = self.entities
-    local values = self.values
-
-    local id_swap = entities[target_idx]
-    
-    entities[target_idx], entities[idx] = id, id_swap
-    values[target_idx], values[idx] = values[idx], values[target_idx]
-    map[key] = ID_SWAPKEY(id, target_idx)
-    map[ID_KEY(id_swap)] = ID_SWAPKEY(id_swap, idx)
-end
-
-local function pool_clear<T>(self: Pool<T>)
-    self.size = 0
-    table.clear(self.map)
-    table.clear(self.entities)
-    table.clear(self.values)
-end
-
-local function pool_clone<T>(self: Pool<T>): Pool<T>
-    return {
-        size = self.size,
-        map = table.clone(self.map),
-        entities = table.clone(self.entities),
-        values = table.clone(self.values),
-
-        added = false,
-        changed = false,
-        removing = false,
-        group = false
-    }
-end
-
---------------------------------------------------------------------------------
 -- Component Type
 --------------------------------------------------------------------------------
 
@@ -345,6 +238,279 @@ local function ctype_debug(ctype: CType?, idx: number?)
         if name then `component "{name}"`
         elseif idx then `component (arg #{idx})`
         else "component (unknown)"
+end
+
+--------------------------------------------------------------------------------
+-- Pool
+--------------------------------------------------------------------------------
+
+local function fire<T>(listeners: Array<Listener<T>>, id: Entity, value: T)
+    for i = #listeners, 1, -1 do
+        listeners[i](id, value)         
+    end 
+end
+
+local function check_versions_equal(idx: number, idx_ver: number, key: number, id: number): boolean
+    return idx_ver - idx + key == id
+end
+
+local function ASSERT_VERSIONS_EQUAL(idx: number, idx_ver: number, key: number, id: number)
+    if idx_ver - idx + key ~= id then
+        ASSERT(false, `invalid entity`)    
+    end
+end
+
+local function ASSERT_VALID_ENTITY(key: number, id: Entity, ids: Array<Entity>)
+    if ids[key] ~= id then
+        ASSERT(false, `invalid entity`)
+    end
+end
+
+local function pool_swap<T>(
+    self: Pool<T>,
+    idx: number,
+    key: number,
+    id: number,
+    target_idx: number
+)
+    local map = self.map
+    local entities = self.entities
+    local values = self.values
+
+    local id_swap = entities[target_idx]
+    
+    entities[target_idx], entities[idx] = id, id_swap
+    values[target_idx], values[idx] = values[idx], values[target_idx]
+    map[key] = ID_SWAPKEY(id, target_idx)
+    map[ID_KEY(id_swap)] = ID_SWAPKEY(id_swap, idx)
+end
+
+local function group_try_add<T>(group: GroupData<T>, key: number, id: number)
+    for _, pool in ipairs(group) do
+        if pool.map[key] == nil then
+            return
+        end
+    end
+
+    local n = group.size + 1
+    group.size = n
+
+    group.added = true
+
+    for _, pool in ipairs(group) do
+        pool_swap(pool, ID_KEY(pool.map[key] :: number), key, id, n)
+    end
+end
+
+-- returns new internal index of id
+local function group_try_remove<T>(group: GroupData<T>, index: number, key: number, id: number): number
+    local n = group.size
+    if index <= n then
+        group.size = n - 1
+        for _, pool in ipairs(group) do        
+            pool_swap(pool, index, key, id, n)
+        end
+        return n
+    else
+        return index
+    end
+end
+
+local function pool_create<T>(size: number?): Pool<T>
+    local n = size or 1
+    return {
+        size = 0,
+        map = table.create(n),
+        entities = table.create(n),
+        values = table.create(n),
+
+        added = false,
+        changed = false,
+        removing = false,
+        group = false
+    }
+end
+
+local function pool_unsafe_add<T>(self: Pool<T>, key: number, id: Entity, v: T)
+    local n = self.size + 1; self.size = n
+    self.map[key] = ID_SWAPKEY(id, n)
+    self.entities[n] = id
+    self.values[n] = v
+
+    if self.group then group_try_add(self.group, key, id) end
+    if self.added then fire(self.added, id, v) end
+end
+
+-- adds id and value to pool, or changes value if already added
+-- errors if id is invalid
+local function pool_safe_set<T>(self: Pool<T>, id: Entity, v: T, ids: Array<Entity>)
+    local key = ID_KEY(id)
+    local idx_ver = self.map[key]
+
+    if idx_ver then -- already added, change value
+        local idx = ID_KEY(idx_ver)
+        ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
+        self.values[idx] = v
+        if self.changed then fire(self.changed, id, v) end
+    else -- not added, add value
+        ASSERT_VALID_ENTITY(key, id, ids)
+        pool_unsafe_add(self, key, id, v)
+    end
+end
+
+local function pool_unsafe_remove_key<T>(self: Pool<T>, key: number, id: Entity)
+    local idx_ver = self.map[key]
+
+    if idx_ver then
+        if self.removing then fire(self.removing, id) end
+
+        local idx = ID_KEY(idx_ver)
+
+        if self.group then
+            idx = group_try_remove(self.group, idx, key, id)
+        end
+
+        local n = self.size; self.size = n - 1
+        local map = self.map
+        local entities = self.entities
+        local values = self.values
+
+        local lastid = entities[n]
+        map[ID_KEY(lastid)] = ID_SWAPKEY(lastid, idx); map[key] = nil
+        entities[idx] = lastid; entities[n] = nil
+        values[idx] = values[n]; values[n] = nil
+    end
+end
+
+local function pool_safe_remove<T>(self: Pool<T>, id: Entity)
+    local key = ID_KEY(id)
+
+    local map = self.map
+    local entities = self.entities
+    local values = self.values
+
+    local idx_ver = map[key]
+
+    if idx_ver then
+        if self.removing then fire(self.removing, id) end
+
+        local idx = ID_KEY(idx_ver)
+        ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
+
+        if self.group then
+            idx = group_try_remove(self.group, idx, key, id)
+        end
+    
+        local n = self.size; self.size = n - 1
+        local lastid = entities[n]
+        map[ID_KEY(lastid)] = ID_SWAPKEY(lastid, idx); map[key] = nil
+        entities[idx] = lastid; entities[n] = nil
+        values[idx] = values[n]; values[n] = nil
+    end
+end
+
+local function pool_safe_patch<T>(
+    self: Pool<T>,
+    id: Entity,
+    fn: (T) -> T,
+    ids: Array<Entity>,
+    ctype: T
+)
+    local key = ID_KEY(id)
+    local idx_ver = self.map[key]
+    
+    if idx_ver == nil then
+        ASSERT_VALID_ENTITY(key, id, ids)
+        local ctor = ctype_constructors[ctype]
+        if ctor == nil or ctor == ctype_TAG then
+            ERROR(`entity does not have component and no constructor for {ctype_debug(ctype)}`)
+        end
+        local value = fn((ctor :: () -> T)())
+        if value == nil then ERROR("patcher cannot return nil") end
+        pool_unsafe_add(self, key, id, value)
+    else
+        local idx = ID_KEY(idx_ver)
+        ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
+        local value = fn(self.values[idx])
+        if value == nil then ERROR("patcher cannot return nil") end
+        self.values[idx] = value
+        if self.changed then
+            fire(self.changed, id, value)
+        end
+    end
+end
+
+local function pool_safe_try_get<T>(self: Pool<T>, id: Entity): T?
+    local key = ID_KEY(id)
+    local idx_ver = self.map[key]
+    if idx_ver then
+        local idx = ID_KEY(idx_ver)
+        ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
+        return self.values[idx]
+    end
+    return nil
+end
+
+local function pool_add_id<T>(self: Pool<T>, id: Entity)
+    local map = self.map
+
+    local key = ID_KEY(id)
+    local idx_ver = map[key]
+
+    if idx_ver == nil then
+        local n = self.size + 1; self.size = n
+        map[key] = ID_SWAPKEY(id, n)
+        self.entities[n] = id
+    end 
+end
+
+local function pool_remove_id<T>(self: Pool<T>, id: Entity)
+    local map = self.map
+    local entities = self.entities
+
+    local key = ID_KEY(id)
+    local idx_ver = map[key]
+
+    if idx_ver then
+        local n = self.size; self.size = n - 1
+        local idx = ID_KEY(idx_ver)
+        local lastid = entities[n]
+        map[ID_KEY(lastid)] = ID_SWAPKEY(lastid, idx); map[key] = nil
+        entities[idx] = lastid; entities[n] = nil
+    end
+end
+
+
+
+local function pool_clear<T>(self: Pool<T>)
+    if self.removing then
+        for _, id in next, self.entities do
+            fire(self.removing, id)
+        end
+    end
+
+    if self.group then
+        self.group.size = 0
+    end
+
+    self.size = 0
+    table.clear(self.map)
+    table.clear(self.entities)
+    table.clear(self.values)
+end
+
+local function pool_clone<T>(self: Pool<T>): Pool<T>
+    return {
+        size = self.size,
+        map = table.clone(self.map),
+        entities = table.clone(self.entities),
+        values = table.clone(self.values),
+
+        added = false,
+        changed = false,
+        removing = false,
+        group = false
+    }
 end
 
 --------------------------------------------------------------------------------
@@ -887,11 +1053,7 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
             id = id,
 
             disconnect = function(self: _Connection<T...>)
-                local pool = self.signal.pool
-                local idx_ver = pool.map[self.id]
-                if idx_ver then
-                    pool_remove(self.signal.pool, ID_KEY(idx_ver), self.id)
-                end  
+                pool_safe_remove(self.signal.pool, self.id)
             end
         }
     end
@@ -905,7 +1067,7 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
 
             connect = function(self: _Signal<T...>, listener: (T...) -> ()): _Connection<T...>
                 local n = self.count + 1; self.count = n
-                pool_add(self.pool, n, n, listener)
+                pool_unsafe_add(self.pool, n, n, listener)
                 return Connection.new(self, n)  
             end
         }
@@ -1006,37 +1168,6 @@ local function registry_create(): Registry
         return pools[ctype] :: Pool<any>
     end
 
-    local function group_try_add<T>(group: GroupData<T>, key: number, id: number)
-        for _, pool in ipairs(group) do
-            if pool.map[key] == nil then
-                return
-            end
-        end
-
-        local n = group.size + 1
-        group.size = n
-
-        group.added = true
-
-        for _, pool in ipairs(group) do
-            pool_swap(pool, ID_KEY(pool.map[key] :: number), key, id, n)
-        end
-    end
-
-    -- returns new internal index of id
-    local function group_try_remove<T>(group: GroupData<T>, index: number, key: number, id: number): number
-        local n = group.size
-        if index <= n then
-            group.size = n - 1
-            for _, pool in ipairs(group) do        
-                pool_swap(pool, index, key, id, n)
-            end
-            return n
-        else
-            return index
-        end
-    end
-
     local function group_init(...: any): GroupData
         local group = { size = 0, added = false }
 
@@ -1055,38 +1186,6 @@ local function registry_create(): Registry
         end
 
         return group
-    end
-
-    local function add<T>(pool: Pool<T>, key: number, id: number, value: T)
-        pool_add(pool, key, id, value)
-        if pool.group then
-            group_try_add(pool.group, key, id)
-        end
-    end
-
-    local function remove<T>(pool: Pool<T>, index: number, key: number, id: number)
-        if pool.group then
-            index = group_try_remove(pool.group, index, key, id)
-        end
-        pool_remove(pool, index, key)
-    end
-
-    local function fire<T>(listeners: Array<Listener<T>>, id: Entity, value: T)
-        for i = #listeners, 1, -1 do
-            listeners[i](id, value)         
-        end 
-    end
-
-    local function fire_added<T>(pool: Pool<T>, id: Entity, value: T)
-        if pool.added then fire(pool.added, id, value) end
-    end
-
-    local function fire_changed<T>(pool: Pool<T>, id: Entity, value: T)
-        if pool.changed then fire(pool.changed, id, value) end
-    end
-
-    local function fire_removing<T>(pool: Pool<T>, id: Entity)
-        if pool.removing then fire(pool.removing, id) end
     end
 
     local function release(id: Entity)
@@ -1108,22 +1207,6 @@ local function registry_create(): Registry
                 release(id)
             end
         end
-    end
-
-    local function clear(ctype: CType)
-        local pool = pools[ctype]
-
-        if pool.removing then
-            for _, id in next, pool.entities do
-                fire(pool.removing, id)
-            end    
-        end
-
-        if pool.group then
-            pool.group.size = 0
-        end
-        
-        pool_clear(pool)
     end
 
     local function create(): Entity
@@ -1230,11 +1313,7 @@ local function registry_create(): Registry
         ASSERT_NOT_RESERVED(ID_KEY(id), id)
         
         for _, pool in next, pools do
-            local idx_ver = pool.map[key]
-            if idx_ver then
-                fire_removing(pool, id)
-                remove(pool, ID_KEY(idx_ver), key, id)
-            end
+            pool_unsafe_remove_key(pool, key, id)
         end
 
         release(id)
@@ -1260,7 +1339,9 @@ local function registry_create(): Registry
 
         for i = 1, select("#", ...) do
             local ctype = select(i, ...)
-            local pool = pools[ctype]
+            local pool = get_pool(ctype)
+
+            -- continue if already added
             if pool.map[key] then continue end
 
             local constructor = ctype_constructors[ctype] or ERROR(`no constructor defined for {ctype_debug(ctype, i)}`)
@@ -1270,62 +1351,20 @@ local function registry_create(): Registry
                 if value == nil then ERROR(`{ ctype_debug(ctype, i) } constructor did not return a value`) end   
             end
             
-            add(pool, key, id, value)
-            fire_added(pool, id, value)
+            pool_unsafe_add(pool, key, id, value)
         end
     end
 
     function registry.set<T>(self: Registry, id: Entity, ctype: T, value: T?)
-        local pool = get_pool(ctype)
-        local key = ID_KEY(id)
-        local idx_ver = pool.map[key]
-        
         if value ~= nil then
-            if idx_ver then -- change
-                local idx = ID_KEY(idx_ver)
-                ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
-                pool.values[idx] = value
-                fire_changed(pool, id, value)
-            else -- add
-                ASSERT_VALID_ENTITY(key, id)
-                add(pool, key, id, value)
-                fire_added(pool, id, value)
-            end
-        elseif idx_ver then -- remove
-            local idx = ID_KEY(idx_ver)
-            ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
-            fire_removing(pool, id)
-            remove(pool, idx, key, id)
+            pool_safe_set(get_pool(ctype), id, value, ids)
+        else
+            pool_safe_remove(get_pool(ctype), id)
         end
     end
     
-    function registry.patch<T>(self: Registry, id: Entity, ctype: T, patcher: (T) -> T?)
-        local pool = get_pool(ctype)
-        local key = ID_KEY(id)
-        local idx_ver = pool.map[key] :: number
-        if idx_ver == nil then
-            ASSERT_VALID_ENTITY(key, id)
-
-            local constructor = ctype_constructors[ctype]
-            if constructor == nil or constructor == true then
-                ERROR(`entity does not have component and no constructor for {ctype_debug(ctype)}`)
-            end
-            local value = patcher((constructor :: () -> T)())
-            if value == nil then ERROR("patcher cannot return nil") end
-            add(pool, key, id, value :: T)
-            fire_added(pool, id, value :: T)
-        else
-            local idx = ID_KEY(idx_ver)
-    
-            ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
-    
-            local values = pool.values
-            local value = patcher(values[idx])
-            if value == nil then ERROR("patcher cannot return nil") end
-    
-            values[idx] = value :: T
-            fire_changed(pool, id, value :: T)
-        end
+    function registry.patch<T>(self: Registry, id: Entity, ctype: T, fn: (T) -> T)
+        pool_safe_patch(get_pool(ctype), id, fn, ids, ctype)
     end
 
     registry.has = (function(self: Registry, id: Entity, ...: unknown): boolean
@@ -1356,7 +1395,7 @@ local function registry_create(): Registry
         local pool = pools[ctype]
         local idx_ver = pool.map[key]
         if idx_ver == nil then ERROR(`entity does not have {ctype_debug(ctype)}`) end
-        return pool.values[ID_KEY(idx_ver:: number)]
+        return pool.values[ID_KEY(idx_ver :: number)]
     end
 
     registry.get = (function(self: Registry, id: Entity, ...: unknown): ...unknown
@@ -1380,39 +1419,21 @@ local function registry_create(): Registry
     end :: any) :: <T...>(self: Registry, id: Entity, T...) -> T...
 
     function registry.try_get<T>(self: Registry, id: Entity, ctype: T): T?
-        local key = ID_KEY(id)
-        local pool = pools[ctype]
-        local idx_ver = pool.map[key]
-        if idx_ver == nil then return nil end
-        local idx = ID_KEY(idx_ver)
-        ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
-        return pool.values[idx] :: T
+        return pool_safe_try_get(get_pool(ctype), id)
     end
 
     function registry.remove<T...>(self: Registry, id: Entity, ...: T...)
-        local key = ID_KEY(id)
         for i = 1, select("#", ...) do
-            local ctype = select(i, ...)
-            local pool = pools[ctype]
-            local idx_ver = pool.map[key] :: number
-            if idx_ver == nil then continue end
-
-            local idx = ID_KEY(idx_ver)
-            ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
-            
-            fire_removing(pool, id)
-            remove(pool, idx, key, id)
+            pool_safe_remove(get_pool(select(i, ...)), id)
         end
     end
 
     function registry.clear<T...>(self: Registry, ...: T...)
         local argn = select("#", ...)
         if argn > 0 then
-            for i = 1, argn do
-                clear(select(i, ...))
-            end
+            for i = 1, argn do pool_clear(get_pool(select(i, ...))) end
         else
-            for ctype in next, pools do clear(ctype) end
+            for _, pool in next, pools do pool_clear(pool) end
             release_all()
         end 
     end
@@ -1423,7 +1444,7 @@ local function registry_create(): Registry
     end 
 
     function registry.track<T...>(self: Registry, ...: T...): Observer<T...>
-        ASSERT(select("#", ...) > 0, "view must contain at least 1 component")
+        ASSERT(select("#", ...) > 0, "observer must contain at least 1 component")
         return Observer.new(self, ...)
     end
 
@@ -1436,7 +1457,7 @@ local function registry_create(): Registry
             local ctype = select(i, ...)
             ASSERT(ctype_valid(ctype), `invalid { ctype_debug(nil, i) }`)
             ASSERT(groups[ctype] == group,
-                `cannot create group; { ctype_debug(ctype, i) } is not owned by the same group as previous args`)
+                `cannot create group; {ctype_debug(ctype, i)} is not owned by the same group as previous args`)
         end
 
         return Group.new(self, group or group_init(...), ...)
@@ -1493,13 +1514,8 @@ local function registry_create(): Registry
         return handle :: Handle
     end
 
-    local ctx_handle = table.freeze(setmetatable({
-        registry = registry :: any,
-        entity = ID_CONTEXT
-    }, Handle))
-
     function registry.context(self: Registry): Handle
-        return ctx_handle   
+        return self:handle(ID_CONTEXT)  
     end
 
     -- test methods
