@@ -4,10 +4,17 @@
 
 - Support for singleton/context components
 - Define behavior when creating/destroying entities during iteration of registry __len.
+- Dedicated entity storage
+  - Special component `ecr.entity` that can be used to retrieve entity storage.
+  - Allows for:
+    - Exclude-only views
+    - Signals for creation and destruction of entities
+    - Access to list of all living entities
 - One of two:
   - Make `Registry:set()` error on `nil` set.
     - Avoids bug where user intends to set a value but value was `nil`.
     - Makes `Registry:remove()` less redundant.
+    - Removes weird case where `entity:set(tag, entity:get(tag))` will remove
   - Allow `nil` component values?
     - Could add ambiguity between `nil` components and not having the component at all.
     - Could then remove `ecr.tag()`.
