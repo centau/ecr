@@ -30,7 +30,9 @@
 - Add more docs
 - Make codebase nicer.
 - Optimize adding to group.
+- Nested groups.
 - Disallow creation of handles for invalid entities?
+- Boolean component optimization
 - Look into component relationships
   - `ecr.pair(A, B)` to create new combinational component.
   - Why is this useful?

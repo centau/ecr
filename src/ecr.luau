@@ -260,8 +260,9 @@ local function ASSERT_VERSIONS_EQUAL(idx: number, idx_ver: number, key: number, 
     end
 end
 
-local function ASSERT_VALID_ENTITY(key: number, id: Entity, ids: Array<Entity>)
-    if ids[key] ~= id then
+local function ASSERT_VALID_ENTITY(key: number, id: Entity, map: Array<Entity>)
+    local idx_ver = math.abs(map[key])
+    if check_versions_equal(ID_KEY(idx_ver), idx_ver, key, id) == false then
         ASSERT(false, `invalid entity`)
     end
 end
@@ -480,8 +481,6 @@ local function pool_remove_id<T>(self: Pool<T>, id: Entity)
     end
 end
 
-
-
 local function pool_clear<T>(self: Pool<T>)
     if self.removing then
         for _, id in next, self.entities do
@@ -511,6 +510,132 @@ local function pool_clone<T>(self: Pool<T>): Pool<T>
         removing = false,
         group = false
     }
+end
+
+type EntityPool = Pool<nil> & {
+    capacity: number,
+    free: number
+}
+
+local function entity_pool_create(): EntityPool
+    local pool = pool_create() :: EntityPool
+    pool.capacity = 0
+    pool.free = ID_INVALID_KEY
+    return pool
+end
+
+local function entity_pool_add(self: EntityPool): Entity
+    local size = self.size + 1; self.size = size
+    local free = self.free
+    local id
+    if free ~= ID_INVALID_KEY then -- reuse
+        local data = - self.map[free] :: number
+        local next_key = ID_KEY(data)
+        id = ID_SWAPKEY(data, free)
+        self.map[free] = ID_SWAPKEY(data, size)
+        self.entities[size] = id
+        self.free = next_key
+    else -- create new
+        self.capacity += 1
+        local key = self.capacity
+        id = ID_CREATE(key, ID_INIT_VER)
+        self.map[key] = ID_CREATE(size, ID_INIT_VER)
+        self.entities[size] = id
+    end
+
+    if self.added then fire(self.added, id) end
+
+    return id
+end
+
+local function entity_pool_reuse(self: EntityPool, id: Entity): Entity
+    local key, ver = ID_KEY_VER(id)
+        ASSERT(
+            key >= 1 and ver >= 1 and
+            key <= ID_MAX_KEY and ver <= ID_MAX_VER,
+            "malformed id"
+        )
+
+        local capacity = self.capacity
+        local map = self.map :: Array<number>
+
+        local free = self.free
+
+        if key > capacity then -- if key has not been created yet
+            if key > capacity + 1 then
+                for i = capacity + 1, key - 2 do
+                    map[i] = - ID_CREATE(i + 1, ID_INIT_VER)
+                end
+                map[key - 1] = - ID_CREATE(free, ID_INIT_VER)
+                self.free = capacity + 1
+            end
+            self.capacity = key
+        elseif key <= capacity then -- if key has been created before
+            if map[key] == - ID_NULL then -- id is deprecated -- todo: test
+                map[key] = id   
+            else
+                ASSERT(
+                    free ~= ID_INVALID_KEY -- an unused key exists
+                    and map[key] <= 0, -- desired key is not in use
+                    "key is already in use"
+                )   
+                if free == key then -- if desired id is at head
+                    local next_key = ID_KEY(- map[free])
+                    free = next_key
+                else -- desired id is somewhere along list
+                    local previous = free
+                    while true do -- find element before desired id
+                        local next = ID_KEY(- map[previous])
+                        if next == key then break end
+                        previous = next
+                    end
+                    map[previous] = ID_SWAPKEY(- map[previous], ID_KEY(- map[key]))
+                end
+            end
+            
+        end
+        local n = self.size + 1; self.size = n
+        map[key] = ID_SWAPKEY(id, n)
+        self.entities[n] = id
+        return id
+end
+
+local function entity_pool_remove(self: EntityPool, id: Entity)
+    local key, ver = ID_KEY_VER(id)
+    local n = self.size; self.size = n - 1
+
+    local map = self.map :: Array<number>
+    local entities = self.entities
+
+    local idx = ID_KEY(map[key])
+
+    if ver < ID_MAX_VER then
+        map[key] = - ID_CREATE(self.free, ver + 1) -- recycle key
+        self.free = key
+    else
+        map[key] = ID_NULL -- permanently deprecate key
+    end
+
+    local last_id = entities[n]
+
+    map[ID_KEY(last_id)] = ID_SWAPKEY(last_id, idx)
+    entities[idx] = last_id; entities[n] = nil
+end
+
+local function entity_pool_has(self: EntityPool, id: number): boolean
+    local key = ID_KEY(id)
+    local data = self.map[key] :: number
+    return data > 0 and ID_SWAPKEY(data, key) == id
+end
+
+local function entity_pool_clear(self: EntityPool)
+    local map = self.map
+    for i = self.capacity, 1, -1 do
+        local id = map[i] :: number
+        if id > 0 then -- if in use
+            entity_pool_remove(self, id)
+        end
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -1131,6 +1256,8 @@ local Handle = (function(): HandleMT
     return Handle
 end)()
 
+print( ID_KEY(-ID_CREATE(100, 10)))
+
 --------------------------------------------------------------------------------
 -- Registry
 --------------------------------------------------------------------------------
@@ -1138,12 +1265,9 @@ end)()
 local function registry_create(): Registry
     local registry = {}
 
-    local size = 0
-    local idn = 0
-    local free = ID_INVALID_KEY
-    local ids = {} :: Array<Entity>
+    local id_pool = entity_pool_create()
 
-    ids[0] = ID_CONTEXT
+    id_pool.map[0] = ID_CONTEXT
 
     local pools: Map<CType, Pool<unknown>> = table.create(ctype_n)
     local groups: Map<CType, GroupData?> = table.create(ctype_n) -- todo: is this needed?
@@ -1188,92 +1312,6 @@ local function registry_create(): Registry
         return group
     end
 
-    local function release(id: Entity)
-        local key, ver = ID_KEY_VER(id)
-        size -= 1
-
-        if ver < ID_MAX_VER then
-            ids[key] = ID_CREATE(free, ver + 1) -- recycle key
-            free = key
-        else
-            ids[key] = ID_NULL -- permanently deprecate key
-        end     
-    end
-
-    local function release_all()
-        for i = idn, 1, -1 do
-            local id = ids[i]
-            if ID_KEY(id) == i then -- if in use
-                release(id)
-            end
-        end
-    end
-
-    local function create(): Entity
-        size += 1
-        if free ~= ID_INVALID_KEY then
-            local next = ID_KEY(ids[free])
-            local newid = ID_SWAPKEY(ids[free], free)
-            ids[free] = newid
-            free = next
-            return newid
-        else
-            local key = idn + 1
-            local newid = ID_CREATE(key, ID_INIT_VER)
-            ids[key] = newid
-            idn += 1
-            return newid
-        end  
-    end
-
-    local function create_using(id: Entity): Entity
-        local key, ver = ID_KEY_VER(id)
-        ASSERT(
-            key >= 1 and ver >= 1 and
-            key <= ID_MAX_KEY and ver <= ID_MAX_VER,
-            "malformed id"
-        )
-
-        local n = idn
-
-        if key > n then -- if key has not been created yet
-            if key > n + 1 then
-                for i = n+1, key-2 do
-                    ids[i] = ID_CREATE(i + 1, ID_INIT_VER)
-                end
-                ids[key-1] = ID_CREATE(free, ID_INIT_VER)
-                free = n+1
-            end
-            idn = key
-        elseif key <= n then -- if key has been created before
-            if ids[key] == ID_NULL then -- id is deprecated
-                ids[key] = id   
-            else
-                ASSERT(
-                    free ~= ID_INVALID_KEY -- an unused key exists
-                    and ID_KEY(ids[key]) ~= key, -- desired key is not in use
-                    "key is already in use"
-                )   
-                if free == key then -- if desired id is at head
-                    local next = ID_KEY(ids[free])
-                    free = next
-                else -- desired id is somewhere along list
-                    local previous = free
-                    while true do -- find element before desired id
-                        local next = ID_KEY(ids[previous])
-                        if next == key then break end
-                        previous = next
-                    end
-                    ids[previous] = ID_SWAPKEY(ids[previous], ID_KEY(ids[key]))
-                end
-            end
-            
-        end
-        size += 1
-        ids[key] = id
-        return id
-    end
-
     local function check_versions_equal(idx: number, idx_ver: number, key: number, id: number): boolean
         return idx_ver - idx + key == id
     end
@@ -1285,7 +1323,7 @@ local function registry_create(): Registry
     end
 
     local function ASSERT_VALID_ENTITY(key: number, id: Entity)
-        if ids[key] ~= id then
+        if entity_pool_has(id_pool, id) == false then
             ASSERT(false, `invalid entity`)
         end
     end
@@ -1297,14 +1335,14 @@ local function registry_create(): Registry
     end
 
     function registry.create(self: Registry, id: Entity?): Entity
-        if size >= ID_MAX_KEY then ERROR("cannot create entity; registry is at max entities") end
-        return id and create_using(id) or create()
+        if id_pool.size >= ID_MAX_KEY then ERROR("cannot create entity; registry is at max entities") end
+        return id and entity_pool_reuse(id_pool, id) or entity_pool_add(id_pool)
     end
 
     function registry.release(self: Registry, id: Entity)
         ASSERT_VALID_ENTITY(ID_KEY(id), id)
         ASSERT_NOT_RESERVED(ID_KEY(id), id)
-        release(id)
+        entity_pool_remove(id_pool, id)
     end
 
     function registry.destroy(self: Registry, id: Entity)
@@ -1316,11 +1354,11 @@ local function registry_create(): Registry
             pool_unsafe_remove_key(pool, key, id)
         end
 
-        release(id)
+        entity_pool_remove(id_pool, id)
     end
 
     function registry.contains(self: Registry, id: Entity): boolean
-        return ids[ID_KEY(id)] == id
+        return entity_pool_has(id_pool, id)
     end
 
     function registry.orphaned(self: Registry, id: Entity): boolean
@@ -1357,14 +1395,14 @@ local function registry_create(): Registry
 
     function registry.set<T>(self: Registry, id: Entity, ctype: T, value: T?)
         if value ~= nil then
-            pool_safe_set(get_pool(ctype), id, value, ids)
+            pool_safe_set(get_pool(ctype), id, value, id_pool.map)
         else
             pool_safe_remove(get_pool(ctype), id)
         end
     end
     
     function registry.patch<T>(self: Registry, id: Entity, ctype: T, fn: (T) -> T)
-        pool_safe_patch(get_pool(ctype), id, fn, ids, ctype)
+        pool_safe_patch(get_pool(ctype), id, fn, id_pool.map, ctype)
     end
 
     registry.has = (function(self: Registry, id: Entity, ...: unknown): boolean
@@ -1434,7 +1472,7 @@ local function registry_create(): Registry
             for i = 1, argn do pool_clear(get_pool(select(i, ...))) end
         else
             for _, pool in next, pools do pool_clear(pool) end
-            release_all()
+            entity_pool_clear(id_pool)
         end 
     end
 
@@ -1520,30 +1558,28 @@ local function registry_create(): Registry
 
     -- test methods
     (registry :: any).set_entity_version = function(_, key: number, ver: number)
-        ids[key] = ID_CREATE(ID_KEY(ids[key]), ver)
+        local data = id_pool.map[key] :: number
+        if data > 0 then ERROR("attempt to set version of in-use entity") end
+        id_pool.map[key] = - ID_CREATE(ID_KEY(math.abs(data)), ver)
     end
 
     (registry :: any).get_current_entity_version = function(_, id: Entity): number
-        return ID_VER(ids[ID_KEY(id)])
+        return ID_VER(math.abs(id_pool.map[ID_KEY(id)] :: number))
     end
 
     setmetatable(registry, {
         __iter = function(self: Registry): () -> Entity
-            local n = idn
+            local n = id_pool.size
+            local entities = id_pool.entities
 
             return function()
-                for i = n, 1, -1 do
-                    if ID_KEY(ids[i]) == i then
-                        n = i - 1
-                        return ids[i]
-                    end
-                end
-                return nil :: any
+                local i = n; n = i - 1
+                return entities[i]
             end
         end,
 
         __len = function(self: Registry): number
-            return size
+            return id_pool.size
         end,
 
         __index = strict("Registry")
