@@ -2,22 +2,16 @@
 
 ## High Priority
 
-- Support for singleton/context components
-- Define behavior when creating/destroying entities during iteration of registry __len.
-- Dedicated entity storage
-  - Special component `ecr.entity` that can be used to retrieve entity storage.
-  - Allows for:
-    - Exclude-only views
-    - Signals for creation and destruction of entities
-    - Access to list of all living entities
-- One of two:
-  - Make `Registry:set()` error on `nil` set.
-    - Avoids bug where user intends to set a value but value was `nil`.
-    - Makes `Registry:remove()` less redundant.
-    - Removes weird case where `entity:set(tag, entity:get(tag))` will remove
-  - Allow `nil` component values?
-    - Could add ambiguity between `nil` components and not having the component at all.
-    - Could then remove `ecr.tag()`.
+- Either an example or built-in class for serialization/continuous loading of one registry to another.
+- Remove registry `__len` and `__iter`
+  - Now redundant with the addition of dedicated entity pool.
+  - `#registry` becomes `#registry:view(ecr.entity)`.
+  - `for id in registry` becomes `for id in registry:view(ecr.entity)`.
+- Make `Registry:set()` error on `nil` set.
+  - Makes intention more explicit.
+  - Avoids bug where user intends to set a value but value was `nil`.
+  - Makes `Registry:remove()` less redundant.
+  - Removes weird case where `entity:set(tag, entity:get(tag))` will remove the tag
 - Optimize entity destruction
   - The O(n) check for all registered components is perturbing when in large amount.
   - Potential for parallelized checks?
@@ -44,6 +38,7 @@
   - Remove it altogether? We want a completely safe API.
 - Lower level access to underlying datastructures.
   - An API for pools returned by `Registry:storage()` like adding and removing.
+  - Bypass pool lookups and safety check.
   - Bulk operations
 - Make methods like `Registry:has()` and `Registry:try_get()` error when invalid entities are passed
   - Should they? (they currently just return `nil`)
