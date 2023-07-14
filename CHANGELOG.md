@@ -10,6 +10,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `ecr.entity` which is a built-in component that can be used to access a
+  dedicated entity pool:
+  - Exclude-only views `registry:view(ecr.entity):exclude(...)`.
+  - Signals for creation and destruction of entities `registry:added(ecr.entity):connect()`.
+  - Direct access to array of all entities in the registry `registry:storage(ecr.entity)`.
 - `ecr.is_tag()` to check if a given component is a tag type.
 - `Registry:context()` to store components not specific to an entity.
 

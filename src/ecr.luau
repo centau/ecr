@@ -240,7 +240,7 @@ local function ctype_debug(ctype: CType?, idx: number?)
         else "component (unknown)"
 end
 
-local ctype_entity = ctype_create()
+local ctype_entity = ctype_tag()
 ctype_name(ctype_entity, "entity")
 
 --------------------------------------------------------------------------------
