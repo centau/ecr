@@ -240,6 +240,9 @@ local function ctype_debug(ctype: CType?, idx: number?)
         else "component (unknown)"
 end
 
+local ctype_entity = ctype_create()
+ctype_name(ctype_entity, "entity")
+
 --------------------------------------------------------------------------------
 -- Pool
 --------------------------------------------------------------------------------
@@ -261,8 +264,8 @@ local function ASSERT_VERSIONS_EQUAL(idx: number, idx_ver: number, key: number, 
 end
 
 local function ASSERT_VALID_ENTITY(key: number, id: Entity, map: Array<Entity>)
-    local idx_ver = math.abs(map[key])
-    if check_versions_equal(ID_KEY(idx_ver), idx_ver, key, id) == false then
+    local idx_ver = map[key]
+    if idx_ver <= 0 or check_versions_equal(ID_KEY(idx_ver), idx_ver, key, id) == false then
         ASSERT(false, `invalid entity`)
     end
 end
@@ -533,22 +536,22 @@ local function entity_pool_add(self: EntityPool): Entity
         local next_key = ID_KEY(data)
         id = ID_SWAPKEY(data, free)
         self.map[free] = ID_SWAPKEY(data, size)
-        self.entities[size] = id
         self.free = next_key
     else -- create new
         self.capacity += 1
         local key = self.capacity
         id = ID_CREATE(key, ID_INIT_VER)
         self.map[key] = ID_CREATE(size, ID_INIT_VER)
-        self.entities[size] = id
     end
 
+    self.entities[size] = id
     if self.added then fire(self.added, id) end
 
     return id
 end
 
 local function entity_pool_reuse(self: EntityPool, id: Entity): Entity
+    -- todo: assert valid
     local key, ver = ID_KEY_VER(id)
         ASSERT(
             key >= 1 and ver >= 1 and
@@ -562,7 +565,7 @@ local function entity_pool_reuse(self: EntityPool, id: Entity): Entity
         local free = self.free
 
         if key > capacity then -- if key has not been created yet
-            if key > capacity + 1 then
+            if key > capacity + 1 then -- fill in gaps between last and new
                 for i = capacity + 1, key - 2 do
                     map[i] = - ID_CREATE(i + 1, ID_INIT_VER)
                 end
@@ -572,7 +575,7 @@ local function entity_pool_reuse(self: EntityPool, id: Entity): Entity
             self.capacity = key
         elseif key <= capacity then -- if key has been created before
             if map[key] == - ID_NULL then -- id is deprecated -- todo: test
-                map[key] = id   
+               -- map[key] = id   
             else
                 ASSERT(
                     free ~= ID_INVALID_KEY -- an unused key exists
@@ -581,15 +584,18 @@ local function entity_pool_reuse(self: EntityPool, id: Entity): Entity
                 )   
                 if free == key then -- if desired id is at head
                     local next_key = ID_KEY(- map[free])
-                    free = next_key
+                    self.free = next_key
                 else -- desired id is somewhere along list
                     local previous = free
+                    local i = 0
                     while true do -- find element before desired id
+                        i += 1
+                        --if - map[previous] > 0 then error(i) end
                         local next = ID_KEY(- map[previous])
                         if next == key then break end
                         previous = next
                     end
-                    map[previous] = ID_SWAPKEY(- map[previous], ID_KEY(- map[key]))
+                    map[previous] = - ID_SWAPKEY(- map[previous], ID_KEY(- map[key]))
                 end
             end
             
@@ -607,19 +613,23 @@ local function entity_pool_remove(self: EntityPool, id: Entity)
     local map = self.map :: Array<number>
     local entities = self.entities
 
-    local idx = ID_KEY(map[key])
+    -- todo: assert valid
+
+    local idx = ID_KEY(map[key]) --
+    local last_id = entities[n]
+    local last_key = ID_KEY(last_id)
+    entities[idx] = last_id; entities[n] = nil
+    map[last_key] = ID_SWAPKEY(last_id, idx)
+
 
     if ver < ID_MAX_VER then
         map[key] = - ID_CREATE(self.free, ver + 1) -- recycle key
         self.free = key
     else
-        map[key] = ID_NULL -- permanently deprecate key
+        map[key] = - ID_NULL -- permanently deprecate key
     end
 
-    local last_id = entities[n]
-
-    map[ID_KEY(last_id)] = ID_SWAPKEY(last_id, idx)
-    entities[idx] = last_id; entities[n] = nil
+   
 end
 
 local function entity_pool_has(self: EntityPool, id: number): boolean
@@ -629,12 +639,9 @@ local function entity_pool_has(self: EntityPool, id: number): boolean
 end
 
 local function entity_pool_clear(self: EntityPool)
-    local map = self.map
-    for i = self.capacity, 1, -1 do
-        local id = map[i] :: number
-        if id > 0 then -- if in use
-            entity_pool_remove(self, id)
-        end
+    local entities = self.entities
+    for i = self.size, 1, -1 do
+        entity_pool_remove(self, entities[i])
     end
 end
 
@@ -671,7 +678,7 @@ local function smallest(pools: Array<Pool<unknown>>): Pool<unknown>
 end
 
 -- gets an array of pools given an array of ctypes
-local function get_pools(
+local function get_ctype_pools(
     registry: IRegistry,
     ctypes: Array<CType>
 ): Array<Pool<unknown>>
@@ -846,8 +853,8 @@ function View.new<T...>(reg: IRegistry, ...: T...): View<T...>
         end
     }, {
         __iter = function(self: _View<T...>): () -> (Entity, T...)
-            local includes = get_pools(self.registry, self.includes)
-            local excludes = self.excludes and get_pools(self.registry, self.excludes)
+            local includes = get_ctype_pools(self.registry, self.includes)
+            local excludes = self.excludes and get_ctype_pools(self.registry, self.excludes)
             local lead = self.lead and self.registry:storage(self.lead)
     
             return if #includes == 1 and not excludes and not lead then
@@ -859,7 +866,7 @@ function View.new<T...>(reg: IRegistry, ...: T...): View<T...>
         end,
 
         __len = function(self: _View<T...>): number
-            return smallest(get_pools(self.registry, self.includes)).size
+            return smallest(get_ctype_pools(self.registry, self.includes)).size
         end,
 
         --__index = strict("View")
@@ -985,8 +992,8 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
         __iter = function(self: _Observer<T...>): () -> (Entity, T...)
             local pool = self.pool
             local reg = self.registry
-            local includes = get_pools(reg, self.includes)
-            local excludes = self.excludes and get_pools(reg, self.excludes)
+            local includes = get_ctype_pools(reg, self.includes)
+            local excludes = self.excludes and get_ctype_pools(reg, self.excludes)
             local persist = self.persistent
         
         
@@ -1256,8 +1263,6 @@ local Handle = (function(): HandleMT
     return Handle
 end)()
 
-print( ID_KEY(-ID_CREATE(100, 10)))
-
 --------------------------------------------------------------------------------
 -- Registry
 --------------------------------------------------------------------------------
@@ -1269,7 +1274,9 @@ local function registry_create(): Registry
 
     id_pool.map[0] = ID_CONTEXT
 
-    local pools: Map<CType, Pool<unknown>> = table.create(ctype_n)
+    local all_pools: Map<CType, Pool<unknown>> = table.create(ctype_n)
+    local ctype_pools: Map<CType, Pool<unknown>> = table.create(ctype_n)
+
     local groups: Map<CType, GroupData?> = table.create(ctype_n) -- todo: is this needed?
 
     local signals = {
@@ -1278,18 +1285,33 @@ local function registry_create(): Registry
         removing = {} :: Map<CType, Signal<Entity, nil>>
     }
 
+    all_pools[ctype_entity] = id_pool :: Pool<any>
+
     -- lazily create pools on nil index to avoid having to check everywhere
-    setmetatable(pools, {
-        __index = function(self, v: unknown): Pool<unknown>
-            ASSERT(ctype_valid(v), "invalid component type")
+    setmetatable(all_pools, {
+        __index = function(self, ctype: CType): Pool<unknown>
+            ASSERT(ctype_valid(ctype), "invalid component type")
             local pool = pool_create(INIT_STORAGE_SIZE)
-            self[v] = pool
+            self[ctype] = pool
             return pool
         end
     })
 
-    local function get_pool<T>(ctype: T): Pool<T>
-        return pools[ctype] :: Pool<any>
+    setmetatable(ctype_pools, {
+        __index = function(self, ctype: CType): Pool<unknown>
+            ASSERT(ctype ~= ctype_entity, "cannot modify entity pool")
+            local pool = all_pools[ctype]
+            self[ctype] = pool
+            return pool
+        end
+    })
+
+    local function get_any_pool<T>(ctype: T): Pool<T>
+        return all_pools[ctype] :: Pool<any>
+    end
+
+    local function get_ctype_pool<T>(ctype: T): Pool<T>
+        return ctype_pools[ctype] :: Pool<any>
     end
 
     local function group_init(...: any): GroupData
@@ -1297,13 +1319,13 @@ local function registry_create(): Registry
 
         for i = 1, select("#", ...) do
             local ctype = select(i, ...)
-            local pool = pools[ctype]
+            local pool = get_ctype_pool(ctype)
             group[i] = pool
             groups[ctype] = group
             pool.group = group
         end
 
-        local entities = pools[...].entities
+        local entities = get_ctype_pool((...)).entities
 
         for _, id in next, entities do
             group_try_add(group, ID_KEY(id), id)
@@ -1350,7 +1372,7 @@ local function registry_create(): Registry
         ASSERT_VALID_ENTITY(key, id)
         ASSERT_NOT_RESERVED(ID_KEY(id), id)
         
-        for _, pool in next, pools do
+        for _, pool in next, ctype_pools do
             pool_unsafe_remove_key(pool, key, id)
         end
 
@@ -1365,7 +1387,7 @@ local function registry_create(): Registry
         local key = ID_KEY(id)
         ASSERT_VALID_ENTITY(key, id)
 
-        for _, pool in next, pools do
+        for _, pool in next, ctype_pools do
             if pool.map[key] then return false end
         end
         return true
@@ -1377,7 +1399,7 @@ local function registry_create(): Registry
 
         for i = 1, select("#", ...) do
             local ctype = select(i, ...)
-            local pool = get_pool(ctype)
+            local pool = get_ctype_pool(ctype)
 
             -- continue if already added
             if pool.map[key] then continue end
@@ -1395,25 +1417,25 @@ local function registry_create(): Registry
 
     function registry.set<T>(self: Registry, id: Entity, ctype: T, value: T?)
         if value ~= nil then
-            pool_safe_set(get_pool(ctype), id, value, id_pool.map)
+            pool_safe_set(get_ctype_pool(ctype), id, value, id_pool.map)
         else
-            pool_safe_remove(get_pool(ctype), id)
+            pool_safe_remove(get_ctype_pool(ctype), id)
         end
     end
     
     function registry.patch<T>(self: Registry, id: Entity, ctype: T, fn: (T) -> T)
-        pool_safe_patch(get_pool(ctype), id, fn, id_pool.map, ctype)
+        pool_safe_patch(get_ctype_pool(ctype), id, fn, id_pool.map, ctype)
     end
 
     registry.has = (function(self: Registry, id: Entity, ...: unknown): boolean
         local a, b = ...
         local key = ID_KEY(id)
         if b == nil then
-            local idx_ver = pools[a].map[key]
+            local idx_ver = get_ctype_pool(a).map[key]
             return idx_ver ~= nil and check_versions_equal(ID_KEY(idx_ver), idx_ver, key, id)
         else
             for i = 1, select("#", ...) do
-                local idx_ver = pools[select(i, ...)].map[key]
+                local idx_ver = get_ctype_pool(select(i, ...)).map[key]
                 if idx_ver == nil or not check_versions_equal(ID_KEY(idx_ver), idx_ver, key, id) then return false end
             end
             return true
@@ -1421,7 +1443,7 @@ local function registry_create(): Registry
     end :: any) :: <T...>(self: Registry, id: Entity, T...) -> boolean
 
     local function pool_safe_get(ctype: CType, key: number, id: number): unknown
-        local pool = pools[ctype]
+        local pool = get_ctype_pool(ctype)
         local idx_ver = pool.map[key]
         if idx_ver == nil then ERROR(`entity does not have {ctype_debug(ctype, 1)}`) end
         local idx = ID_KEY(idx_ver :: number)
@@ -1430,7 +1452,7 @@ local function registry_create(): Registry
     end
 
     local function pool_get(ctype: CType, key: number, id: number): unknown
-        local pool = pools[ctype]
+        local pool = get_ctype_pool(ctype)
         local idx_ver = pool.map[key]
         if idx_ver == nil then ERROR(`entity does not have {ctype_debug(ctype)}`) end
         return pool.values[ID_KEY(idx_ver :: number)]
@@ -1457,21 +1479,21 @@ local function registry_create(): Registry
     end :: any) :: <T...>(self: Registry, id: Entity, T...) -> T...
 
     function registry.try_get<T>(self: Registry, id: Entity, ctype: T): T?
-        return pool_safe_try_get(get_pool(ctype), id)
+        return pool_safe_try_get(get_ctype_pool(ctype), id)
     end
 
     function registry.remove<T...>(self: Registry, id: Entity, ...: T...)
         for i = 1, select("#", ...) do
-            pool_safe_remove(get_pool(select(i, ...)), id)
+            pool_safe_remove(get_ctype_pool(select(i, ...)), id)
         end
     end
 
     function registry.clear<T...>(self: Registry, ...: T...)
         local argn = select("#", ...)
         if argn > 0 then
-            for i = 1, argn do pool_clear(get_pool(select(i, ...))) end
+            for i = 1, argn do pool_clear(get_ctype_pool(select(i, ...))) end
         else
-            for _, pool in next, pools do pool_clear(pool) end
+            for _, pool in next, ctype_pools do pool_clear(pool) end
             entity_pool_clear(id_pool)
         end 
     end
@@ -1502,14 +1524,14 @@ local function registry_create(): Registry
     end
 
     function registry.storage<T>(self: Registry, ctype: T): Pool<T>
-        return get_pool(ctype)
+        return get_any_pool(ctype)
     end
 
     function registry.added<T>(self: Registry, ctype: T): Signal<Entity, T>
         return (signals.added[ctype] or (function() 
             local signal, listeners = signal_create()
             signals.added[ctype] = signal
-            get_pool(ctype).added = listeners
+            get_any_pool(ctype).added = listeners
             return signal
         end)()) :: Signal<Entity, T>
     end
@@ -1518,7 +1540,7 @@ local function registry_create(): Registry
         return (signals.changed[ctype] or (function() 
             local signal, listeners = signal_create()
             signals.changed[ctype] = signal
-            get_pool(ctype).changed = listeners
+            get_any_pool(ctype).changed = listeners
             return signal    
         end)()) :: Signal<Entity, T>    
     end
@@ -1527,7 +1549,7 @@ local function registry_create(): Registry
         return signals.removing[ctype] or (function() 
             local signal, listeners = signal_create()
             signals.removing[ctype] = signal
-            get_pool(ctype).removing = listeners
+            get_any_pool(ctype).removing = listeners
             return signal
         end)() :: Signal<Entity, nil>
     end
@@ -1711,6 +1733,8 @@ local ecr = {
     end :: (() -> unknown) & (<T>(constructor: () -> T) -> T),
 
     tag = ctype_tag :: () -> nil,
+
+    entity = ctype_entity,
 
     is_tag = function<T>(ctype: T): boolean
         ASSERT(ctype_valid(ctype), "invalid component")

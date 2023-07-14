@@ -61,6 +61,20 @@ local function BULK_CREATE_IDS(reg: ecr.Registry, n: number): { ecr.Entity }
     return ids
 end
 
+local function INSPECT_IDS(reg)
+    local pool = reg:storage(ecr.entity)
+    local map = pool.map
+    print "{"
+    print(`  free: {pool.free}`)
+    for i, data in map do
+        if i == 0 then continue end
+        local sign = math.sign(data) == -1 and "X" or " "
+        local key, ver = ecr.extract(math.abs(data))
+        print(`  [{i}] {sign} {key}:{ver}`)
+    end
+    print "}"
+end
+
 local N = 1e3
 
 TEST("registry:create()", function()
