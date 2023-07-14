@@ -1001,7 +1001,7 @@ do TITLE "Practical tests"
     do -- pre-alloc
         init()
 
-        for id in world do
+        for id in world:view(ecr.entity) do
             world:add(id, Dead)
         end
 
