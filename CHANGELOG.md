@@ -23,14 +23,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `Registry:handle()` calls are now memoized, passing the same ids will return
   the same handle objects.
 
+### Removed
+
+- Operations `#Registry` and `for id in Registry do`.
+  - Replaced by entity storage.
+
 ---
 
 ## [0.6.1] - 2023-07-04
 
 ### Changed
 
-- `Registry:patch()` will invoke the component constructor if the entity
-  does not have the given component.
+- `Registry:patch()` will invoke the component constructor if the entity does
+  not have the given component.
 
 ### Fixed
 

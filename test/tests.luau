@@ -947,37 +947,37 @@ TEST("#registry", function()
     local reg = ecr.registry()
 
     do CASE "Initial registry size is 0"
-        CHECK(#reg == 0)
+        CHECK(#reg:view(ecr.entity) == 0)
     end
 
     local id = reg:create()
 
     do CASE "Size after entity creation"
-        CHECK(#reg == 1)
+        CHECK(#reg:view(ecr.entity) == 1)
     end
 
     reg:release(id)
 
     do CASE "Size after entity release"
-        CHECK(#reg == 0)
+        CHECK(#reg:view(ecr.entity) == 0)
     end
 
     for i = 1, 100 do reg:create() end
 
     do CASE "Mass creation"
-        CHECK(#reg == 100)
+        CHECK(#reg:view(ecr.entity) == 100)
     end
 
     reg:clear()
 
     do CASE "Size after clear"
-        CHECK(#reg == 0)
+        CHECK(#reg:view(ecr.entity) == 0)
     end
 
     reg:create(id)
 
     do CASE "Size after specific entity creation"
-        CHECK(#reg == 1)
+        CHECK(#reg:view(ecr.entity) == 1)
     end
 end)
 
@@ -998,7 +998,7 @@ TEST("registry:__iter()", function()
         do CASE "All entities are valid"
             local cache = {}
 
-            for entity in reg do
+            for entity in reg:view(ecr.entity) do
                 cache[entity] = true
             end
 
@@ -1014,7 +1014,7 @@ TEST("registry:__iter()", function()
         local id2 = reg:create() -- key2
 
         local ids = {}
-        for id in reg do
+        for id in reg:view(ecr.entity) do
             table.insert(ids, id)
         end
 
@@ -2270,7 +2270,7 @@ TEST("Random usage test", function()
         end
     end
 
-    for id in reg do
+    for id in reg:view(ecr.entity) do
         CHECK(ids[id])
     end
 

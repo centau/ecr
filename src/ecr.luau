@@ -27,6 +27,12 @@ export type Connection = {
 
 type Listener<T> = (id: Entity, value: T) -> ()
 
+-- specialized pool for tracking entities
+type EntityPool<T = nil> = Pool<T> & {
+    capacity: number,
+    free: number
+}
+
 type Pool<T> = {
     size: number,
     map: Array<number?>,
@@ -39,11 +45,7 @@ type Pool<T> = {
     group: GroupData<T> | false
 }
 
--- specialized pool for tracking entities
-type EntityPool = Pool<nil> & {
-    capacity: number,
-    free: number
-}
+
 
 type GroupData<T = unknown> = {
     size: number,
@@ -96,7 +98,7 @@ export type Group<T...> = typeof(setmetatable({} :: {
     __len: (self: Group<T...>) -> number     
 }))
 
-export type Registry = typeof(setmetatable({} :: {
+export type Registry = {
     create: ((self: Registry, id: Entity) -> Entity) & ((self: Registry) -> Entity),
     release: (self: Registry, id: Entity) -> (),
     destroy: (self: Registry, id: Entity) -> (),
@@ -124,10 +126,7 @@ export type Registry = typeof(setmetatable({} :: {
 
     handle: ((self: Registry, id: Entity) -> Handle) & ((self: Registry) -> Handle),
     context: (self: Registry) -> Handle
-}, {} :: {
-    __iter: (self: Registry) -> () -> Entity,
-    __len: (self: Registry) -> number
-}))
+}
 
 export type Queue<T...> = typeof(setmetatable({} :: {
     add: (self: Queue<T...>, T...) -> (),
@@ -392,7 +391,7 @@ local function pool_try_remove_key<T>(self: Pool<T>, key: number, id: Entity)
         local idx = ID_KEY(idx_ver)
 
         if self.group then
-            idx = pool_try_ungroup(self.group, idx, key, id)
+            idx = pool_try_ungroup(self.group, idx)
         end
 
         local n = self.size; self.size = n - 1
@@ -676,12 +675,12 @@ end
 
 local View, Observer, Group do
 
-type IRegistry = typeof(setmetatable({} :: {
+type IRegistry = {
     storage: <T>(self: IRegistry, ctype: T) -> Pool<T>,
     added: <T>(self: IRegistry, ctype: T) -> Signal<Entity, T>,
     changed: <T>(self: IRegistry, ctype: T) -> Signal<Entity, T>,
     removing: <T>(self: IRegistry, ctype: T) -> Signal<Entity, nil>,
-}, {}))
+}
 
 local WEAK_VALUES = { __mode = "v" }
 
@@ -1615,24 +1614,6 @@ local function registry_create(): Registry
     (registry :: any).get_current_entity_version = function(_, id: Entity): number
         return ID_VER(math.abs(id_pool.map[ID_KEY(id)] :: number))
     end
-
-    setmetatable(registry, {
-        __iter = function(self: Registry): () -> Entity
-            local n = id_pool.size
-            local entities = id_pool.entities
-
-            return function()
-                local i = n; n = i - 1
-                return entities[i]
-            end
-        end,
-
-        __len = function(self: Registry): number
-            return id_pool.size
-        end,
-
-        __index = strict("Registry")
-    })
 
     return table.freeze(registry)
 end
