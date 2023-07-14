@@ -198,7 +198,7 @@ local function ID_VER(id: number): number
     return (id - ID_KEY(id)) * ID_RSHIFT
 end
 
-local function ID_SWAPKEY(id: number, key: number): number
+local function ID_SWAPKEY(id: number, key: number): number -- todo: require passing key
     return id - ID_KEY(id) + key
 end
 
@@ -262,6 +262,8 @@ _raw_ functions skip group checks and signal firing.
 _unsafe_ functions can cause UB with incorrect usage.
 functions with no annotation are considered to be safe (contain safety checks)
 
+todo: get all pool functions to inline
+
 ]]
 
 local function fire<T>(listeners: Array<Listener<T>>, id: Entity, value: T)
@@ -280,6 +282,7 @@ local function ASSERT_VERSIONS_EQUAL(idx: number, idx_ver: number, key: number, 
     end
 end
 
+-- todo: optimize
 local function ASSERT_VALID_ENTITY(key: number, id: Entity, map: Array<Entity>)
     local idx_ver = map[key]
     if idx_ver <= 0 or check_versions_equal(ID_KEY(idx_ver), idx_ver, key, id) == false then
@@ -376,7 +379,7 @@ local function pool_set<T>(self: Pool<T>, id: Entity, v: T, ids: Array<Entity>)
         if self.changed then fire(self.changed, id, v) end
     else -- not added, add value
         ASSERT_VALID_ENTITY(key, id, ids)
-        pool_unsafe_add(self, key, id, v)
+        pool_unsafe_add(self, key, id, v) -- todo: inline
     end
 end
 
@@ -543,6 +546,8 @@ local function entity_pool_create(): EntityPool
     return pool
 end
 
+-- todo: should these be safe?
+
 local function entity_pool_unsafe_add(self: EntityPool): Entity
     local size = self.size + 1; self.size = size
     local free = self.free
@@ -567,60 +572,54 @@ local function entity_pool_unsafe_add(self: EntityPool): Entity
 end
 
 local function entity_pool_unsafe_reuse(self: EntityPool, id: Entity): Entity
-    -- todo: assert valid
     local key, ver = ID_KEY_VER(id)
-        ASSERT(
-            key >= 1 and ver >= 1 and
-            key <= ID_MAX_KEY and ver <= ID_MAX_VER,
-            "malformed id"
-        )
+    ASSERT(
+        key >= 1 and ver >= 1 and
+        key <= ID_MAX_KEY and ver <= ID_MAX_VER,
+        "malformed id"
+    )
 
-        local capacity = self.capacity
-        local map = self.map :: Array<number>
+    local capacity = self.capacity
+    local map = self.map :: Array<number>
 
-        local free = self.free
+    local free = self.free
 
-        if key > capacity then -- if key has not been created yet
-            if key > capacity + 1 then -- fill in gaps between last and new
-                for i = capacity + 1, key - 2 do
-                    map[i] = - ID_CREATE(i + 1, ID_INIT_VER)
-                end
-                map[key - 1] = - ID_CREATE(free, ID_INIT_VER)
-                self.free = capacity + 1
+    if key > capacity then -- if key has not been created yet
+        if key > capacity + 1 then -- fill in gaps between last and new
+            for i = capacity + 1, key - 2 do
+                map[i] = - ID_CREATE(i + 1, ID_INIT_VER)
             end
-            self.capacity = key
-        elseif key <= capacity then -- if key has been created before
-            if map[key] == - ID_NULL then -- id is deprecated -- todo: test
-               -- map[key] = id   
-            else
-                ASSERT(
-                    free ~= ID_INVALID_KEY -- an unused key exists
-                    and map[key] <= 0, -- desired key is not in use
-                    "key is already in use"
-                )   
-                if free == key then -- if desired id is at head
-                    local next_key = ID_KEY(- map[free])
-                    self.free = next_key
-                else -- desired id is somewhere along list
-                    local previous = free
-                    local i = 0
-                    while true do -- find element before desired id
-                        i += 1
-                        --if - map[previous] > 0 then error(i) end
-                        local next = ID_KEY(- map[previous])
-                        if next == key then break end
-                        previous = next
-                    end
-                    map[previous] = - ID_SWAPKEY(- map[previous], ID_KEY(- map[key]))
-                end
-            end
-            
+            map[key - 1] = - ID_CREATE(free, ID_INIT_VER)
+            self.free = capacity + 1
         end
-        local n = self.size + 1; self.size = n
-        map[key] = ID_SWAPKEY(id, n)
-        self.entities[n] = id
-        if self.added then fire(self.added, id) end
-        return id
+        self.capacity = key
+    elseif key <= capacity and map[key] ~= - ID_NULL then -- if key already exists and it isn't deprecated
+        ASSERT(
+            free ~= ID_INVALID_KEY -- an unused key exists
+            and map[key] <= 0, -- desired key is not in use
+            "key is already in use"
+        )   
+        if free == key then -- if desired id is at head
+            local next_key = ID_KEY(- map[free])
+            self.free = next_key
+        else -- desired id is somewhere along list
+            local previous = free
+            local i = 0
+            while true do -- find element before desired id
+                i += 1
+                --if - map[previous] > 0 then error(i) end
+                local next = ID_KEY(- map[previous])
+                if next == key then break end
+                previous = next
+            end
+            map[previous] = - ID_SWAPKEY(- map[previous], ID_KEY(- map[key]))
+        end
+    end
+    local n = self.size + 1; self.size = n
+    map[key] = ID_SWAPKEY(id, n)
+    self.entities[n] = id
+    if self.added then fire(self.added, id) end
+    return id
 end
 
 local function entity_pool_unsafe_remove(self: EntityPool, id: Entity)
@@ -632,8 +631,6 @@ local function entity_pool_unsafe_remove(self: EntityPool, id: Entity)
 
     local map = self.map :: Array<number>
     local entities = self.entities
-
-    -- todo: assert valid
 
     local idx = ID_KEY(map[key]) --
     local last_id = entities[n]
@@ -667,6 +664,7 @@ local function entity_pool_clear(self: EntityPool)
         end
     end
 
+    -- todo: optimize
     for i = self.size, 1, -1 do
         entity_pool_unsafe_remove(self, entities[i])
     end
@@ -1092,7 +1090,7 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
     local weakref = setmetatable({ self = self }, WEAK_VALUES) :: any
     local function try_remove(id: number)
         if weakref.self == nil then disconnect_all(connections) end
-        pool_raw_try_remove_id(pool, id)
+        pool_raw_try_remove_id(pool, id) -- todo: inline
     end
 
     for i = 1, select("#", ...) do
@@ -1403,7 +1401,7 @@ local function registry_create(): Registry
             pool_try_remove_key(pool, key, id)
         end
 
-        entity_pool_unsafe_remove(id_pool, id)
+        entity_pool_unsafe_remove(id_pool, id) -- todo: inline
     end
 
     function registry.contains(self: Registry, id: Entity): boolean
@@ -1484,6 +1482,8 @@ local function registry_create(): Registry
         if idx_ver == nil then ERROR(`entity does not have {ctype_debug(ctype)}`) end
         return pool.values[ID_KEY(idx_ver :: number)]
     end
+
+    -- todo: get all gets to inline
 
     registry.get = (function(self: Registry, id: Entity, ...: unknown): ...unknown
         local a, b, c, d, e = ...
