@@ -1051,6 +1051,7 @@ TEST("registry:view()", function()
     local Cs = {}
     local ABCs = {}
     local ABnotCs = {}
+    local notABs = {}
 
     for i = 1, N do
         local id = reg:create()
@@ -1069,6 +1070,7 @@ TEST("registry:view()", function()
         if has[C] then table.insert(Cs, id) end
         if has[A] and has[B] and has[C] then table.insert(ABCs, id) end
         if has[A] and has[B] and not has[C] then table.insert(ABnotCs, id) end
+        if not has[A] and not has[B] then table.insert(notABs, id) end
     end
 
     do CASE "View size"
@@ -1132,6 +1134,15 @@ TEST("registry:view()", function()
         end
     end
 
+    do CASE "View all entities without AB"
+        local viewed = getids(reg:view(ecr.entity):exclude(A, B))
+        CHECK(not empty(viewed))
+        for _, id in notABs do 
+            local v = viewed[id]
+            if not CHECK(v) then continue end
+        end
+    end
+
     do CASE "Addition during view iteration"
         local cache = {}
         for id, c in reg:view(C) do
@@ -1177,7 +1188,6 @@ end)
 
 TEST("registry:added()", function()
     local reg = ecr.registry()
-    local id = reg:create()
 
     -- runcount, reg, entity, value
     local cc, ce, cv = 0, nil, nil
@@ -1187,29 +1197,47 @@ TEST("registry:added()", function()
         ce, cv = ...
     end
 
-    local con = reg:added(H):connect(fn)
+    do 
+        local con = reg:added(H):connect(fn)
+        local id = reg:create()
 
-    CASE "Adding triggers"
-    reg:add(id, H)
-    CHECK(cc == 1)
-    CHECK(ce == id)
-    CHECK(cv == true)
+        CASE "Adding triggers"
+        reg:add(id, H)
+        CHECK(cc == 1)
+        CHECK(ce == id)
+        CHECK(cv == true)
 
-    CASE "Changing does not trigger"
-    reg:set(id, H, false)
-    CHECK(cc == 1)
+        CASE "Changing does not trigger"
+        reg:set(id, H, false)
+        CHECK(cc == 1)
 
-    CASE "Removing then adding triggers"
-    reg:set(id, H, nil)
-    reg:set(id, H, true)
-    CHECK(cc == 2)
+        CASE "Removing then adding triggers"
+        reg:set(id, H, nil)
+        reg:set(id, H, true)
+        CHECK(cc == 2)
 
-    con:disconnect()
+        con:disconnect()
 
-    CASE "Adding after disconnect does not trigger"
-    reg:set(id, H, nil)
-    reg:set(id, H, true)
-    CHECK(cc == 2)
+        CASE "Adding after disconnect does not trigger"
+        reg:set(id, H, nil)
+        reg:set(id, H, true)
+        CHECK(cc == 2)
+    end
+
+    do CASE "Entity creation"
+        reg:added(ecr.entity):connect(fn)
+
+        local id = reg:create()
+
+        CHECK(cc == 3)
+        CHECK(ce == id)
+
+        reg:release(id)
+        reg:create(id)
+
+        CHECK(cc == 4)
+        CHECK(ce == id)
+    end
 end)
 
 TEST("registry:changed()", function()
@@ -1326,6 +1354,26 @@ TEST("registry:removing()", function()
         for _, entity in entities do
             CHECK(cache[entity])
         end
+    end
+
+    do CASE "Entity destruction"
+        local reg = ecr.registry()
+
+        local cid
+        reg:removing(ecr.entity):connect(function(id_)
+            cid = id_
+        end)
+
+        local id1 = reg:create()
+        local id2 = reg:create()
+        reg:release(id1)
+
+        CHECK(cid ~= nil)
+        CHECK(cid == id1)
+
+        reg:clear()
+
+        CHECK(cid == id2)
     end
 end)
 

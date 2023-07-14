@@ -455,7 +455,7 @@ local function pool_safe_try_get<T>(self: Pool<T>, id: Entity): T?
     return nil
 end
 
-local function pool_add_id<T>(self: Pool<T>, id: Entity)
+local function pool_raw_add_id<T>(self: Pool<T>, id: Entity)
     local map = self.map
 
     local key = ID_KEY(id)
@@ -468,7 +468,7 @@ local function pool_add_id<T>(self: Pool<T>, id: Entity)
     end 
 end
 
-local function pool_remove_id<T>(self: Pool<T>, id: Entity)
+local function pool_raw_remove_id<T>(self: Pool<T>, id: Entity)
     local map = self.map
     local entities = self.entities
 
@@ -603,11 +603,15 @@ local function entity_pool_reuse(self: EntityPool, id: Entity): Entity
         local n = self.size + 1; self.size = n
         map[key] = ID_SWAPKEY(id, n)
         self.entities[n] = id
+        if self.added then fire(self.added, id) end
         return id
 end
 
 local function entity_pool_remove(self: EntityPool, id: Entity)
     local key, ver = ID_KEY_VER(id)
+
+    if self.removing then fire(self.removing, id) end
+
     local n = self.size; self.size = n - 1
 
     local map = self.map :: Array<number>
@@ -640,6 +644,13 @@ end
 
 local function entity_pool_clear(self: EntityPool)
     local entities = self.entities
+
+    if self.removing then
+        for i = self.size, 1, -1 do
+            fire(self.removing, entities[i])
+        end
+    end
+
     for i = self.size, 1, -1 do
         entity_pool_remove(self, entities[i])
     end
@@ -967,7 +978,7 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
 
             for i, ctype in includes do
                 local function listener(id)
-                    pool_add_id(pool, id)
+                    pool_raw_add_id(pool, id)
                 end
                 
                 table.insert(connections, reg:added(ctype):connect(listener))
@@ -1065,7 +1076,7 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
     local weakref = setmetatable({ self = self }, WEAK_VALUES) :: any
     local function try_remove(id: number)
         if weakref.self == nil then disconnect_all(connections) end
-        pool_remove_id(pool, id)
+        pool_raw_remove_id(pool, id)
     end
 
     for i = 1, select("#", ...) do
