@@ -265,11 +265,14 @@ todo: get all pool functions to inline
 
 ]]
 
-local function fire<T>(listeners: Array<Listener<T>>, id: Entity, value: T)
-    for i = #listeners, 1, -1 do
-        listeners[i](id, value)         
-    end 
-end
+-- prevent inlining
+local fire: <T>(listeners: Array<Listener<T>>, id: Entity, value: T) -> () = (function()
+    return function<T>(listeners: Array<Listener<T>>, id: Entity, value: T)
+        for i = #listeners, 1, -1 do
+            listeners[i](id, value)         
+        end 
+    end
+end)()
 
 local function check_versions_equal(idx: number, idx_ver: number, key: number, id: number): boolean
     return idx_ver - idx + key == id
