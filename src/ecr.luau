@@ -197,8 +197,8 @@ local function ID_VER(id: number): number
     return (id - ID_KEY(id)) * ID_RSHIFT
 end
 
-local function ID_SWAPKEY(id: number, key: number): number -- todo: require passing key
-    return id - ID_KEY(id) + key
+local function ID_SWAPKEY(id: number, cur_key, new_key: number): number -- todo: require passing key
+    return id - cur_key + new_key
 end
 
 local ID_NULL = ID_CREATE(0, ID_MAX_VER)
@@ -305,14 +305,19 @@ local function pool_swap<T>( -- todo: reduce signature complexity
     local key = ID_KEY(id)
 
     local id_swap = entities[target_idx]
+    local key_swap = ID_KEY(id_swap)
     
     entities[target_idx], entities[idx] = id, id_swap
     values[target_idx], values[idx] = values[idx], values[target_idx]
-    map[key] = ID_SWAPKEY(id, target_idx)
-    map[ID_KEY(id_swap)] = ID_SWAPKEY(id_swap, idx)
+    map[key] = ID_SWAPKEY(id, key, target_idx)
+    map[key_swap] = ID_SWAPKEY(id_swap, key_swap, idx)
 end
 
-local function pool_try_group<T>(group: GroupData<T>, key: number, id: number)
+local function pool_unsafe_try_group<T>(pool: Pool<T>, id: number)
+    local group = pool.group :: GroupData<T>
+
+    local key = ID_KEY(id)
+
     for _, pool in ipairs(group) do
         if pool.map[key] == nil then
             return
@@ -330,7 +335,10 @@ local function pool_try_group<T>(group: GroupData<T>, key: number, id: number)
 end
 
 -- returns new internal index of id
-local function pool_try_ungroup<T>(group: GroupData<T>, idx: number): number
+local function pool_try_ungroup<T>(pool: Pool<T>, id: Entity): number
+    local group = pool.group :: GroupData<T>
+
+    local idx = ID_KEY(pool.map[ID_KEY(id)] :: number)
     local n = group.size
     if idx <= n then
         group.size = n - 1
@@ -360,11 +368,10 @@ end
 
 local function pool_unsafe_add<T>(self: Pool<T>, key: number, id: Entity, v: T)
     local n = self.size + 1; self.size = n
-    self.map[key] = ID_SWAPKEY(id, n)
+    self.map[key] = id - key + n
     self.entities[n] = id
     self.values[n] = v
 
-    if self.group then pool_try_group(self.group, key, id) end
     if self.added then fire(self.added, id, v) end
 end
 
@@ -386,53 +393,47 @@ local function pool_set<T>(self: Pool<T>, id: Entity, v: T, ids: Array<Entity>)
 end
 
 local function pool_try_remove_key<T>(self: Pool<T>, key: number, id: Entity)
-    local idx_ver = self.map[key]
 
-    if idx_ver then
+    if self.map[key] then
         if self.removing then fire(self.removing, id) end
 
+        local idx_ver = self.map[key] :: number
         local idx = ID_KEY(idx_ver)
-
-        if self.group then
-            idx = pool_try_ungroup(self.group, idx)
-        end
 
         local n = self.size; self.size = n - 1
         local map = self.map
         local entities = self.entities
         local values = self.values
 
-        local lastid = entities[n]
-        map[ID_KEY(lastid)] = ID_SWAPKEY(lastid, idx); map[key] = nil
-        entities[idx] = lastid; entities[n] = nil
+        local last_id = entities[n]
+        local last_key = ID_KEY(last_id)
+
+        map[last_key] = ID_SWAPKEY(last_id, last_key, idx); map[key] = nil
+        entities[idx] = last_id; entities[n] = nil
         values[idx] = values[n]; values[n] = nil
     end
 end
 
 local function pool_try_remove<T>(self: Pool<T>, id: Entity)
     local key = ID_KEY(id)
-
     local map = self.map
 
-    local idx_ver = map[key]
-
-    if idx_ver then
+    if map[key] then
         if self.removing then fire(self.removing, id) end
 
+        local idx_ver = self.map[key] :: number
         local idx = ID_KEY(idx_ver)
         ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
-
-        if self.group then
-            idx = pool_try_ungroup(self.group, idx)
-        end
     
         local n = self.size; self.size = n - 1
         local entities = self.entities
         local values = self.values
 
-        local lastid = entities[n]
-        map[ID_KEY(lastid)] = ID_SWAPKEY(lastid, idx); map[key] = nil
-        entities[idx] = lastid; entities[n] = nil
+        local last_id = entities[n]
+        local last_key = ID_KEY(last_id)
+
+        map[last_key] = ID_SWAPKEY(last_id, last_key, idx); map[key] = nil
+        entities[idx] = last_id; entities[n] = nil
         values[idx] = values[n]; values[n] = nil
     end
 end
@@ -487,7 +488,7 @@ local function pool_raw_try_add_id<T>(self: Pool<T>, id: Entity)
 
     if idx_ver == nil then
         local n = self.size + 1; self.size = n
-        map[key] = ID_SWAPKEY(id, n)
+        map[key] = ID_SWAPKEY(id, key, n)
         self.entities[n] = id
     end 
 end
@@ -502,16 +503,21 @@ local function pool_raw_try_remove_id<T>(self: Pool<T>, id: Entity)
     if idx_ver then
         local n = self.size; self.size = n - 1
         local idx = ID_KEY(idx_ver)
-        local lastid = entities[n]
-        map[ID_KEY(lastid)] = ID_SWAPKEY(lastid, idx); map[key] = nil
-        entities[idx] = lastid; entities[n] = nil
+        local last_id = entities[n]
+        local last_key = ID_KEY(last_id)
+
+        map[last_key] = ID_SWAPKEY(last_id, last_key, idx); map[key] = nil
+        entities[idx] = last_id; entities[n] = nil
     end
 end
 
 local function pool_clear<T>(self: Pool<T>)
-    if self.removing then
+    -- todo: disconnect group listeners if any
+
+    local signal = self.removing :: Array<Listener<nil>>
+    if signal then
         for _, id in next, self.entities do
-            fire(self.removing, id)
+            fire(signal, id)
         end
     end
 
@@ -539,16 +545,12 @@ local function pool_clone<T>(self: Pool<T>): Pool<T>
     }
 end
 
-
-
 local function entity_pool_create(): EntityPool
     local pool = pool_create() :: EntityPool
     pool.capacity = 0
     pool.free = ID_INVALID_KEY
     return pool
 end
-
--- todo: should these be safe?
 
 local function entity_pool_unsafe_add(self: EntityPool): Entity
     local size = self.size + 1; self.size = size
@@ -557,8 +559,8 @@ local function entity_pool_unsafe_add(self: EntityPool): Entity
     if free ~= ID_INVALID_KEY then -- reuse
         local data = - self.map[free] :: number
         local next_key = ID_KEY(data)
-        id = ID_SWAPKEY(data, free)
-        self.map[free] = ID_SWAPKEY(data, size)
+        id = ID_SWAPKEY(data, next_key, free)
+        self.map[free] = ID_SWAPKEY(data, next_key, size)
         self.free = next_key
     else -- create new
         self.capacity += 1
@@ -614,11 +616,12 @@ local function entity_pool_unsafe_reuse(self: EntityPool, id: Entity): Entity
                 if next == key then break end
                 previous = next
             end
-            map[previous] = - ID_SWAPKEY(- map[previous], ID_KEY(- map[key]))
+            local prev = - map[previous]
+            map[previous] = - ID_SWAPKEY(prev, ID_KEY(prev), ID_KEY(- map[key]))
         end
     end
     local n = self.size + 1; self.size = n
-    map[key] = ID_SWAPKEY(id, n)
+    map[key] = ID_SWAPKEY(id, key, n)
     self.entities[n] = id
     if self.added then fire(self.added, id) end
     return id
@@ -634,11 +637,12 @@ local function entity_pool_unsafe_remove(self: EntityPool, id: Entity)
     local map = self.map :: Array<number>
     local entities = self.entities
 
-    local idx = ID_KEY(map[key]) --
+    local idx = ID_KEY(map[key])
     local last_id = entities[n]
     local last_key = ID_KEY(last_id)
+
     entities[idx] = last_id; entities[n] = nil
-    map[last_key] = ID_SWAPKEY(last_id, idx)
+    map[last_key] = ID_SWAPKEY(last_id, last_key, idx)
 
 
     if ver < ID_MAX_VER then
@@ -647,14 +651,12 @@ local function entity_pool_unsafe_remove(self: EntityPool, id: Entity)
     else
         map[key] = - ID_NULL -- permanently deprecate key
     end
-
-   
 end
 
 local function entity_pool_has(self: EntityPool, id: number): boolean
     local key = ID_KEY(id)
     local data = self.map[key] :: number
-    return data > 0 and ID_SWAPKEY(data, key) == id
+    return data > 0 and ID_SWAPKEY(data, ID_KEY(data), key) == id
 end
 
 local function entity_pool_clear(self: EntityPool)
@@ -1350,12 +1352,20 @@ local function registry_create(): Registry
             group[i] = pool
             groups[ctype] = group
             pool.group = group
+
+            registry:added(ctype):connect(function(id)
+                pool_unsafe_try_group(pool, id)
+            end)
+
+            registry:removing(ctype):connect(function(id)
+                pool_try_ungroup(pool, id)
+            end)
         end
 
-        local entities = get_ctype_pool((...)).entities
+        local pool = get_ctype_pool((...))
 
-        for _, id in next, entities do
-            pool_try_group(group, ID_KEY(id), id)
+        for _, id in next, pool.entities do
+            pool_unsafe_try_group(pool, id)
         end
 
         return group
