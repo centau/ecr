@@ -117,7 +117,7 @@ Sets an entity's component.
 - **Type**
 
     ```lua
-    function Registry:set<T>(id: Entity, component: T, value: T?)
+    function Registry:set<T>(id: Entity, component: T, value: T)
     ```
 
 - **Details**
@@ -127,7 +127,7 @@ Sets an entity's component.
 
     Changes the component's value for the given entity if the entity already has the component.
 
-    Removes the component from the entity if value is `nil`.
+    Will error if value is `nil`.
 
 ---
 

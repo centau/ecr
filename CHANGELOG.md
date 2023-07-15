@@ -20,6 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Using `Registry:set()` to set `nil` values will now error.
+  - Use `Registry:remove()` instead.
 - `Registry:handle()` calls are now memoized, passing the same ids will return
   the same handle objects.
 

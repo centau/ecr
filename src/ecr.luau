@@ -64,7 +64,7 @@ type HandleMT = {
     destroy: (self: Handle) -> (),
     orphaned: (self: Handle) -> boolean,
     add: <T...>(self: Handle, T...) -> (),
-    set: <T>(self: Handle, ctype: T, value: T?) -> Handle,
+    set: <T>(self: Handle, ctype: T, value: T) -> Handle,
     patch: <T>(self: Handle, ctype: T, patcher: (current: T) -> T) -> (),
     has: <T...>(self: Handle, T...) -> boolean,
     get: <T...>(self: Handle, T...) -> T...,
@@ -106,7 +106,7 @@ export type Registry = {
 
     orphaned: (self: Registry, id: Entity) -> boolean,
     add: <T...>(self: Registry, id: Entity, T...) -> (),
-    set: <T>(self: Registry, id: Entity, ctype: T, value: T?) -> (),
+    set: <T>(self: Registry, id: Entity, ctype: T, value: T) -> (),
     patch: <T>(self: Registry, id: Entity, ctype: T, patcher: (T) -> T) -> (),
     has: <T...>(self: Registry, id: Entity, T...) -> boolean,
     get: <T...>(self: Registry, id: Entity, T...) -> T...,
@@ -197,8 +197,18 @@ local function ID_VER(id: number): number
     return (id - ID_KEY(id)) * ID_RSHIFT
 end
 
-local function ID_SWAPKEY(id: number, cur_key, new_key: number): number -- todo: require passing key
+local function ID_SWAPKEY(id: number, cur_key, new_key: number): number
     return id - cur_key + new_key
+end
+
+local function ID_VERSIONS_EQUAL(key1: number, id1: number, key2: number, id2: number)
+    return id1 - key1 + key2 == id2
+end
+
+local function ID_ASSERT_VERSIONS_EQUAL(key1: number, id1: number, key2: number, id2: number)
+    if id1 - key1 + key2 ~= id2 then
+        ASSERT(false, `invalid entity`)    
+    end
 end
 
 local ID_NULL = ID_CREATE(0, ID_MAX_VER)
@@ -237,13 +247,15 @@ local function ctype_name(ctype: CType, name: unknown)
     ctype_names[ctype] = tostring(name)
 end
 
-local function ctype_debug(ctype: CType?, idx: number?)
-    local name = ctype_names[ctype]
-    return
-        if name then `component "{name}"`
-        elseif idx then `component (arg #{idx})`
-        else "component (unknown)"
-end
+local ctype_debug: (ctype: CType?, idx: number?) -> () = (function()
+    return function(ctype: CType?, idx: number?)
+        local name = ctype_names[ctype]
+        return
+            if name then `component "{name}"`
+            elseif idx then `component (arg #{idx})`
+            else "component (unknown)"
+    end
+end)()
 
 local ctype_entity = ctype_tag()
 ctype_name(ctype_entity, "entity")
@@ -252,20 +264,6 @@ ctype_name(ctype_entity, "entity")
 -- Pool
 --------------------------------------------------------------------------------
 
---[[
-
-All pool and group related functions.
-
-_try_ functions do nothing if the operation goal is already met.
-_raw_ functions skip group checks and signal firing.
-_unsafe_ functions can cause UB with incorrect usage.
-functions with no annotation are considered to be safe (contain safety checks)
-
-todo: get all pool functions to inline
-
-]]
-
--- prevent inlining
 local fire: <T>(listeners: Array<Listener<T>>, id: Entity, value: T) -> () = (function()
     return function<T>(listeners: Array<Listener<T>>, id: Entity, value: T)
         for i = #listeners, 1, -1 do
@@ -274,25 +272,7 @@ local fire: <T>(listeners: Array<Listener<T>>, id: Entity, value: T) -> () = (fu
     end
 end)()
 
-local function check_versions_equal(idx: number, idx_ver: number, key: number, id: number): boolean
-    return idx_ver - idx + key == id
-end
-
-local function ASSERT_VERSIONS_EQUAL(idx: number, idx_ver: number, key: number, id: number)
-    if idx_ver - idx + key ~= id then
-        ASSERT(false, `invalid entity`)    
-    end
-end
-
--- todo: optimize
-local function ASSERT_VALID_ENTITY(key: number, id: Entity, map: Array<Entity>)
-    local idx_ver = map[key]
-    if idx_ver <= 0 or check_versions_equal(ID_KEY(idx_ver), idx_ver, key, id) == false then
-        ASSERT(false, `invalid entity`)
-    end
-end
-
-local function pool_swap<T>( -- todo: reduce signature complexity
+local function pool_swap<T>(
     self: Pool<T>,
     idx: number,
     target_idx: number
@@ -375,45 +355,6 @@ local function pool_unsafe_add<T>(self: Pool<T>, key: number, id: Entity, v: T)
     if self.added then fire(self.added, id, v) end
 end
 
--- adds id and value to pool, or changes value if already added
--- errors if id is invalid
-local function pool_set<T>(self: Pool<T>, id: Entity, v: T, ids: Array<Entity>)
-    local key = ID_KEY(id)
-    local idx_ver = self.map[key]
-
-    if idx_ver then -- already added, change value
-        local idx = ID_KEY(idx_ver)
-        ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
-        self.values[idx] = v
-        if self.changed then fire(self.changed, id, v) end
-    else -- not added, add value
-        ASSERT_VALID_ENTITY(key, id, ids)
-        pool_unsafe_add(self, key, id, v) -- todo: inline
-    end
-end
-
-local function pool_try_remove_key<T>(self: Pool<T>, key: number, id: Entity)
-
-    if self.map[key] then
-        if self.removing then fire(self.removing, id) end
-
-        local idx_ver = self.map[key] :: number
-        local idx = ID_KEY(idx_ver)
-
-        local n = self.size; self.size = n - 1
-        local map = self.map
-        local entities = self.entities
-        local values = self.values
-
-        local last_id = entities[n]
-        local last_key = ID_KEY(last_id)
-
-        map[last_key] = ID_SWAPKEY(last_id, last_key, idx); map[key] = nil
-        entities[idx] = last_id; entities[n] = nil
-        values[idx] = values[n]; values[n] = nil
-    end
-end
-
 local function pool_try_remove<T>(self: Pool<T>, id: Entity)
     local key = ID_KEY(id)
     local map = self.map
@@ -423,7 +364,7 @@ local function pool_try_remove<T>(self: Pool<T>, id: Entity)
 
         local idx_ver = self.map[key] :: number
         local idx = ID_KEY(idx_ver)
-        ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
+        ID_ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
     
         local n = self.size; self.size = n - 1
         local entities = self.entities
@@ -436,48 +377,6 @@ local function pool_try_remove<T>(self: Pool<T>, id: Entity)
         entities[idx] = last_id; entities[n] = nil
         values[idx] = values[n]; values[n] = nil
     end
-end
-
-local function pool_patch<T>(
-    self: Pool<T>,
-    id: Entity,
-    fn: (T) -> T,
-    ids: Array<Entity>,
-    ctype: T
-)
-    local key = ID_KEY(id)
-    local idx_ver = self.map[key]
-    
-    if idx_ver == nil then
-        ASSERT_VALID_ENTITY(key, id, ids)
-        local ctor = ctype_constructors[ctype]
-        if ctor == nil or ctor == ctype_TAG then
-            ERROR(`entity does not have component and no constructor for {ctype_debug(ctype)}`)
-        end
-        local value = fn((ctor :: () -> T)())
-        if value == nil then ERROR("patcher cannot return nil") end
-        pool_unsafe_add(self, key, id, value)
-    else
-        local idx = ID_KEY(idx_ver)
-        ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
-        local value = fn(self.values[idx])
-        if value == nil then ERROR("patcher cannot return nil") end
-        self.values[idx] = value
-        if self.changed then
-            fire(self.changed, id, value)
-        end
-    end
-end
-
-local function pool_try_get<T>(self: Pool<T>, id: Entity): T?
-    local key = ID_KEY(id)
-    local idx_ver = self.map[key]
-    if idx_ver then
-        local idx = ID_KEY(idx_ver)
-        ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
-        return self.values[idx]
-    end
-    return nil
 end
 
 local function pool_raw_try_add_id<T>(self: Pool<T>, id: Entity)
@@ -907,11 +806,11 @@ function View.new<T...>(reg: IRegistry, ...: T...): View<T...>
         local ctype = select(i, ...)
 
         if not ctype_valid(ctype) then
-            ERROR(`invalid { ctype_debug(nil, i) }`)
+            ASSERT(false, `invalid { ctype_debug(nil, i) }`)
         end
 
         if table.find(includes, ctype) then
-            ERROR(`duplicate { ctype_debug(ctype, i) } included`)
+            ASSERT(false, `duplicate { ctype_debug(ctype, i) } included`)
         end
 
         table.insert(includes, ctype)
@@ -964,11 +863,11 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
                 local ctype = select(i, ...)
 
                 if not ctype_valid(ctype) then
-                    ERROR(`invalid { ctype_debug(nil, i) }`)
+                    ASSERT(false, `invalid { ctype_debug(nil, i) }`)
                 end
 
                 if table.find(self.includes, ctype) then
-                    ERROR(`cannot exclude { ctype_debug(ctype, i) }, component is being tracked`)
+                    ASSERT(false, `cannot exclude { ctype_debug(ctype, i) }, component is being tracked`)
                 end
 
                 if table.find(excludes, ctype) then continue end
@@ -1264,7 +1163,7 @@ local Handle = (function(): HandleMT
         self.registry:add(self.entity, ...)
     end
 
-    function Handle.set<T>(self: Handle, ctype: T, value: T?): Handle
+    function Handle.set<T>(self: Handle, ctype: T, value: T): Handle
         self.registry:set(self.entity, ctype, value)
         return self
     end
@@ -1371,16 +1270,6 @@ local function registry_create(): Registry
         return group
     end
 
-    local function check_versions_equal(idx: number, idx_ver: number, key: number, id: number): boolean
-        return idx_ver - idx + key == id
-    end
-
-    local function ASSERT_VERSIONS_EQUAL(idx: number, idx_ver: number, key: number, id: number)
-        if idx_ver - idx + key ~= id then
-            ASSERT(false, `invalid entity`)    
-        end
-    end
-
     local function ASSERT_VALID_ENTITY(key: number, id: Entity)
         if entity_pool_has(id_pool, id) == false then
             ASSERT(false, `invalid entity`)
@@ -1389,12 +1278,12 @@ local function registry_create(): Registry
 
     local function ASSERT_NOT_RESERVED(key: number, id: Entity)
         if key == 0 then
-            ERROR("cannot release id")
+            ASSERT(false, "cannot release id")
         end
     end
 
     function registry.create(self: Registry, id: Entity?): Entity
-        if id_pool.size >= ID_MAX_KEY then ERROR("cannot create entity; registry is at max entities") end
+        if id_pool.size >= ID_MAX_KEY then ASSERT(false, "cannot create entity; registry is at max entities") end
         return id and entity_pool_unsafe_reuse(id_pool, id) or entity_pool_unsafe_add(id_pool)
     end
 
@@ -1410,10 +1299,27 @@ local function registry_create(): Registry
         ASSERT_NOT_RESERVED(ID_KEY(id), id)
         
         for _, pool in next, ctype_pools do
-            pool_try_remove_key(pool, key, id)
+            if pool.map[key] then
+                if pool.removing then fire(pool.removing, id) end
+        
+                local idx_ver = pool.map[key] :: number
+                local idx = ID_KEY(idx_ver)
+        
+                local n = pool.size; pool.size = n - 1
+                local map = pool.map
+                local entities = pool.entities
+                local values = pool.values
+        
+                local last_id = entities[n]
+                local last_key = ID_KEY(last_id)
+        
+                map[last_key] = ID_SWAPKEY(last_id, last_key, idx); map[key] = nil
+                entities[idx] = last_id; entities[n] = nil
+                values[idx] = values[n]; values[n] = nil
+            end
         end
 
-        entity_pool_unsafe_remove(id_pool, id) -- todo: inline
+        entity_pool_unsafe_remove(id_pool, id)
     end
 
     function registry.contains(self: Registry, id: Entity): boolean
@@ -1441,89 +1347,153 @@ local function registry_create(): Registry
             -- continue if already added
             if pool.map[key] then continue end
 
-            local constructor = ctype_constructors[ctype] or ERROR(`no constructor defined for {ctype_debug(ctype, i)}`)
+            local constructor = ctype_constructors[ctype] or ASSERT(false, `no constructor defined for {ctype_debug(ctype, i)}`)
             local value
             if constructor ~= ctype_TAG then
                 value = (constructor :: () -> unknown)()
-                if value == nil then ERROR(`{ ctype_debug(ctype, i) } constructor did not return a value`) end   
+                if value == nil then ASSERT(false, `{ ctype_debug(ctype, i) } constructor did not return a value`) end   
             end
             
             pool_unsafe_add(pool, key, id, value)
         end
     end
 
-    function registry.set<T>(self: Registry, id: Entity, ctype: T, value: T?)
-        if value ~= nil then
-            pool_set(get_ctype_pool(ctype), id, value, id_pool.map)
-        else
-            pool_try_remove(get_ctype_pool(ctype), id)
+    function registry.set<T>(self: Registry, id: Entity, ctype: T, value: T)
+        if value == nil then ASSERT(false, "cannot set nil value") end
+        local pool = get_ctype_pool(ctype)
+
+        -- manual inline of `pool_set`
+        ------------------------------------------------------------------------
+        local key = ID_KEY(id)
+        local idx_ver = pool.map[key]
+
+        if idx_ver then -- already added, change value
+            local idx = ID_KEY(idx_ver)
+            ID_ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
+            pool.values[idx] = value
+            if pool.changed then fire(pool.changed, id, value) end
+        else -- not added, add value
+            ASSERT_VALID_ENTITY(key, id)
+            pool_unsafe_add(pool, key, id, value)
         end
+        ------------------------------------------------------------------------
     end
     
     function registry.patch<T>(self: Registry, id: Entity, ctype: T, fn: (T) -> T)
-        pool_patch(get_ctype_pool(ctype), id, fn, id_pool.map, ctype)
+        local pool = get_ctype_pool(ctype)
+
+        -- manual inline of `pool_patch`
+        ------------------------------------------------------------------------
+        local key = ID_KEY(id)
+        local idx_ver = pool.map[key]
+        
+        if idx_ver == nil then
+            ASSERT_VALID_ENTITY(key, id)
+            local ctor = ctype_constructors[ctype]
+            if ctor == nil or ctor == ctype_TAG then
+                ASSERT(false, `entity does not have component and no constructor for {ctype_debug(ctype)}`)
+            end
+            local value = fn((ctor :: () -> T)())
+            if value == nil then ASSERT(false, "patcher cannot return nil") end
+            pool_unsafe_add(pool, key, id, value)
+        else
+            local idx = ID_KEY(idx_ver)
+            ID_ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
+            local value = fn(pool.values[idx])
+            if value == nil then ASSERT(false, "patcher cannot return nil") end
+            pool.values[idx] = value
+            if pool.changed then
+                fire(pool.changed, id, value)
+            end
+        end
+        ------------------------------------------------------------------------
     end
 
     registry.has = (function(self: Registry, id: Entity, ...: unknown): boolean
-        local a, b = ...
         local key = ID_KEY(id)
-        if b == nil then
-            local idx_ver = get_ctype_pool(a).map[key]
-            return idx_ver ~= nil and check_versions_equal(ID_KEY(idx_ver), idx_ver, key, id)
-        else
-            for i = 1, select("#", ...) do
-                local idx_ver = get_ctype_pool(select(i, ...)).map[key]
-                if idx_ver == nil or not check_versions_equal(ID_KEY(idx_ver), idx_ver, key, id) then return false end
-            end
-            return true
-        end  
-    end :: any) :: <T...>(self: Registry, id: Entity, T...) -> boolean
 
-    local function pool_safe_get(ctype: CType, key: number, id: number): unknown
-        local pool = get_ctype_pool(ctype)
-        local idx_ver = pool.map[key]
-        if idx_ver == nil then ERROR(`entity does not have {ctype_debug(ctype, 1)}`) end
-        local idx = ID_KEY(idx_ver :: number)
-        ASSERT_VERSIONS_EQUAL(idx, idx_ver :: number, key, id)
-        return pool.values[idx]
-    end
+        for i = 1, select("#", ...) do
+            local idx_ver = get_ctype_pool(select(i, ...)).map[key]
+            if idx_ver == nil or not ID_VERSIONS_EQUAL(ID_KEY(idx_ver), idx_ver, key, id) then return false end
+        end
+        return true
+    end :: any) :: <T...>(self: Registry, id: Entity, T...) -> boolean
 
     local function pool_get(ctype: CType, key: number, id: number): unknown
         local pool = get_ctype_pool(ctype)
         local idx_ver = pool.map[key]
-        if idx_ver == nil then ERROR(`entity does not have {ctype_debug(ctype)}`) end
+        if idx_ver == nil then ASSERT(false, `entity does not have {ctype_debug(ctype)}`) end
         return pool.values[ID_KEY(idx_ver :: number)]
     end
 
-    -- todo: get all gets to inline
-
-    registry.get = (function(self: Registry, id: Entity, ...: unknown): ...unknown
-        local a, b, c, d, e = ...
+    registry.get = (function(self: Registry, id: Entity, a: unknown, ...: unknown): ...unknown
+        local b, c, d, e = ...
         local key = ID_KEY(id)
+
+        local pool = get_ctype_pool(a)
+        local idx_ver = pool.map[key]
+        if idx_ver == nil then ASSERT(false, `entity does not have {ctype_debug(a, 1)}`) end
+        local idx = ID_KEY(idx_ver :: number)
+        ID_ASSERT_VERSIONS_EQUAL(idx, idx_ver :: number, key, id)
+        local va = pool.values[idx]
+
         if b == nil then
-            return pool_safe_get(a, key, id)
+            return va
         elseif c == nil then
-            return pool_safe_get(a, key, id), pool_get(b, key, id)
+            return va, pool_get(b, key, id)
         elseif d == nil then
-            return pool_safe_get(a, key, id), pool_get(b, key, id), pool_get(c, key, id)
+            return va, pool_get(b, key, id), pool_get(c, key, id)
         elseif e == nil then
-            return pool_safe_get(a, key, id), pool_get(b, key, id), pool_get(c, key, id), pool_get(d, key, id)
+            return va, pool_get(b, key, id), pool_get(c, key, id), pool_get(d, key, id)
         else
             local tuple: Array<any> = { ... }
             for i, v in next, tuple do
                 tuple[i] = pool_get(v, key, id)
             end
-            return unpack(tuple)
+            return va, unpack(tuple)
         end
     end :: any) :: <T...>(self: Registry, id: Entity, T...) -> T...
 
     function registry.try_get<T>(self: Registry, id: Entity, ctype: T): T?
-        return pool_try_get(get_ctype_pool(ctype), id)
+        local pool = get_ctype_pool(ctype)
+        local key = ID_KEY(id)
+        local idx_ver = pool.map[key]
+        if idx_ver then
+            local idx = ID_KEY(idx_ver)
+            if ID_VERSIONS_EQUAL(idx, idx_ver, key, id) then
+                return pool.values[idx]
+            end
+        end
+        return nil
     end
 
     function registry.remove<T...>(self: Registry, id: Entity, ...: T...)
         for i = 1, select("#", ...) do
-            pool_try_remove(get_ctype_pool(select(i, ...)), id)
+            --------------------------------------------------------------------
+            local pool = get_ctype_pool(select(i, ...))
+
+            local key = ID_KEY(id)
+            local map = pool.map
+
+            if map[key] then
+                if pool.removing then fire(pool.removing, id) end
+
+                local idx_ver = pool.map[key] :: number
+                local idx = ID_KEY(idx_ver)
+                ID_ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
+            
+                local n = pool.size; pool.size = n - 1
+                local entities = pool.entities
+                local values = pool.values
+
+                local last_id = entities[n]
+                local last_key = ID_KEY(last_id)
+
+                map[last_key] = ID_SWAPKEY(last_id, last_key, idx); map[key] = nil
+                entities[idx] = last_id; entities[n] = nil
+                values[idx] = values[n]; values[n] = nil
+            end
+            --------------------------------------------------------------------
         end
     end
 
@@ -1620,7 +1590,7 @@ local function registry_create(): Registry
     -- test methods
     (registry :: any).set_entity_version = function(_, key: number, ver: number)
         local data = id_pool.map[key] :: number
-        if data > 0 then ERROR("attempt to set version of in-use entity") end
+        if data > 0 then ASSERT(false, "attempt to set version of in-use entity") end
         id_pool.map[key] = - ID_CREATE(ID_KEY(math.abs(data)), ver)
     end
 
@@ -1664,7 +1634,7 @@ local Queue = {} do
 
     function Queue.add(self: _Queue, ...: unknown)
         -- otherwise value will not be returned during iteration
-        if ... == nil then ERROR("first value cannot be nil") end
+        if ... == nil then ASSERT(false, "first value cannot be nil") end
 
         local columns = self.columns
         local n = self.size + 1; self.size = n

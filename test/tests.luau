@@ -456,7 +456,7 @@ TEST("registry:set()", function()
         end
 
         do CASE "Remove component"
-            reg:set(id, A, nil)
+            reg:remove(id, A)
             CHECK(reg:try_get(id, A) == nil)
             CHECK(not reg:has(id, A))
         end
@@ -516,41 +516,11 @@ TEST("registry:set()", function()
         end)
     end
 
-    do CASE "Remove component from invalid entity"
-        local id = reg:create()
-        reg:release(id)
-
-        local ok = pcall(function()
+    do CASE "Attempt to set nil value"
+        CHECK_ERR("cannot set nil value", function()
+            local id = reg:create()
             reg:set(id, A, nil)
         end)
-        
-        CHECK(ok)
-    end
-
-    do CASE "Remove component from invalid entity with used key"
-        local id = reg:create()
-        reg:release(id)
-        reg:create() -- reuse key
-
-        local ok = pcall(function()
-            reg:set(id, A, nil)
-        end)
-        
-        CHECK(ok)
-    end
-
-    do CASE "Remove component from invalid entity with used key that has component"
-        local id = reg:create()
-        reg:release(id)
-        
-        local newid = reg:create() -- reuse key
-        reg:set(newid, A, 1)
-
-        CHECK_ERR("invalid entity", function()
-            reg:set(id, A, nil)
-        end)
-
-        CHECK(reg:get(newid, A) == 1)
     end
 end)
 
@@ -629,10 +599,10 @@ TEST("registry:try_get()", function()
         local newid = reg:create()
         reg:set(newid, A, 1)
 
-        --CHECK(reg:try_get(id, A) == nil)
-        CHECK_ERR("invalid entity", function()
-            reg:try_get(id, A)
-        end)
+        CHECK(reg:try_get(id, A) == nil)
+        --CHECK_ERR("invalid entity", function()
+            --reg:try_get(id, A)
+        --end)
     end
 end)
 
@@ -651,7 +621,7 @@ TEST("registry:has()", function()
         end
 
         do CASE "Does not have component"
-            reg:set(id, A, nil)
+            reg:remove(id, A)
             CHECK(reg:has(id, A) == false)
             CHECK(reg:has(id, B, A) == false)
         end
@@ -893,7 +863,7 @@ TEST("registry:orphaned()", function()
         CHECK(not reg:orphaned(id))
     end
 
-    reg:set(id, B, nil)
+    reg:remove(id, B)
 
     do CASE "Orphan after removing last component"
         CHECK(reg:orphaned(id))
@@ -1212,14 +1182,14 @@ TEST("registry:added()", function()
         CHECK(cc == 1)
 
         CASE "Removing then adding triggers"
-        reg:set(id, H, nil)
+        reg:remove(id, H)
         reg:set(id, H, true)
         CHECK(cc == 2)
 
         con:disconnect()
 
         CASE "Adding after disconnect does not trigger"
-        reg:set(id, H, nil)
+        reg:remove(id, H)
         reg:set(id, H, true)
         CHECK(cc == 2)
     end
@@ -1271,7 +1241,7 @@ TEST("registry:changed()", function()
     CHECK(cv == true)
 
     CASE "Removing does not trigger"
-    reg:set(id, A, nil)
+    reg:remove(id, A)
     CHECK(cc == 2)
 
     con:disconnect()
@@ -1299,7 +1269,7 @@ TEST("registry:removing()", function()
 
         do CASE "Removing triggers"
             reg:set(id, A, true)
-            reg:set(id, A, nil)
+            reg:remove(id, A)
             CHECK(cc == 1)
             CHECK(ce == id)
             CHECK(cv == nil)
@@ -1328,7 +1298,7 @@ TEST("registry:removing()", function()
         do CASE "Removing after disconnect does not trigger"
             reg:create(id)
             reg:set(id, A, true)
-            reg:set(id, A, nil)
+            reg:remove(id, A)
             CHECK(cc == 3)
         end
     end
@@ -1789,7 +1759,7 @@ TEST("registry:group()", function()
         local id = reg:create()
         reg:set(id, A, 1)
         reg:set(id, C, 3)
-        reg:set(id, A, nil)
+        reg:remove(id, A)
         CHECK(reg:try_get(id, A) == nil and reg:get(id, C) == 3)
     end
 

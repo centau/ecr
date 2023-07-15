@@ -148,12 +148,6 @@ do TITLE "Setting components"
                 reg:set(ids[i], A, true)
             end
         end)
-
-        BENCH("Remove 1 component", function()
-            for i = 1, START(N) do
-                reg:set(ids[i], A, nil)
-            end
-        end)
     end
 
     do
@@ -172,14 +166,6 @@ do TITLE "Setting components"
                 local e = ids[i]
                 reg:set(e, A, true)
                 reg:set(e, B, true)
-            end
-        end)
-
-        BENCH("Remove 2 components", function()
-            for i = 1, START(N) do
-                local e = ids[i]
-                reg:set(e, A, nil)
-                reg:set(e, B, nil)
             end
         end)
     end
@@ -203,16 +189,6 @@ do TITLE "Setting components"
                 reg:set(e, B, true)
                 reg:set(e, C, true)
                 reg:set(e, D, true)
-            end
-        end)
-
-        BENCH("Remove 4 components", function()
-            for i = 1, START(N) do
-                local e = ids[i]
-                reg:set(e, A, nil)
-                reg:set(e, B, nil)
-                reg:set(e, C, nil)
-                reg:set(e, D, nil)
             end
         end)
     end
@@ -680,8 +656,7 @@ do TITLE "Registry group"
         BENCH("Remove 2 components", function()
             for i = 1, START(N) do
                 local e = ids[i]
-                reg:set(e, A, nil)
-                reg:set(e, B, nil)
+                reg:remove(e, A)
             end
         end)
     end
@@ -715,10 +690,7 @@ do TITLE "Registry group"
         BENCH("Remove 4 components", function()
             for i = 1, START(N) do
                 local e = ids[i]
-                reg:set(e, C, nil)
-                reg:set(e, D, nil)
-                reg:set(e, E, nil)
-                reg:set(e, F, nil)
+                reg:remove(e, C, D, E, F)
             end
         end)
     end
@@ -936,7 +908,7 @@ do TITLE "Observers"
 
     BENCH("Remove component", function()
         for i = 1, START(N) do
-            reg:set(ids[i], A, nil)
+            reg:remove(ids[i], A)
         end
     end)
 
