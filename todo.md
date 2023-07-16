@@ -18,6 +18,8 @@
 - Nested groups.
 - Disallow creation of handles for invalid entities?
 - Boolean component optimization
+- Have view/observers return a new object when calling `exclude()`?
+- Cache views?
 - Look into component relationships
   - `ecr.pair(A, B)` to create new combinational component.
   - Why is this useful?

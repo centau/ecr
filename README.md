@@ -10,6 +10,8 @@
 
 <br>
 
+### ⚠️ This library is in early stages of development with breaking changes being made often.
+
 ECR is a pure Luau ECS library.
 
 - Uses Luau typechecking
@@ -29,24 +31,27 @@ brief introduction to the library.
 ```lua
 local ecr = require(ecr)
 
+-- define components
+local Position = ecr.component() :: Vector3
+local Velocity = ecr.component() :: Vector3
+
+-- define a system
+local function update_physics(world: ecr.Registry, dt: number)
+    for id, pos, vel in world:view(Position, Velocity) do
+        world:set(id, Position, pos + vel*dt)
+    end
+end
+
+-- instantiate the world
 local world = ecr.registry()
 
-local Health = ecr.component(function() return 100 end)
-local Position = ecr.component(Vector3.new)
-local Velocity = ecr.component(Vector3.new)
-
-local id = world:create()
-world:add(id, Health, Position, Velocity)
-
-local function updatePhysics(dt: number)
-    for id, position, velocity in world:view(Position, Velocity) do
-        world:set(id, Position, position + velocity * dt)
-    end
+-- create entities and assign components
+for i = 1, 10 do
+    local id = world:create()
+    world:set(id, Position, Vector3.new(i, 1, 1))
+    world:set(id, Velocity, Vector3.new(10, 0, 0))
 end
 
-local function regenHealth(dt: number)
-    for id, health in world:view(Health) do
-        world:set(id, health + 1 * dt)
-    end
-end
+-- run system
+update_physics(world, 1/60)
 ```
