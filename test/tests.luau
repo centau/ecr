@@ -1912,6 +1912,55 @@ TEST("registry:context()", function()
     end
 end)
 
+TEST("registry:storage()", function()
+    local reg = ecr.registry()
+
+    local id1 = reg:create()
+    local id2 = reg:create()
+
+    local a = reg:storage(A)
+
+    do CASE "pool:set() |add|"
+        a:set(id1, 1)
+        a:set(id2, 2)
+        CHECK(a.entities[1] == id1)
+        CHECK(a.entities[2] == id2)
+        CHECK(a.values[1] == 1)
+        CHECK(a.values[2] == 2)
+    end
+
+    do CASE "pool:set() |change|"
+        a:set(id1, 0)
+        a:set(id2, 1)
+        CHECK(a.values[1] == 0)
+        CHECK(a.values[2] == 1)
+    end
+
+    do CASE "pool:get()"
+        CHECK(a:get(id1) == 0)
+        CHECK(a:get(id2) == 1)
+    end
+
+    do CASE "pool:has()"
+        CHECK(a:has(id1))
+        CHECK(a:has(id2))
+    end
+
+    do CASE "pool:remove()"
+        a:remove(id1)
+        CHECK(a.entities[1] == id2)
+        CHECK(a.values[1] == 1)
+        CHECK(a.entities[2] == nil)
+        CHECK(a.values[2] == nil)
+        CHECK(a:get(id2) == 1)
+
+        a:remove(id2)
+        CHECK(#a.map == 0)
+        CHECK(#a.entities == 0)
+        CHECK(#a.values == 0)
+    end
+end)
+
 TEST("ecr.component()", function()
     do CASE "Components have unique ids"
         local cache = {}

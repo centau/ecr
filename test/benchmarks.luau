@@ -14,6 +14,14 @@ local E, F, G, H = ecr.component(), ecr.component(), ecr.component(), ecr.compon
 
 local TA, TB, TC, TD = ecr.tag(), ecr.tag(), ecr.tag(), ecr.tag()
 
+local function BULK_CREATE_IDS(reg: ecr.Registry, n: number): { ecr.Entity }
+    local ids = table.create(n)
+    for i = 1, n do
+        ids[i] = reg:create()
+    end
+    return ids
+end
+
 -- power of 2 so arrays are better alined for accurate memory usage reading
 local N = 2^18 --~ 262k
 
@@ -826,6 +834,44 @@ do TITLE("Destroying entities")
 
         for i = 1, START(N/10) do
             reg:destroy(ids[i])
+        end
+    end)
+end
+
+do TITLE("Direct storage")
+    local reg = ecr.registry()
+    local a = reg:storage(A)
+    a:reserve(N)
+
+    local ids = BULK_CREATE_IDS(reg, N)
+
+    BENCH("Add component", function()
+        for i = 1, START(N) do
+            a:set(ids[i], i)
+        end
+    end)
+
+    BENCH("Change component", function()
+        for i = 1, START(N) do
+            a:set(ids[i], i)
+        end
+    end)
+
+    BENCH("Get component", function()
+        for i = 1, START(N) do
+            a:get(ids[i])
+        end
+    end)
+
+    BENCH("Has component", function()
+        for i = 1, START(N) do
+            a:has(ids[i])
+        end
+    end)
+
+    BENCH("Remove component", function()
+        for i = 1, START(N) do
+            a:remove(ids[i])
         end
     end)
 end

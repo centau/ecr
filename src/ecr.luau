@@ -42,10 +42,14 @@ type Pool<T> = {
     added: Array<Listener<T>> | false,
     changed: Array<Listener<T>> | false,
     removing: Array<Listener<nil>> | false,
-    group: GroupData<T> | false
+    group: GroupData<T> | false,
+
+    set: (self: Pool<T>, id: Entity, value: T) -> (),
+    get: (self: Pool<T>, id: Entity) -> T?,
+    has: (self: Pool<T>, id: Entity) -> boolean,
+    remove: (self: Pool<T>, id: Entity) -> (),
+    reserve: (self: Pool<T>, size: number) -> ()
 }
-
-
 
 type GroupData<T = unknown> = {
     size: number,
@@ -264,6 +268,7 @@ ctype_name(ctype_entity, "entity")
 -- Pool
 --------------------------------------------------------------------------------
 
+-- todo: inline
 local fire: <T>(listeners: Array<Listener<T>>, id: Entity, value: T) -> () = (function()
     return function<T>(listeners: Array<Listener<T>>, id: Entity, value: T)
         for i = #listeners, 1, -1 do
@@ -331,24 +336,9 @@ local function pool_try_ungroup<T>(pool: Pool<T>, id: Entity): number
     end
 end
 
-local function pool_create<T>(size: number?): Pool<T>
-    local n = size or 1
-    return {
-        size = 0,
-        map = table.create(n),
-        entities = table.create(n),
-        values = table.create(n),
-
-        added = false,
-        changed = false,
-        removing = false,
-        group = false
-    }
-end
-
 local function pool_unsafe_add<T>(self: Pool<T>, key: number, id: Entity, v: T)
     local n = self.size + 1; self.size = n
-    self.map[key] = id - key + n
+    self.map[key] = id - key + n -- todo
     self.entities[n] = id
     self.values[n] = v
 
@@ -430,6 +420,79 @@ local function pool_clear<T>(self: Pool<T>)
     table.clear(self.values)
 end
 
+local function pool_create<T>(size: number?): Pool<T>
+    local n = size or 1
+    return {
+        size = 0,
+        map = table.create(n),
+        entities = table.create(n),
+        values = table.create(n),
+
+        added = false,
+        changed = false,
+        removing = false,
+        group = false,
+
+        set = function(self: Pool<T>, id: Entity, v: T)
+            local key = ID_KEY(id)
+            local idx_ver = self.map[key]
+            if idx_ver then
+                self.values[ID_KEY(idx_ver)] = v
+                if self.changed then fire(self.changed, id, v) end
+            else
+                pool_unsafe_add(self, key, id, v)
+            end
+        end,
+
+        get = function(self: Pool<T>, id: Entity): T
+            return self.values[ID_KEY(self.map[ID_KEY(id)] :: number)] -- todo: error
+        end,
+
+        has = function(self: Pool<T>, id: Entity): boolean
+           return self.map[ID_KEY(id)] ~= nil 
+        end,
+        
+        remove = function(self: Pool<T>, id: Entity)
+            local key = ID_KEY(id)
+            local map = self.map
+
+            if map[key] then
+                if self.removing then fire(self.removing, id) end
+
+                local idx_ver = self.map[key] :: number
+                local idx = ID_KEY(idx_ver)
+            
+                local n = self.size; self.size = n - 1
+                local entities = self.entities
+                local values = self.values
+
+                local last_id = entities[n]
+                local last_key = ID_KEY(last_id)
+
+                map[last_key] = ID_SWAPKEY(last_id, last_key, idx); map[key] = nil
+                entities[idx] = last_id; entities[n] = nil
+                values[idx] = values[n]; values[n] = nil
+            end      
+        end,
+
+        reserve = function(self: Pool<T>, size: number)
+            local map, entities, values = self.map, self.entities, self.values
+
+            for i = self.size + 1, size do
+                map[i] = true :: any
+                entities[i] = true :: any
+                values[i] = true :: any
+            end
+
+            for i = self.size + 1, size do
+                map[i] = nil
+                entities[i] = nil
+                values[i] = nil
+            end
+        end
+    }
+end
+
 local function pool_clone<T>(self: Pool<T>): Pool<T>
     return {
         size = self.size,
@@ -440,7 +503,13 @@ local function pool_clone<T>(self: Pool<T>): Pool<T>
         added = false,
         changed = false,
         removing = false,
-        group = false
+        group = false,
+
+        set = self.set,
+        get = self.get,
+        has = self.has,
+        remove = self.remove,
+        reserve = self.reserve
     }
 end
 

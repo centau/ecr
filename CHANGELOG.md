@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Direct access to array of all entities in the registry `registry:storage(ecr.entity)`.
 - `ecr.is_tag()` to check if a given component is a tag type.
 - `Registry:context()` to store components not specific to an entity.
+- Methods for lower level access to pools.
 
 ### Changed
 
