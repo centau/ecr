@@ -277,6 +277,13 @@ TEST("registry:contains()", function()
         do CASE "Released entity still invalid despite key reuse"
             CHECK(not reg:contains(id))
         end
+
+        do CASE "Id that has not been created yet"
+            local sreg = ecr.registry()
+            for i = 1, 10 do sreg:create() end
+            local id = sreg:create()
+            CHECK(not reg:contains(id))
+        end
     end
 
     do CASE "Integer invalid"

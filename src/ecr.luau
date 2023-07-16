@@ -620,8 +620,8 @@ end
 
 local function entity_pool_has(self: EntityPool, id: number): boolean
     local key = ID_KEY(id)
-    local data = self.map[key] :: number
-    return data > 0 and ID_SWAPKEY(data, ID_KEY(data), key) == id
+    local data = self.map[key]
+    return data ~= nil and data > 0 and ID_SWAPKEY(data, ID_KEY(data), key) == id
 end
 
 local function entity_pool_clear(self: EntityPool)
