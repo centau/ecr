@@ -3,17 +3,8 @@
 ## High Priority
 
 - Either an example or built-in class for serialization/continuous loading of one registry to another.
-- Remove registry `__len` and `__iter`
-  - Now redundant with the addition of dedicated entity pool.
-  - `#registry` becomes `#registry:view(ecr.entity)`.
-  - `for id in registry` becomes `for id in registry:view(ecr.entity)`.
-- Make `Registry:set()` error on `nil` set.
-  - Makes intention more explicit.
-  - Avoids bug where user intends to set a value but value was `nil`.
-  - Makes `Registry:remove()` less redundant.
-  - Removes weird case where `entity:set(tag, entity:get(tag))` will remove the tag
 - Optimize entity destruction
-  - The O(n) check for all registered components is perturbing when in large amount.
+  - The O(n) check for all registered components can be expensive.
   - Potential for parallelized checks?
   - Defer destruction to end of frame and perform bulk removal?
   - Bitset tracking?

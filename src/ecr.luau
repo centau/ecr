@@ -205,8 +205,8 @@ local function ID_SWAPKEY(id: number, cur_key, new_key: number): number
     return id - cur_key + new_key
 end
 
-local function ID_VERSIONS_EQUAL(key1: number, id1: number, key2: number, id2: number)
-    return id1 - key1 + key2 == id2
+local function ID_VERSIONS_NOT_EQUAL(key1: number, id1: number, key2: number, id2: number)
+    return id1 - key1 + key2 ~= id2
 end
 
 local function ID_ASSERT_VERSIONS_EQUAL(key1: number, id1: number, key2: number, id2: number)
@@ -268,14 +268,11 @@ ctype_name(ctype_entity, "entity")
 -- Pool
 --------------------------------------------------------------------------------
 
--- todo: inline
-local fire: <T>(listeners: Array<Listener<T>>, id: Entity, value: T) -> () = (function()
-    return function<T>(listeners: Array<Listener<T>>, id: Entity, value: T)
-        for i = #listeners, 1, -1 do
-            listeners[i](id, value)         
-        end 
-    end
-end)()
+local function fire<T>(listeners: Array<Listener<T>>, id: Entity, value: T)
+    for i = #listeners, 1, -1 do
+        listeners[i](id, value)         
+    end 
+end
 
 local function pool_swap<T>(
     self: Pool<T>,
@@ -338,7 +335,7 @@ end
 
 local function pool_unsafe_add<T>(self: Pool<T>, key: number, id: Entity, v: T)
     local n = self.size + 1; self.size = n
-    self.map[key] = id - key + n -- todo
+    self.map[key] = ID_SWAPKEY(id, key, n)
     self.entities[n] = id
     self.values[n] = v
 
@@ -1274,8 +1271,6 @@ local function registry_create(): Registry
     local all_pools: Map<CType, Pool<unknown>> = table.create(ctype_n)
     local ctype_pools: Map<CType, Pool<unknown>> = table.create(ctype_n)
 
-    local groups: Map<CType, GroupData?> = table.create(ctype_n) -- todo: is this needed?
-
     local signals = {
         added = {} :: Map<CType, Signal<Entity, unknown>>,
         changed = {} :: Map<CType, Signal<Entity, unknown>>,
@@ -1318,7 +1313,6 @@ local function registry_create(): Registry
             local ctype = select(i, ...)
             local pool = get_ctype_pool(ctype)
             group[i] = pool
-            groups[ctype] = group
             pool.group = group
 
             registry:added(ctype):connect(function(id)
@@ -1431,8 +1425,6 @@ local function registry_create(): Registry
         if value == nil then ASSERT(false, "cannot set nil value") end
         local pool = get_ctype_pool(ctype)
 
-        -- manual inline of `pool_set`
-        ------------------------------------------------------------------------
         local key = ID_KEY(id)
         local idx_ver = pool.map[key]
 
@@ -1445,14 +1437,11 @@ local function registry_create(): Registry
             ASSERT_VALID_ENTITY(key, id)
             pool_unsafe_add(pool, key, id, value)
         end
-        ------------------------------------------------------------------------
     end
     
     function registry.patch<T>(self: Registry, id: Entity, ctype: T, fn: (T) -> T)
         local pool = get_ctype_pool(ctype)
 
-        -- manual inline of `pool_patch`
-        ------------------------------------------------------------------------
         local key = ID_KEY(id)
         local idx_ver = pool.map[key]
         
@@ -1471,11 +1460,8 @@ local function registry_create(): Registry
             local value = fn(pool.values[idx])
             if value == nil then ASSERT(false, "patcher cannot return nil") end
             pool.values[idx] = value
-            if pool.changed then
-                fire(pool.changed, id, value)
-            end
+            if pool.changed then fire(pool.changed, id, value) end
         end
-        ------------------------------------------------------------------------
     end
 
     registry.has = (function(self: Registry, id: Entity, ...: unknown): boolean
@@ -1483,7 +1469,7 @@ local function registry_create(): Registry
 
         for i = 1, select("#", ...) do
             local idx_ver = get_ctype_pool(select(i, ...)).map[key]
-            if idx_ver == nil or not ID_VERSIONS_EQUAL(ID_KEY(idx_ver), idx_ver, key, id) then return false end
+            if idx_ver == nil or ID_VERSIONS_NOT_EQUAL(ID_KEY(idx_ver), idx_ver, key, id) then return false end
         end
         return true
     end :: any) :: <T...>(self: Registry, id: Entity, T...) -> boolean
@@ -1529,19 +1515,17 @@ local function registry_create(): Registry
         local idx_ver = pool.map[key]
         if idx_ver then
             local idx = ID_KEY(idx_ver)
-            if ID_VERSIONS_EQUAL(idx, idx_ver, key, id) then
-                return pool.values[idx]
-            end
+            if ID_VERSIONS_NOT_EQUAL(idx, idx_ver, key, id) then return end
+            return pool.values[idx]
         end
         return nil
     end
 
     function registry.remove<T...>(self: Registry, id: Entity, ...: T...)
-        for i = 1, select("#", ...) do
-            --------------------------------------------------------------------
-            local pool = get_ctype_pool(select(i, ...))
+        local key = ID_KEY(id)
 
-            local key = ID_KEY(id)
+        for i = 1, select("#", ...) do
+            local pool = get_ctype_pool(select(i, ...))
             local map = pool.map
 
             if map[key] then
@@ -1549,7 +1533,9 @@ local function registry_create(): Registry
 
                 local idx_ver = pool.map[key] :: number
                 local idx = ID_KEY(idx_ver)
-                ID_ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
+                --ID_ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
+
+                if ID_VERSIONS_NOT_EQUAL(idx, idx_ver, key, id) then return end
             
                 local n = pool.size; pool.size = n - 1
                 local entities = pool.entities
@@ -1562,7 +1548,6 @@ local function registry_create(): Registry
                 entities[idx] = last_id; entities[n] = nil
                 values[idx] = values[n]; values[n] = nil
             end
-            --------------------------------------------------------------------
         end
     end
 
@@ -1586,15 +1571,16 @@ local function registry_create(): Registry
         return Observer.new(self, ...)
     end
 
+    registry.group = nil :: any -- todo: why?
     function registry.group<T...>(self: Registry, ...: T...): Group<T...>
         local argn = select("#", ...)
         ASSERT(argn > 1, "groups must contain at least 2 components")
-        local group = groups[select(1, ...)]
+        local group = get_ctype_pool((select(1, ...))).group :: GroupData<unknown>
 
         for i = 1, argn do
             local ctype = select(i, ...)
             ASSERT(ctype_valid(ctype), `invalid { ctype_debug(nil, i) }`)
-            ASSERT(groups[ctype] == group,
+            ASSERT(get_ctype_pool(ctype).group == group,
                 `cannot create group; {ctype_debug(ctype, i)} is not owned by the same group as previous args`)
         end
 
@@ -1765,7 +1751,6 @@ type SignalInterface<T...> = {
 local queue_create = function<T...>(signal: SignalInterface<T...>?): Queue<T...>
     local queue = Queue.new()
 
-    -- todo: fix type error
     if signal then
         local connector = (signal :: any).connect or (signal :: any).Connect
         ASSERT(connector, "signal has no connector")
