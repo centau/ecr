@@ -56,7 +56,7 @@ pair.
 registry:set(id, Health, 100) -- adds a new component with a value of 100
 registry:get(id, Health) -- 100
 
-registry:set(id, Health, nil) -- removes the component from the entity
+registry:remove(id, Health) -- removes the component from the entity
 registry:has(id, Health) -- false
 ```
 
