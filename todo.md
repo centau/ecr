@@ -4,22 +4,15 @@
 
 - Either an example or built-in class for serialization/continuous loading of one registry to another.
 - Optimize entity destruction
-  - The O(n) check for all registered components can be expensive.
-  - Potential for parallelized checks?
-  - Defer destruction to end of frame and perform bulk removal?
-  - Bitset tracking?
-  - Archetypal tracking?
 
 ## Low Priority
 
-- Add more docs
-- Make codebase nicer.
 - Optimize adding to group.
 - Nested groups.
+- Non-owning groups.
+- Custom pools and storage based views.
 - Disallow creation of handles for invalid entities?
-- Boolean component optimization
-- Have view/observers return a new object when calling `exclude()`?
-- Cache views?
+- Boolean component optimization.
 - Look into component relationships
   - `ecr.pair(A, B)` to create new combinational component.
   - Why is this useful?
@@ -28,7 +21,7 @@
   - Is this even needed given that you can create custom observers already?
 - Make `Registry:release()` safe
   - This is very hard to do performantly.
-  - Remove it altogether? We want a completely safe API.
+  - Or deprecate and emove it? We want a (nearly) completely safe API.
 - Lower level access to underlying datastructures.
   - An API for pools returned by `Registry:storage()` like adding and removing.
   - Bypass pool lookups and safety check.
@@ -41,12 +34,16 @@
   - What `Flecs`' C++ API does with `world.entity()` and being able to call
     methods on the entity directly is very appealing. Implementing the exact same
     in Luau however would have serious performance implications.
+- We can use handle caching for entities, and have the library API such as views
+  return handles instead of ids, with an alternative API to work with ids
+  directly for performance code.
 - Investigate if using Vector3s for internal storage can improve perf
   - Can reduce 16 B per component (map and entities arrays combined into 1)
     - A component would only take 32 B and a tag only 16 B!!
   - Using Vector3s for ids also makes extracting key and version faster
-  - Should significantly improve cpu cache perf (by 2x in some cases?)
-- Address how some registry private members are captured as constant upvalues
+  - 33-50% reduced memory usage.
+  - Significantly improve cpu cache perf (by 2x in some cases)
+- Address how some registry private members are captured as upvalues
   - This means that doing `registryA.create(registryB)` can cause undefined behavior.
   - No one should be doing the above anyways so is it ok to leave it?
   - Switch from `:` to `.` to call methods? Not standard.
