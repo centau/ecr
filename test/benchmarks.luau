@@ -482,6 +482,18 @@ do TITLE("Create view")
             reg:view(A, B, C, D)
         end
     end)
+
+    BENCH("View and iter 1 component", function()
+        for i = 1, START(N) do
+            for _ in reg:view(A) do end
+        end
+    end)
+
+    BENCH("View and iter 4 component", function()
+        for i = 1, START(N) do
+            for _ in reg:view(A, B, C, D) do end
+        end
+    end)
 end
 
 do
