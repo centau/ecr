@@ -3,7 +3,8 @@
 ## High Priority
 
 - Either an example or built-in class for serialization/continuous loading of one registry to another.
-- Optimize entity destruction
+  - Support for id mapping layer.
+- Optimize entity destruction.
 
 ## Low Priority
 
@@ -21,7 +22,7 @@
   - Is this even needed given that you can create custom observers already?
 - Make `Registry:release()` safe
   - This is very hard to do performantly.
-  - Or deprecate and emove it? We want a (nearly) completely safe API.
+  - Or deprecate and remove it? We want a (nearly) completely safe API.
 - Lower level access to underlying datastructures.
   - An API for pools returned by `Registry:storage()` like adding and removing.
   - Bypass pool lookups and safety check.

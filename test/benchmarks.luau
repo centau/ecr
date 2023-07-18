@@ -464,6 +464,14 @@ do TITLE "Clear components"
         START(N)
         reg:clear()
     end)
+
+    BENCH("Clear 1 component (grouped)", function()
+        local reg = setup()
+        reg:group(A, B)
+
+        START(N)
+        reg:clear(A)
+    end)
 end
 
 do TITLE("Create view")
