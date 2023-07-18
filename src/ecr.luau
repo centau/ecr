@@ -22,7 +22,8 @@ export type Signal<T...> = {
 }
 
 export type Connection = {
-    disconnect: (self: Connection) -> ()
+    disconnect: (self: Connection) -> (),
+    reconnect: (self: Connection) -> ()
 }
 
 type Listener<T> = (id: Entity, value: T) -> ()
@@ -54,6 +55,7 @@ type Pool<T> = {
 type GroupData<T = unknown> = {
     size: number,
     added: boolean,
+    connections: Array<Connection>,
     [number]: Pool<T>
 }
 
@@ -398,7 +400,12 @@ local function pool_raw_try_remove_id<T>(self: Pool<T>, id: Entity)
 end
 
 local function pool_clear<T>(self: Pool<T>)
-    -- todo: disconnect group listeners if any
+    -- todo: do not disconnect added listeners
+    if self.group then
+        for _, connection in self.group.connections do
+            connection:disconnect()
+        end
+    end
 
     local signal = self.removing :: Array<Listener<nil>>
     if signal then
@@ -409,6 +416,10 @@ local function pool_clear<T>(self: Pool<T>)
 
     if self.group then
         self.group.size = 0
+
+        for _, connection in self.group.connections do
+            connection:reconnect()
+        end
     end
 
     self.size = 0
@@ -1165,21 +1176,30 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
     
     type _Connection<T... = ...unknown> = {
         signal: _Signal<T...>,
+        fn: (T...) -> (),
         id: number,
 
-        disconnect: (_Connection<T...>) -> ()
+        disconnect: (_Connection<T...>) -> (),
+        reconnect: (_Connection<T...>) -> ()
     }
 
     local Connection = {}
     
 
-    function Connection.new<T...>(signal: _Signal<T...>, id: number): _Connection<T...>
+    function Connection.new<T...>(signal: _Signal<T...>, fn: (T...) -> (), id: number): _Connection<T...>
         return {
             signal = signal,
+            fn = fn,
             id = id,
 
             disconnect = function(self: _Connection<T...>)
                 pool_try_remove(self.signal.pool, self.id)
+            end,
+
+            reconnect = function(self: _Connection<T...>)
+                self:disconnect()
+                local new = self.signal:connect(self.fn)
+                self.id = new.id
             end
         }
     end
@@ -1194,7 +1214,7 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
             connect = function(self: _Signal<T...>, listener: (T...) -> ()): _Connection<T...>
                 local n = self.count + 1; self.count = n
                 pool_unsafe_add(self.pool, n, n, listener)
-                return Connection.new(self, n)  
+                return Connection.new(self, listener, n)  
             end
         }
 
@@ -1307,7 +1327,7 @@ local function registry_create(): Registry
     end
 
     local function group_init(...: any): GroupData
-        local group = { size = 0, added = false }
+        local group = { size = 0, added = false, connections = {} }
 
         for i = 1, select("#", ...) do
             local ctype = select(i, ...)
@@ -1315,13 +1335,13 @@ local function registry_create(): Registry
             group[i] = pool
             pool.group = group
 
-            registry:added(ctype):connect(function(id)
+            table.insert(group.connections, registry:added(ctype):connect(function(id)
                 pool_unsafe_try_group(pool, id)
-            end)
+            end))
 
-            registry:removing(ctype):connect(function(id)
+            table.insert(group.connections, registry:removing(ctype):connect(function(id)
                 pool_try_ungroup(pool, id)
-            end)
+            end))
         end
 
         local pool = get_ctype_pool((...))
@@ -1763,7 +1783,7 @@ local queue_create = function<T...>(signal: SignalInterface<T...>?): Queue<T...>
 end :: ( <T...>() -> Queue<T...> ) & ( <T...>(signal: SignalInterface<T...>) -> Queue<T...> )
 
 --------------------------------------------------------------------------------
--- Return
+-- Export
 --------------------------------------------------------------------------------
 
 local ecr = {

@@ -8,9 +8,11 @@
 
 ## Low Priority
 
+- Optimize `Registry:add()`.
 - Optimize adding to group.
 - Nested groups.
 - Non-owning groups.
+- Consider making `Registry:changed()` fire before it is changed.
 - Custom pools and storage based views.
 - Disallow creation of handles for invalid entities?
 - Boolean component optimization.

@@ -856,6 +856,35 @@ TEST("registry:clear()", function()
             CHECK(VER(ids[i]) + 1 == VER(ids_after[i]))
         end
     end
+
+    do CASE "Clear with groups"
+        local reg = ecr.registry()
+        reg:group(A, B)
+
+        local listener = { count = 0 } :: { id: number?, count: number }
+
+        reg:removing(A):connect(function(id)
+            listener.id = id
+            listener.count += 1
+        end)
+
+        local eB = reg:handle():set(B, 2)
+        local eAB = reg:handle():set(A, 1):set(B, 1)
+
+        reg:clear(A)
+
+        CHECK(#reg:storage(A).entities == 0)
+        CHECK(listener.id == eAB.entity and listener.count == 1)
+
+        eAB:set(A, 1) -- 1
+        eB:set(A, 2) -- 2
+
+        eAB:remove(A)
+
+        CHECK(#reg:storage(A).entities == 1)
+        CHECK(reg:storage(A).entities[1] == eB.entity)
+
+    end
 end)
 
 TEST("registry:orphaned()", function()
@@ -1259,6 +1288,12 @@ TEST("registry:changed()", function()
     reg:set(id, A, true) -- add
     reg:set(id, A, false) -- change
     CHECK(cc == 2)
+
+    con:reconnect()
+
+    CASE "Changing after reconnect fires again"
+    reg:set(id, A, true)
+    CHECK(cc == 3)
 end)
 
 TEST("registry:removing()", function()
