@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `Connection:reconnect()`.
 - `ecr.entity` which is a built-in component that can be used to access a
   dedicated entity pool:
   - Exclude-only views `registry:view(ecr.entity):exclude(...)`.
