@@ -13,6 +13,7 @@
 - Nested groups.
 - Non-owning groups.
 - Consider making `Registry:changed()` fire before it is changed.
+  - Rename to `Registry:changing()`?
 - Custom pools and storage based views.
 - Disallow creation of handles for invalid entities?
 - Boolean component optimization.

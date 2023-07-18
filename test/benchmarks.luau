@@ -684,7 +684,14 @@ do TITLE "Registry group"
         BENCH("Remove 2 components", function()
             for i = 1, START(N) do
                 local e = ids[i]
-                reg:remove(e, A)
+                reg:remove(e, A, B)
+            end
+        end)
+
+        BENCH("Add 1 component", function()
+            for i = 1, START(N) do
+                local e = ids[i]
+                reg:set(e, A, 1)
             end
         end)
     end
@@ -719,6 +726,13 @@ do TITLE "Registry group"
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:remove(e, C, D, E, F)
+            end
+        end)
+
+        BENCH("Add 1 component", function()
+            for i = 1, START(N) do
+                local e = ids[i]
+                reg:set(e, C, 1)
             end
         end)
     end
