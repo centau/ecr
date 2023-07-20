@@ -552,6 +552,13 @@ local function entity_pool_create(): EntityPool
     local pool = pool_create() :: EntityPool
     pool.capacity = 0
     pool.free = ID_INVALID_KEY
+
+    -- always return id on nil index to avoid needing to if check for validity
+    -- better perf when id already exists (most common case)
+    setmetatable(pool.map, { __index = function()
+        return ID_NULL
+    end })
+
     return pool
 end
 
@@ -660,12 +667,12 @@ local function entity_pool_unsafe_remove(self: EntityPool, id: Entity)
     end
 end
 
--- todo: optimize
 -- checks if an id is not marked for reuse and is contained in the pool
 local function entity_pool_has(self: EntityPool, id: number): boolean
     local key = ID_KEY(id)
-    local data = self.map[key]
-    return data ~= nil and data > 0 and ID_SWAP_KEY(data, ID_KEY(data), key) == id
+    local data = self.map[key] :: number
+    -- todo: verify no false positives with bit32.band with negative numbers
+    return ID_SWAP_KEY(data, ID_KEY(data), key) == id
 end
 
 local function entity_pool_clear(self: EntityPool)
