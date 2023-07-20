@@ -83,6 +83,18 @@ Creates a new valueless component type.
 
 ---
 
+### is_tag()
+
+Checks if a component type is a tag.
+
+- **Type**
+
+    ```lua
+    function ecr.is_tag<T>(ctype: T): boolean
+    ```
+
+---
+
 ### queue()
 
 Creates a new queue.
@@ -125,6 +137,32 @@ Associates names with components for debugging.
 <br><br>
 
 ## Constants
+
+### entity
+
+A special component type that refers to the registry entity pool.
+
+- **Type**
+  
+    ```lua
+    ecr.entity: Entity
+    ```
+
+- **Examples**
+
+    View all entities:
+
+    ```lua
+    registry:view(ecr.entity)
+    ```
+
+    Listen to entity creation:
+
+    ```lua
+    registry:added(ecr.entity):connect()
+    ```
+
+---
 
 ### null
 
