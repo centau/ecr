@@ -61,6 +61,7 @@ local function BULK_CREATE_IDS(reg: ecr.Registry, n: number): { ecr.Entity }
     return ids
 end
 
+--[[
 local function INSPECT_IDS(reg)
     local pool = reg:storage(ecr.entity)
     local map = pool.map
@@ -74,6 +75,7 @@ local function INSPECT_IDS(reg)
     end
     print "}"
 end
+]]
 
 local N = 1e3
 
@@ -281,8 +283,8 @@ TEST("registry:contains()", function()
         do CASE "Id that has not been created yet"
             local sreg = ecr.registry()
             for i = 1, 10 do sreg:create() end
-            local id = sreg:create()
-            CHECK(not reg:contains(id))
+            local id2 = sreg:create()
+            CHECK(not reg:contains(id2))
         end
     end
 
@@ -2138,6 +2140,11 @@ end)
 
 TEST("ecr.tag()", function()
     local TA, TB, TC, TD = ecr.tag(), ecr.tag(), ecr.tag(), ecr.tag()
+
+    do CASE "Is tag"
+        CHECK(ecr.is_tag(TA))
+        CHECK(not ecr.is_tag(A))
+    end
 
     local reg = ecr.registry()
 
