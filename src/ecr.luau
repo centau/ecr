@@ -13,12 +13,12 @@ assert(bit32.band(MAX_ENTITIES + 1, MAX_ENTITIES) == 0)
 
 type Array<T> = { [number]: T }
 type Map<T, U> = { [T]: U }
-
 type CType = unknown
+
 export type Entity = number
 
 export type Signal<T...> = {
-    connect: (self: Signal<T...>, self: (T...) -> ()) -> Connection,
+    connect: (self: Signal<T...>, listener: (T...) -> ()) -> Connection,
 }
 
 export type Connection = {
@@ -30,16 +30,17 @@ type Listener<T> = (id: Entity, value: T) -> ()
 
 -- specialized pool for tracking entities
 type EntityPool<T = nil> = Pool<T> & {
-    capacity: number,
-    free: number
+    capacity: number, -- manually track max size since # has UB for dicts
+    free: number -- head of list
 }
 
 type Pool<T> = {
-    size: number,
-    map: Array<number?>,
-    entities: Array<Entity>,
-    values: Array<T>,
+    size: number, -- amount of entities in pool
+    map: Array<number?>, -- sparse array, maps entity key to internal index
+    entities: Array<Entity>, -- all entity ids
+    values: Array<T>, -- all corresponding componentvalues
 
+    -- false instead of nil to preserve table shape
     added: Array<Listener<T>> | false,
     changed: Array<Listener<T>> | false,
     removing: Array<Listener<nil>> | false,
@@ -54,7 +55,7 @@ type Pool<T> = {
 
 type GroupData<T = unknown> = {
     size: number,
-    added: boolean,
+    added: boolean, -- flag used to detect iter invalidation
     connections: Array<Connection>,
     [number]: Pool<T>
 }
@@ -142,26 +143,22 @@ export type Queue<T...> = typeof(setmetatable({} :: {
     __len: (self: Queue<T...>) -> number  
 }))
 
--- error trace will always begin at callsite outside of file
-local ERROR = function<T>(msg: T): never
-    local stack = 1
+-- stack trace will always begin at first callsite outside of this file
+local ASSERT = function<T>(v: T, msg: string): T
+    if v then return v end
 
+    local stack = 1
     while debug.info(stack, "s") == debug.info(1, "s") do
         stack += 1    
     end
 
     error(msg, stack)  
-end :: typeof(error)
-
-local ASSERT = function<T>(v: T, msg: string): T
-    if v then return v end
-    ERROR(msg)
     return nil :: never
 end :: typeof(assert)
 
 local function strict(name: string)
     return function(_, idx: unknown)
-        ERROR(`{tostring(idx)} is not a valid member of {name}`)
+        ASSERT(false, `{tostring(idx)} is not a valid member of {name}`)
     end
 end
 
@@ -203,7 +200,7 @@ local function ID_VER(id: number): number
     return (id - ID_KEY(id)) * ID_RSHIFT
 end
 
-local function ID_SWAPKEY(id: number, cur_key, new_key: number): number
+local function ID_SWAP_KEY(id: number, cur_key, new_key: number): number
     return id - cur_key + new_key
 end
 
@@ -217,32 +214,38 @@ local function ID_ASSERT_VERSIONS_EQUAL(key1: number, id1: number, key2: number,
     end
 end
 
-local ID_NULL = ID_CREATE(0, ID_MAX_VER)
-local ID_CONTEXT = ID_CREATE(0, 1)
+local ID_NULL = ID_CREATE(0, ID_MAX_VER) -- always rejected by registry
+local ID_CONTEXT = ID_CREATE(0, 1) -- special reserved entity
 
 --------------------------------------------------------------------------------
 -- Component Type
 --------------------------------------------------------------------------------
 
-local ctype_n = 0
-local ctype_names: Map<CType, string> = {}
-local ctype_constructors: Map<CType, ((() -> unknown) | nil | true)> = table.create(1e3)
-
 -- a constructor set to `ctype_TAG` indicates that the component is a tag
 local ctype_TAG: true = true
 
-local function ctype_create<T>(constructor: (() -> T)? | true): CType
+local ctype_n = 0
+local ctype_names: Map<CType, string> = {}
+local ctype_ctors: Map<CType, ((() -> unknown) | false | typeof(ctype_TAG)?)> = {}
+
+local function ctype_create<T>(constructor: (() -> T) | typeof(ctype_TAG)): CType
     ctype_n += 1
-    ctype_constructors[ctype_n] = constructor 
+
+    -- fill array to prevent conversion to hashmap
+    for i = #ctype_ctors + 1, ctype_n - 1 do
+        ctype_ctors[i] = false
+    end
+
+    ctype_ctors[ctype_n] = constructor
     return ctype_n
 end
 
 local function ctype_tag(): CType
-    return ctype_create(true)
+    return ctype_create(ctype_TAG)
 end
 
 local function ctype_is_tag(ctype: CType): boolean
-    return ctype_constructors[ctype] == true
+    return ctype_ctors[ctype] == ctype_TAG
 end
 
 local function ctype_valid(v: unknown): boolean
@@ -253,6 +256,7 @@ local function ctype_name(ctype: CType, name: unknown)
     ctype_names[ctype] = tostring(name)
 end
 
+-- generates an error message for debugging
 local ctype_debug: (ctype: CType?, idx: number?) -> () = (function()
     return function(ctype: CType?, idx: number?)
         local name = ctype_names[ctype]
@@ -263,6 +267,7 @@ local ctype_debug: (ctype: CType?, idx: number?) -> () = (function()
     end
 end)()
 
+-- special entity component
 local ctype_entity = ctype_tag()
 ctype_name(ctype_entity, "entity")
 
@@ -276,6 +281,7 @@ local function fire<T>(listeners: Array<Listener<T>>, id: Entity, value: T)
     end 
 end
 
+-- swaps position of two internal elements
 local function pool_swap<T>(
     self: Pool<T>,
     idx: number,
@@ -293,15 +299,18 @@ local function pool_swap<T>(
     
     entities[target_idx], entities[idx] = id, id_swap
     values[target_idx], values[idx] = values[idx], values[target_idx]
-    map[key] = ID_SWAPKEY(id, key, target_idx)
-    map[key_swap] = ID_SWAPKEY(id_swap, key_swap, idx)
+    map[key] = ID_SWAP_KEY(id, key, target_idx)
+    map[key_swap] = ID_SWAP_KEY(id_swap, key_swap, idx)
 end
 
+-- checks then moves elements into group
+-- undefined if element is already in group
 local function pool_unsafe_try_group<T>(pool: Pool<T>, id: number)
     local group = pool.group :: GroupData<T>
 
     local key = ID_KEY(id)
 
+    -- search through all pools in group to check if entity can be added
     for _, pool in ipairs(group) do
         if pool.map[key] == nil then
             return
@@ -319,31 +328,32 @@ local function pool_unsafe_try_group<T>(pool: Pool<T>, id: number)
 end
 
 -- returns new internal index of id
-local function pool_try_ungroup<T>(pool: Pool<T>, id: Entity): number
+local function pool_try_ungroup<T>(pool: Pool<T>, id: Entity)
     local group = pool.group :: GroupData<T>
 
     local idx = ID_KEY(pool.map[ID_KEY(id)] :: number)
     local n = group.size
-    if idx <= n then
+    if idx <= n then -- is in group, swap needed
         group.size = n - 1
         for _, pool in ipairs(group) do        
             pool_swap(pool, idx, n)
         end
-        return n
-    else
-        return idx
     end
 end
 
+-- adds id and value to pool
+-- undefined if id is already in pool
 local function pool_unsafe_add<T>(self: Pool<T>, key: number, id: Entity, v: T)
     local n = self.size + 1; self.size = n
-    self.map[key] = ID_SWAPKEY(id, key, n)
+    self.map[key] = ID_SWAP_KEY(id, key, n)
     self.entities[n] = id
     self.values[n] = v
 
     if self.added then fire(self.added, id, v) end
 end
 
+-- removes id from pool
+-- does nothing if not in pool
 local function pool_try_remove<T>(self: Pool<T>, id: Entity)
     local key = ID_KEY(id)
     local map = self.map
@@ -362,13 +372,16 @@ local function pool_try_remove<T>(self: Pool<T>, id: Entity)
         local last_id = entities[n]
         local last_key = ID_KEY(last_id)
 
-        map[last_key] = ID_SWAPKEY(last_id, last_key, idx); map[key] = nil
+        map[last_key] = ID_SWAP_KEY(last_id, last_key, idx); map[key] = nil
         entities[idx] = last_id; entities[n] = nil
         values[idx] = values[n]; values[n] = nil
     end
 end
 
-local function pool_raw_try_add_id<T>(self: Pool<T>, id: Entity)
+-- adds only id to pool
+-- does nothing if already in pool
+-- does not fire signals
+local function pool_try_add_id<T>(self: Pool<T>, id: Entity)
     local map = self.map
 
     local key = ID_KEY(id)
@@ -376,12 +389,15 @@ local function pool_raw_try_add_id<T>(self: Pool<T>, id: Entity)
 
     if idx_ver == nil then
         local n = self.size + 1; self.size = n
-        map[key] = ID_SWAPKEY(id, key, n)
+        map[key] = ID_SWAP_KEY(id, key, n)
         self.entities[n] = id
     end 
 end
 
-local function pool_raw_try_remove_id<T>(self: Pool<T>, id: Entity)
+-- removes only id from pool
+-- does nothing if already removed
+-- does not fire signals
+local function pool_try_remove_id<T>(self: Pool<T>, id: Entity)
     local map = self.map
     local entities = self.entities
 
@@ -394,13 +410,15 @@ local function pool_raw_try_remove_id<T>(self: Pool<T>, id: Entity)
         local last_id = entities[n]
         local last_key = ID_KEY(last_id)
 
-        map[last_key] = ID_SWAPKEY(last_id, last_key, idx); map[key] = nil
+        map[last_key] = ID_SWAP_KEY(last_id, last_key, idx); map[key] = nil
         entities[idx] = last_id; entities[n] = nil
     end
 end
 
+-- removes all elements in pool
 local function pool_clear<T>(self: Pool<T>)
     -- todo: do not disconnect added listeners
+    -- disconnect group listeners to avoid needless swapping
     if self.group then
         for _, connection in self.group.connections do
             connection:disconnect()
@@ -416,7 +434,6 @@ local function pool_clear<T>(self: Pool<T>)
 
     if self.group then
         self.group.size = 0
-
         for _, connection in self.group.connections do
             connection:reconnect()
         end
@@ -477,7 +494,7 @@ local function pool_create<T>(size: number?): Pool<T>
                 local last_id = entities[n]
                 local last_key = ID_KEY(last_id)
 
-                map[last_key] = ID_SWAPKEY(last_id, last_key, idx); map[key] = nil
+                map[last_key] = ID_SWAP_KEY(last_id, last_key, idx); map[key] = nil
                 entities[idx] = last_id; entities[n] = nil
                 values[idx] = values[n]; values[n] = nil
             end      
@@ -521,6 +538,7 @@ local function pool_clone<T>(self: Pool<T>): Pool<T>
     }
 end
 
+-- specialized pool used by the registry to track ids for reuse
 local function entity_pool_create(): EntityPool
     local pool = pool_create() :: EntityPool
     pool.capacity = 0
@@ -528,15 +546,16 @@ local function entity_pool_create(): EntityPool
     return pool
 end
 
-local function entity_pool_unsafe_add(self: EntityPool): Entity
+-- creates or reuses an id
+local function entity_pool_add(self: EntityPool): Entity
     local size = self.size + 1; self.size = size
     local free = self.free
     local id
     if free ~= ID_INVALID_KEY then -- reuse
         local data = - self.map[free] :: number
         local next_key = ID_KEY(data)
-        id = ID_SWAPKEY(data, next_key, free)
-        self.map[free] = ID_SWAPKEY(data, next_key, size)
+        id = ID_SWAP_KEY(data, next_key, free)
+        self.map[free] = ID_SWAP_KEY(data, next_key, size)
         self.free = next_key
     else -- create new
         self.capacity += 1
@@ -551,7 +570,8 @@ local function entity_pool_unsafe_add(self: EntityPool): Entity
     return id
 end
 
-local function entity_pool_unsafe_reuse(self: EntityPool, id: Entity): Entity
+-- reuses a specific id
+local function entity_pool_reuse(self: EntityPool, id: Entity): Entity
     local key, ver = ID_KEY_VER(id)
     ASSERT(
         key >= 1 and ver >= 1 and
@@ -593,16 +613,18 @@ local function entity_pool_unsafe_reuse(self: EntityPool, id: Entity): Entity
                 previous = next
             end
             local prev = - map[previous]
-            map[previous] = - ID_SWAPKEY(prev, ID_KEY(prev), ID_KEY(- map[key]))
+            map[previous] = - ID_SWAP_KEY(prev, ID_KEY(prev), ID_KEY(- map[key]))
         end
     end
     local n = self.size + 1; self.size = n
-    map[key] = ID_SWAPKEY(id, key, n)
+    map[key] = ID_SWAP_KEY(id, key, n)
     self.entities[n] = id
     if self.added then fire(self.added, id) end
     return id
 end
 
+-- removes and marks an id for reuse
+-- undefined if id is already marked for reuse
 local function entity_pool_unsafe_remove(self: EntityPool, id: Entity)
     local key, ver = ID_KEY_VER(id)
 
@@ -618,7 +640,7 @@ local function entity_pool_unsafe_remove(self: EntityPool, id: Entity)
     local last_key = ID_KEY(last_id)
 
     entities[idx] = last_id; entities[n] = nil
-    map[last_key] = ID_SWAPKEY(last_id, last_key, idx)
+    map[last_key] = ID_SWAP_KEY(last_id, last_key, idx)
 
 
     if ver < ID_MAX_VER then
@@ -629,10 +651,12 @@ local function entity_pool_unsafe_remove(self: EntityPool, id: Entity)
     end
 end
 
+-- todo: optimize
+-- checks if an id is not marked for reuse and is contained in the pool
 local function entity_pool_has(self: EntityPool, id: number): boolean
     local key = ID_KEY(id)
     local data = self.map[key]
-    return data ~= nil and data > 0 and ID_SWAPKEY(data, ID_KEY(data), key) == id
+    return data ~= nil and data > 0 and ID_SWAP_KEY(data, ID_KEY(data), key) == id
 end
 
 local function entity_pool_clear(self: EntityPool)
@@ -923,7 +947,7 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
 
     local self: _Observer<T...> = setmetatable({
         registry = reg,
-        pool = pool_clone(reg:storage(ctype_first)),
+        pool = pool_clone(reg:storage(ctype_first)), -- treat all initial ids as changed
         includes = {},
         excludes = nil,
         connections = nil,
@@ -972,7 +996,7 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
 
             for i, ctype in includes do
                 local function listener(id)
-                    pool_raw_try_add_id(pool, id)
+                    pool_try_add_id(pool, id)
                 end
                 
                 table.insert(connections, reg:added(ctype):connect(listener))
@@ -1067,10 +1091,13 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
 
     local connections = {}
     local pool = self.pool
+
+    -- must keep remove listener connected after `Observer:disconnect()`
+    -- weakref is used to check if the observer has been garbage collected
     local weakref = setmetatable({ self = self }, WEAK_VALUES) :: any
     local function try_remove(id: number)
         if weakref.self == nil then disconnect_all(connections) end
-        pool_raw_try_remove_id(pool, id) -- todo: inline
+        pool_try_remove_id(pool, id) -- todo: inline
     end
 
     for i = 1, select("#", ...) do
@@ -1078,7 +1105,7 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
         table.insert(connections, reg:removing(ctype):connect(try_remove))
     end
 
-    return self:reconnect() :: any
+    return self:reconnect()
 end
 
 type _Group<T...> = typeof(setmetatable({} :: {
@@ -1221,7 +1248,7 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
         return self
     end
 
-    function signal_create<T...>(): Signal<T...>
+    function signal_create<T...>(): (Signal<T...>, Array<Listener<unknown>>)
         local signal = Signal.new()
         return signal :: any, signal.pool.values
     end
@@ -1286,9 +1313,12 @@ local function registry_create(): Registry
 
     local id_pool = entity_pool_create()
 
-    id_pool.map[0] = ID_CONTEXT
+    id_pool.map[0] = ID_CONTEXT -- register special context entity
 
     local all_pools: Map<CType, Pool<unknown>> = table.create(ctype_n)
+    all_pools[ctype_entity] = id_pool :: Pool<any>
+
+    -- excludes entity pool, operations not allowed on it
     local ctype_pools: Map<CType, Pool<unknown>> = table.create(ctype_n)
 
     local signals = {
@@ -1296,8 +1326,6 @@ local function registry_create(): Registry
         changed = {} :: Map<CType, Signal<Entity, unknown>>,
         removing = {} :: Map<CType, Signal<Entity, nil>>
     }
-
-    all_pools[ctype_entity] = id_pool :: Pool<any>
 
     -- lazily create pools on nil index to avoid having to check everywhere
     setmetatable(all_pools, {
@@ -1346,6 +1374,7 @@ local function registry_create(): Registry
 
         local pool = get_ctype_pool((...))
 
+        -- add any entities already in pools to group
         for _, id in next, pool.entities do
             pool_unsafe_try_group(pool, id)
         end
@@ -1367,7 +1396,7 @@ local function registry_create(): Registry
 
     function registry.create(self: Registry, id: Entity?): Entity
         if id_pool.size >= ID_MAX_KEY then ASSERT(false, "cannot create entity; registry is at max entities") end
-        return id and entity_pool_unsafe_reuse(id_pool, id) or entity_pool_unsafe_add(id_pool)
+        return id and entity_pool_reuse(id_pool, id) or entity_pool_add(id_pool)
     end
 
     function registry.release(self: Registry, id: Entity)
@@ -1396,7 +1425,7 @@ local function registry_create(): Registry
                 local last_id = entities[n]
                 local last_key = ID_KEY(last_id)
         
-                map[last_key] = ID_SWAPKEY(last_id, last_key, idx); map[key] = nil
+                map[last_key] = ID_SWAP_KEY(last_id, last_key, idx); map[key] = nil
                 entities[idx] = last_id; entities[n] = nil
                 values[idx] = values[n]; values[n] = nil
             end
@@ -1430,7 +1459,7 @@ local function registry_create(): Registry
             -- continue if already added
             if pool.map[key] then continue end
 
-            local constructor = ctype_constructors[ctype] or ASSERT(false, `no constructor defined for {ctype_debug(ctype, i)}`)
+            local constructor = ctype_ctors[ctype] or ASSERT(false, `no constructor defined for {ctype_debug(ctype, i)}`)
             local value
             if constructor ~= ctype_TAG then
                 value = (constructor :: () -> unknown)()
@@ -1465,16 +1494,16 @@ local function registry_create(): Registry
         local key = ID_KEY(id)
         local idx_ver = pool.map[key]
         
-        if idx_ver == nil then
+        if idx_ver == nil then -- not added, invoke constructor then patcher
             ASSERT_VALID_ENTITY(key, id)
-            local ctor = ctype_constructors[ctype]
-            if ctor == nil or ctor == ctype_TAG then
+            local ctor = ctype_ctors[ctype]
+            if not ctor or ctor == ctype_TAG then
                 ASSERT(false, `entity does not have component and no constructor for {ctype_debug(ctype)}`)
             end
             local value = fn((ctor :: () -> T)())
             if value == nil then ASSERT(false, "patcher cannot return nil") end
             pool_unsafe_add(pool, key, id, value)
-        else
+        else -- already added, invoke patcher
             local idx = ID_KEY(idx_ver)
             ID_ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
             local value = fn(pool.values[idx])
@@ -1486,7 +1515,6 @@ local function registry_create(): Registry
 
     registry.has = (function(self: Registry, id: Entity, ...: unknown): boolean
         local key = ID_KEY(id)
-
         for i = 1, select("#", ...) do
             local idx_ver = get_ctype_pool(select(i, ...)).map[key]
             if idx_ver == nil or ID_VERSIONS_NOT_EQUAL(ID_KEY(idx_ver), idx_ver, key, id) then return false end
@@ -1512,6 +1540,7 @@ local function registry_create(): Registry
         ID_ASSERT_VERSIONS_EQUAL(idx, idx_ver :: number, key, id)
         local va = pool.values[idx]
 
+        -- if chain to avoid allocating table to return multiple values
         if b == nil then
             return va
         elseif c == nil then
@@ -1553,7 +1582,6 @@ local function registry_create(): Registry
 
                 local idx_ver = pool.map[key] :: number
                 local idx = ID_KEY(idx_ver)
-                --ID_ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
 
                 if ID_VERSIONS_NOT_EQUAL(idx, idx_ver, key, id) then return end
             
@@ -1564,7 +1592,7 @@ local function registry_create(): Registry
                 local last_id = entities[n]
                 local last_key = ID_KEY(last_id)
 
-                map[last_key] = ID_SWAPKEY(last_id, last_key, idx); map[key] = nil
+                map[last_key] = ID_SWAP_KEY(last_id, last_key, idx); map[key] = nil
                 entities[idx] = last_id; entities[n] = nil
                 values[idx] = values[n]; values[n] = nil
             end
@@ -1708,7 +1736,7 @@ local Queue = {} do
     end
 
     function Queue.add(self: _Queue, ...: unknown)
-        -- otherwise value will not be returned during iteration
+        -- iteration will stop if first value is `nil`
         if ... == nil then ASSERT(false, "first value cannot be nil") end
 
         local columns = self.columns
