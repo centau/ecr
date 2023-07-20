@@ -420,26 +420,3 @@ Returns a [handle](Handle) to a special context entity.
     The same context entity handle is always returned when called.
 
 ---
-
-## Iteration
-
-Iterates over all entities in the registry.
-
-```lua
-for id: Entity in Registry do
-```
-
-> ⚠️ Creating new entities during iteration may cause them to be returned
-> during the same iteration.
-
----
-
-## Length
-
-Returns the amount of entities in the registry.
-
-```lua
-#Registry<T...>: number
-```
-
----

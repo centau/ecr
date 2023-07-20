@@ -45,7 +45,7 @@ The `Handle` class wraps the following registry methods:
 - try_get()
 - remove()
 
-One difference is that the `set()` method will return the handler it is called on.
+One difference is that the `set()` method will return the handle it is called on.
 
 - **Example**
 
