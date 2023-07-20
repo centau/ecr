@@ -303,6 +303,15 @@ local function pool_swap<T>(
     map[key_swap] = ID_SWAP_KEY(id_swap, key_swap, idx)
 end
 
+local function pool_has<T>(self: Pool<T>, id: Entity): boolean
+    local key = ID_KEY(id)
+    local idx_ver = self.map[key]
+    if idx_ver == nil then return false end
+    local idx = ID_KEY(idx_ver)
+    if ID_VERSIONS_NOT_EQUAL(key, id, idx, idx_ver) == false then return false end
+    return true
+end
+
 -- checks then moves elements into group
 -- undefined if element is already in group
 local function pool_unsafe_try_group<T>(pool: Pool<T>, id: number)
@@ -1224,7 +1233,7 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
             end,
 
             reconnect = function(self: _Connection<T...>)
-                self:disconnect()
+                if pool_has(self.signal.pool, self.id) then return end
                 local new = self.signal:connect(self.fn)
                 self.id = new.id
             end

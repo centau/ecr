@@ -41,3 +41,15 @@ Disconnects a listener from a signal.
     > Disconnecting a listenener from within itself is allowed.
 
 ---
+
+### Reconnect()
+
+Reconnects a listener to a signal.
+
+- **Type**
+  
+    ```lua
+    function Connection:reconnect()
+    ```
+
+---
