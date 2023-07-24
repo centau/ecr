@@ -20,7 +20,9 @@ Creates a new component type.
 
     Returns a unique identifier representing a new component type.
 
-    Component types can be given a constructor which is called when [`registry:add()`](Registry#add.md) is used.
+    Component types can be given a constructor which can be invoked when
+    [`registry:add()`](Registry#add.md) or [`registry:patch()`](Registry#patch.md)
+    is used.
 
 - **Example**
 
@@ -74,12 +76,13 @@ Creates a new valueless component type.
 
     Returns a unique identifier representing a new component type.
 
-    Tag components behave the same as normal components.
+    Tag components are a special type of component where no value is stored
+    alongside.
 
-    It is recommend to only use tag components with [`add()`](Registry.md#add),
-    [`remove()`](Registry.md#remove) and [`has()`](Registry.md#has).
-    Using [`set()`](Registry.md#set) will not apply the valueless optimization
-    and [`get()`](Registry.md#get) will return `nil`.
+    Use [`add()`](Registry.md#add) to add tags to entities.
+    [`set()`](Registry.md#set) will not apply the valueless optimization.
+    [`get()`](Registry.md#get) will return `nil` so use [`has()`](Registry.md#has)
+    instead.
 
 ---
 
@@ -112,8 +115,9 @@ Creates a new queue.
 
 - **Details**
 
-    Accepts any signal object that matches the given interface,
-    any values passed into the signal callback will automatically be queued.
+    Accepts any signal object that matches the given interface. Will
+    automatically connect a callback where any values passed into the callback
+    will automatically be queued.
 
 ---
 

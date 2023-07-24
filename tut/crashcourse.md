@@ -38,7 +38,7 @@ A component is a type of value that can be assigned to entities.
 There is the *component type*, which represents a type of data, and there is
 the *component value*, which is a particular value associated with an entity.
 
-Component types are referenced using unique id returned by `ecr.component()`.
+Component types are referenced using unique ids returned by `ecr.component()`.
 You can typecast this to the type of value it is supposed to represent to
 use typechecking features.
 

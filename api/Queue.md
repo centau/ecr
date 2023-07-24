@@ -3,7 +3,7 @@ permalink: /api/Queue
 title: Queue
 ---
 
-A class for queuing values to be processed in one go later.
+A class for queuing values to be processed altogether later.
 
 ## Methods
 
