@@ -132,15 +132,21 @@ array with no cache misses.
 Multiple component queries, while still fast, become slower the more components
 that are involved in the query. To do so, you pick the smallest pool to iterate
 along its entities (as an entity must contain every component in the query, we
-know that the smallest pool contains every entity in the query so we iterate
-that to reduce the amount of random checking we must do), while doing lookups in
-all other pools to check if the
-entity has all other components, skipping that entity if it does not. While this
-does introduce cache misses, it isn't as bad as it sounds because of the very
-fast random-access property of sparse sets.
+know that every entity we need still exists in this pool so we iterate that to
+reduce the amount of random checking we must do), while doing lookups in all
+other pools to check if the entity has all other components, skipping that
+entity if it does not. While this does introduce cache misses, it isn't as bad
+as it sounds because of the very fast random-access property of sparse sets.
 
 This drawback can also be mitigated using a technique called *grouping* which I
 won't get into now.
+
+Another thing to note is that while iteration of multiple components is
+a large argument against the sparse-set ECS, more complex queries naturally
+run more complex code in the loop body, making the overhead of iterating
+multiple components less significant in many cases. In the less likely cases
+where the iteration itself is the bottleneck, grouping can be used to eliminate
+this entirely.
 
 ## Stale references
 

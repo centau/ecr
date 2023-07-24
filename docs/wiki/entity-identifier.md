@@ -151,4 +151,5 @@ Using 33 bits for the version part gives us `2^33 - 1 = 8,589,934,592` versions
 (we start versions at 1) so each key can be reused over 8 billion times.
 
 In the unlikely case that a key has been reused that many times, the key is
-permanently deprecated and will not be reused again.
+permanently deprecated and will not be reused again (as simple as not adding
+the key back to the head of the list when it is removed).

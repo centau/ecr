@@ -19,7 +19,7 @@ ECR is a pure Luau ECS library.
 - Cache friendly sparse-set based storage that can support perfect SoA.
 - Carefully optimized memory usage and performance.
 - Signals and observers for detecting changes to components.
-- Also provides utilities for common practices such as queuing events.
+- Utilities for common practices such as queuing events.
 
 ## Getting started
 

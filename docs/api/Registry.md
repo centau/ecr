@@ -76,12 +76,12 @@ Checks if the given entity exists in the registry.
 
 ### orphaned()
 
-Checks if the given entity no components.
+Checks if the given entity has no components.
 
 - **Type**
 
     ```lua
-    function Registry:orphan(id: Entity): boolean
+    function Registry:orphaned(id: Entity): boolean
     ```
 
 - **Details**
@@ -102,7 +102,8 @@ Adds all components specified to an entity.
 
 - **Details**
 
-    Adds the given components to the entity by calling each component constructor.
+    Adds the given components to the entity by calling each component constructor
+    or assigning no value at all if the component is a tag type.
 
     Adding a component to an entity that already has the component will do nothing.
 
@@ -125,7 +126,8 @@ Sets an entity's component.
     Adds the component to the entity with the given value
     if the entity does not already have the component.
 
-    Changes the component's value for the given entity if the entity already has the component.
+    Changes the component value for the given entity if the entity already has
+    the component.
 
     Will error if value is `nil`.
 
@@ -191,7 +193,7 @@ Gets an entity's component values.
 
 - **Details**
 
-    Will error if the entity does not own a component.
+    Will error if the entity does not have a component.
 
 ---
 
@@ -207,7 +209,7 @@ Gets an entity's component value.
 
 - **Details**
 
-    Will return `nil` if the entity does not own a component.
+    Will return `nil` if the entity does not have a component.
 
 ---
 
@@ -223,7 +225,7 @@ Removes the given components from an entity.
 
 - **Details**
 
-    Will do nothing if the entity does not own a component.
+    Will do nothing if the entity does not have a component.
 
 ---
 
@@ -239,15 +241,17 @@ Removes all entities and components from the registry.
 
 - **Details**
 
-    Removes all components given from all entities that have that compoent.
+    If components are specified, removes all components given from all entities
+    that have that component without destroying the entities.
 
-    If no components are given, then all entities in the registry will be destroyed.
+    If no components are specified, then all entities in the registry will be
+    destroyed.
 
 ---
 
 ### view()
 
-Creates a [`view`](View) for all entities with the specified components.
+Creates a [`view`](View.md) for all entities with the specified components.
 
 - **Type**
 
@@ -279,9 +283,9 @@ Creates an [`observer`](Observer) which records changes that occur for a given c
 
     The observer will only return entities that:
 
-    1. Are assigned the component when they previously did not own it.
-    2. Have the component value changed.
-    3. Have all components specified in the observer at the time of iteration.
+    1. Have had any component in the argument list added or changed since the
+       last iteration.
+    2. Have all components specified at the time of iteration.
 
     When an observer is first created, it treats all current entities with the given components in the registry as newly changed.
 
@@ -301,12 +305,14 @@ Creates an [`observer`](Observer) which records changes that occur for a given c
 
 - **Details**
 
-    Rearranges the internal storage of the given set of components the first time
-    this method is called. Subsequent calls return a cached group object.
+    Rearranges the internal storage of components for better iteration
+    performance when iterated together.
 
-    Will error if attempting to add a group-owned component to a new group.
+    Groups must be mutually exclusive, i.e. each component type can only belong
+    to a single group. Will error if this occurs.
 
-    > ⚠️ This method introduces restrictions on adding components during views. Read them [here](../tuts/groups.md#limitations).
+    > ⚠️ This method introduces restrictions on adding components during views.
+    > Read them [here](../tuts/groups.md#limitations).
 
 ---
 
@@ -391,7 +397,7 @@ Returns a [handle](Handle) to an entity.
 
 - **Details**
 
-    If no entity is given then a new will one be created.
+    If no entity is given then a new one is created.
 
 ---
 

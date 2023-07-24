@@ -3,7 +3,8 @@ permalink: /api/Pool
 title: Pool
 ---
 
-Stores all entities and values for a single component type.
+The core datastructure used by the registry internally to store entities
+and component values for each component type.
 
 ## Properties
 

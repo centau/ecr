@@ -49,7 +49,7 @@ Views support generalized iteration.
 for id: Entity, ...: T... in View<T...> do
 ```
 
-The entity id followed by the group components are returned.
+The entity id followed by the specified components are returned.
 
 Components can be added, changed and removed during iteration. Newly added components and their entities will not be returned until the next iteration.
 
@@ -67,7 +67,7 @@ Returns the amount of entities in the view.
 
 For single component views, this returns the exact amount of entities in the view.
 
-For multiple component views, this returns an estimate of the amount of entities.
-This estimate will never be greater than the actual amount of entities.
+For multiple component views, this returns an estimated amount of entities.
+This estimate will never be less than the actual amount of entities.
 
 ---
