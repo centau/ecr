@@ -20,6 +20,7 @@ ECR is a pure Luau ECS library.
 - Carefully optimized memory usage and performance.
 - Signals and observers for detecting changes to components.
 - Utilities for common practices such as queuing events.
+- ⚡ Blazingly fast 
 
 ## Getting started
 
