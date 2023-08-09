@@ -5,7 +5,7 @@ layout: home
 hero:
   name: ECR
   text: ""
-  tagline: A Luau ECS library.
+  tagline: A blazingly fast Luau ECS library.
   image:
     src: /logo.svg
     alt: ECR
