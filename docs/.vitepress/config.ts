@@ -8,6 +8,10 @@ export default defineConfig({
     head: [["link", { rel: "icon", href: "/logo.svg" }]],
     ignoreDeadLinks: true,
 
+    markdown: {
+        theme: "github-dark",
+    },
+
     themeConfig: {
         logo: "/logo.svg",
 

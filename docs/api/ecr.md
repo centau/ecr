@@ -125,7 +125,7 @@ Associates names with components for debugging.
 - **Type**
 
     ```lua
-    function ecr.name<T>(names: T & Map<string, Component>) -> T
+    function ecr.name<T>(names: T & Map<string>, Component>) -> T
     ```
 
 - **Details**
