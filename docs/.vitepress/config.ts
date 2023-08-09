@@ -6,6 +6,7 @@ export default defineConfig({
     description: "A Luau ECS library.",
     base: "/ecr/",
     head: [["link", { rel: "icon", href: "/logo.svg" }]],
+    ignoreDeadLinks: true,
 
     themeConfig: {
         logo: "/logo.svg",
