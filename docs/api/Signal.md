@@ -1,7 +1,4 @@
----
-permalink: api/Signal
-title: Signal
----
+# Signal
 
 ECR Signal class.
 

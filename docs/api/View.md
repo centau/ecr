@@ -1,7 +1,4 @@
----
-permalink: /api/View
-title: View
----
+# View
 
 ## Methods
 

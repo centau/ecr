@@ -1,7 +1,4 @@
----
-permalink: api/restrictions
-title: Restrictions
----
+# Restrictions
 
 The API omits sanity checks in areas that would be costly to do so, allowing you to run into problems like iterator invalidation and undefined behavior. This means that there are certain restrictions on what you can do. All restrictions are documented here and at the relevant API references.
 

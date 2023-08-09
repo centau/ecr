@@ -1,7 +1,4 @@
----
-permalink: /api/Registry
-title: Registry
----
+# Registry
 
 ## Methods
 

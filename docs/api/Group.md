@@ -1,7 +1,4 @@
----
-permalink: /api/Group
-title: Group
----
+# Group
 
 Groups are used to efficiently iterate over a set of components.
 

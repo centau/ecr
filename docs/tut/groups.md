@@ -1,7 +1,4 @@
----
-permalink: /tut/groups
-title: Groups
----
+# Groups
 
 Groups are a technique used to optimize iteration over a set of components.
 Groups achieve perfect [SoA](https://en.wikipedia.org/wiki/AoS_and_SoA) for the

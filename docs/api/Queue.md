@@ -1,7 +1,4 @@
----
-permalink: /api/Queue
-title: Queue
----
+# Queue
 
 A class for queuing values to be processed altogether later.
 

@@ -1,7 +1,4 @@
----
-permalink: /api/Pool
-title: Pool
----
+# Pool
 
 The core datastructure used by the registry internally to store entities
 and component values for each component type.

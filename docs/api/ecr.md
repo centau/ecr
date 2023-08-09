@@ -1,7 +1,4 @@
----
-permalink: /api/ecr
-title: ecr
----
+# ECR
 
 ## Functions
 

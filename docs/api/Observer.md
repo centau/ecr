@@ -1,7 +1,4 @@
----
-permalink: /api/Observer
-title: Observer
----
+# Observer
 
 Observers are used to track component changes.
 

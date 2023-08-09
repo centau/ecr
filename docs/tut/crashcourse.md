@@ -1,7 +1,4 @@
----
-permalink: /tut/crashcourse
-title: Crash Course
----
+# Crash Course
 
 ECR is a sparse-set based ECS library heavily inspired by
 [EnTT](https://github.com/skypjack/entt).

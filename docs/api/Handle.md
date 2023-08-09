@@ -1,7 +1,4 @@
----
-permalink: /api/Handle
-title: Handle
----
+# Handle
 
 Thin wrapper around an entity and its registry.
 
