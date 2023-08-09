@@ -22,10 +22,12 @@ Adds a set of values to a queue.
 
     Queues are FIFO.
 
-    > ⚠️ The first value in the argument list cannot be `nil` since that will
-    > cause iteration to stop early.
+    ::: warning
+    The first value in the argument list cannot be `nil` since that will cause
+    iteration to stop early.
+    :::
 
----
+--------------------------------------------------------------------------------
 
 ### clear()
 
@@ -36,8 +38,6 @@ Clears the queue.
     ```lua
     function Queue:clear<T...>()
     ```
-
----
 
 ## Iteration
 
@@ -54,9 +54,11 @@ Values added during iteration are not returned.
 
 The queue automatically clears itself after iteration.
 
-> ⚠️ Adding values during iteration will cause them to be cleared when
-> iteration completes and they will never be iterated.
+::: warning
+Adding values during iteration will cause them to be cleared when iteration
+completes and they will never be iterated.
+:::
 
-> ⚠️ Clearing during iteration can result in an error.
-
----
+::: warning
+Clearing during iteration can result in an error.
+:::

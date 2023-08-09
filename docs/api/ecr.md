@@ -45,7 +45,7 @@ Creates a new component type.
     end)
     ```
 
----
+--------------------------------------------------------------------------------
 
 ### registry()
 
@@ -57,7 +57,7 @@ Creates a new registry.
     function ecr.registry(): Registry
     ```
 
----
+--------------------------------------------------------------------------------
 
 ### tag()
 
@@ -81,7 +81,7 @@ Creates a new valueless component type.
     [`get()`](Registry.md#get) will return `nil` so use [`has()`](Registry.md#has)
     instead.
 
----
+--------------------------------------------------------------------------------
 
 ### is_tag()
 
@@ -93,7 +93,7 @@ Checks if a component type is a tag.
     function ecr.is_tag<T>(ctype: T): boolean
     ```
 
----
+--------------------------------------------------------------------------------
 
 ### queue()
 
@@ -116,7 +116,7 @@ Creates a new queue.
     automatically connect a callback where any values passed into the callback
     will automatically be queued.
 
----
+--------------------------------------------------------------------------------
 
 ### name()
 
@@ -134,8 +134,6 @@ Associates names with components for debugging.
     argument list position.
 
     The table returned is the same table object given and is also frozen.
-
-<br><br>
 
 ## Constants
 
@@ -163,7 +161,7 @@ A special component type that refers to the registry entity pool.
     registry:added(ecr.entity):connect()
     ```
 
----
+--------------------------------------------------------------------------------
 
 ### null
 
@@ -186,5 +184,3 @@ A null entity.
     ```lua
     registry:contains(ecr.null)
     ```
-
----

@@ -14,7 +14,7 @@ The registry the entity belongs to.
     Handle.registry: Registry
     ```
 
----
+--------------------------------------------------------------------------------
 
 ### entity
 
@@ -25,8 +25,6 @@ The entity the handle refers to.
     ```lua
     Handle.entity: Entity
     ```
-
----
 
 ## Methods
 
@@ -54,5 +52,3 @@ One difference is that the `set()` method will return the handle it is called on
 
     print(handle:get(A, B)) --> 1, 2
     ```
-
----

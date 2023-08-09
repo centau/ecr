@@ -15,7 +15,7 @@ The amount of entities contained in the pool.
     Pool.size: number
     ```
 
----
+--------------------------------------------------------------------------------
 
 ### entities
 
@@ -33,7 +33,7 @@ An array of all entities with the given component type.
 
     - i.e. `entities[n]`'s component value is located at `values[n]`.
 
----
+--------------------------------------------------------------------------------
 
 ### values
 
@@ -48,5 +48,3 @@ An array of all values for the given component type.
 - **Details**
 
     Sorted in the same order as [`Pool.entities`](Pool#entities.md).
-
----

@@ -38,7 +38,9 @@ Disconnects the observer, stopping any new changes from being tracked
 
     Returns the same observer that it was called on.
 
-    > ⚠️ This must be called for the observer to be garbage collected.
+    ::: warning
+    This must be called for the observer to be garbage collected.
+    :::
 
 ---
 
@@ -92,8 +94,6 @@ Clears all recorded changes.
 
     Use to clear all recorded changes after they have been processed to avoid reprocessing the same changes again later.
 
----
-
 ## Iteration
 
 Observers support generalized iteration.
@@ -108,14 +108,19 @@ Components can be added, changed and removed during iteration. Newly added compo
 
 Will automatically clear the observer unless `Observer:persist()` was called.
 
-> ⚠️ Adding values during iteration can cause them to be cleared when
-> iteration completes and they will never be iterated.
+::: warning
+Adding values during iteration can cause them to be cleared when iteration
+completes and they will never be iterated.
+:::
 
-> ⚠️ During iteration, adding or removing components from entities not currently being iterated can invalidate the iterator.
+::: warning
+During iteration, adding or removing components from entities not currently
+being iterated can invalidate the iterator.
+:::
 
-> ⚠️ Clearing during iteration can result in an error.
-
----
+::: warning
+Clearing during iteration can result in an error.
+:::
 
 ## Length
 

@@ -18,8 +18,6 @@ Connects a given function to the signal to be called whenever the signal is fire
 
     New connections made within a listener will not be ran until the next time the signal is fired.
 
----
-
 ## Connection
 
 ### disconnect()
@@ -34,10 +32,11 @@ Disconnects a listener from a signal.
 
 - **Details**
 
-    > ⚠️ Disconnecting other listeners from within a listener may result in *undefined behavior*.
-    > Disconnecting a listenener from within itself is allowed.
+    ::: warning
+ Disconnecting other listeners from within a listener may result in *undefined behavior*.
+:::    > Disconnecting a listenener from within itself is allowed.
 
----
+--------------------------------------------------------------------------------
 
 ### Reconnect()
 
@@ -48,5 +47,3 @@ Reconnects a listener to a signal.
     ```lua
     function Connection:reconnect()
     ```
-
----

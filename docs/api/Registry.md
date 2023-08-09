@@ -2,7 +2,9 @@
 
 ## Methods
 
-> ⚠️ There are certain [restrictions](restrictions) with what you can do with the registry that you should be aware of.
+::: info
+There are certain [*restrictions*](restrictions) with what you can do with the registry that you should be aware of.
+:::
 
 ### create()
 
@@ -21,31 +23,17 @@ Creates a new entity and returns the entity's identifier.
 
     An entity can be created using a specific id that was created by another registry or previously by the same registry. Will error if it is unable to do so.
 
-    > ⚠️ Reusing an old identifier previously returned by this registry will no longer guarantee new identifiers returned to be unique.
+    ::: warning
+    Reusing an old identifier previously returned by this registry will no
+    longer guarantee new identifiers returned to be unique.
+    :::
 
-    > ⚠️ The total amount of entities in a registry at any given time **cannot** exceed `1,048,575`.
-    > Attempting to exceed this limit will throw an error.
+    ::: warning
+    The total amount of entities in a registry at any given time **cannot**
+    exceed `1,048,575`. Attempting to exceed this limit will throw an error.
+    :::
 
----
-
-### release()
-
-Removes the entity from the registry.
-
-- **Type**
-
-    ```lua
-    function Registry:release(id: Entity)
-    ```
-
-- **Details**
-
-    > ⚠️ This method does **not** remove any of the entity's components.
-    > If it is not known that an entity has components, use [`Registry:destroy()`](Registry#destroy.md) instead.
-
-    > ⚠️ Using this method on an entity that still has components will result in *undefined behavior*.
-
----
+--------------------------------------------------------------------------------
 
 ### destroy()
 
@@ -57,7 +45,7 @@ Removes the entity from the registry and removes all of its components.
     function Registry:destroy(id: Entity)
     ```
 
----
+--------------------------------------------------------------------------------
 
 ### contains()
 
@@ -69,7 +57,7 @@ Checks if the given entity exists in the registry.
     function Registry:contains(id: Entity): boolean
     ```
 
----
+--------------------------------------------------------------------------------
 
 ### orphaned()
 
@@ -85,7 +73,7 @@ Checks if the given entity has no components.
 
     An entity is considered an orphan if it has no components.
 
----
+--------------------------------------------------------------------------------
 
 ### add()
 
@@ -104,9 +92,11 @@ Adds all components specified to an entity.
 
     Adding a component to an entity that already has the component will do nothing.
 
-    > ⚠️ Attempting to add components with this method that do not have constructors will error.
+    ::: warning
+    Attempting to add components with this method that do not have constructors will error.
+    :::
 
----
+--------------------------------------------------------------------------------
 
 ### set()
 
@@ -128,7 +118,7 @@ Sets an entity's component.
 
     Will error if value is `nil`.
 
----
+--------------------------------------------------------------------------------
 
 ### patch()
 
@@ -149,8 +139,10 @@ Updates an entity's component.
     not have the component, the constructor will be called and the returned value
     passed into the callback.
 
-    > ⚠️ Attempting to patch a component that an entity does not have and that has
-    > no constructor will throw an error.
+    ::: warning
+    Attempting to patch a component that an entity does not have and that has
+    no constructor will throw an error.
+    :::
 
 - **Example**
 
@@ -160,7 +152,7 @@ Updates an entity's component.
     end)
     ```
 
----
+--------------------------------------------------------------------------------
 
 ### has()
 
@@ -176,7 +168,7 @@ Checks if an entity has all of the given components.
 
     Will return `true` only if the entity has *every* component specified.
 
----
+--------------------------------------------------------------------------------
 
 ### get()
 
@@ -192,7 +184,7 @@ Gets an entity's component values.
 
     Will error if the entity does not have a component.
 
----
+--------------------------------------------------------------------------------
 
 ### try_get()
 
@@ -208,7 +200,7 @@ Gets an entity's component value.
 
     Will return `nil` if the entity does not have a component.
 
----
+--------------------------------------------------------------------------------
 
 ### remove()
 
@@ -224,7 +216,7 @@ Removes the given components from an entity.
 
     Will do nothing if the entity does not have a component.
 
----
+--------------------------------------------------------------------------------
 
 ### clear()
 
@@ -244,7 +236,7 @@ Removes all entities and components from the registry.
     If no components are specified, then all entities in the registry will be
     destroyed.
 
----
+--------------------------------------------------------------------------------
 
 ### view()
 
@@ -262,7 +254,7 @@ Creates a [`view`](View.md) for all entities with the specified components.
 
     Entities in the view are guaranteed to have *at least all* of the given components.
 
----
+--------------------------------------------------------------------------------
 
 ### track()
 
@@ -286,9 +278,13 @@ Creates an [`observer`](Observer) which records changes that occur for a given c
 
     When an observer is first created, it treats all current entities with the given components in the registry as newly changed.
 
-    > ⚠️ After iterating over an observer and processing the changes, call [`Observer:clear()`](Observer#clear.md) to clear all changes so you do not reprocess the same changes again.
+    ::: warning
+    After iterating over an observer and processing the changes, call
+    [`Observer:clear()`](Observer#clear.md) to clear all changes so you do not
+    reprocess the same changes again.
+    :::
 
----
+--------------------------------------------------------------------------------
 
 ### group()
 
@@ -308,14 +304,17 @@ Creates an [`observer`](Observer) which records changes that occur for a given c
     Groups must be mutually exclusive, i.e. each component type can only belong
     to a single group. Will error if this occurs.
 
-    > ⚠️ This method introduces restrictions on adding components during views.
-    > Read them [here](../tuts/groups.md#limitations).
+    ::: warning
+    This method introduces restrictions on adding components during views.
+    Read them [here](../tuts/groups.md#limitations).
+    :::
 
----
+--------------------------------------------------------------------------------
 
 ### storage()
 
-Returns a [pool](Pool) containing every entity and corresponding value for a given component
+Returns a [pool](Pool) containing every entity and corresponding value for a
+given component
 
 - **Type**
 
@@ -325,12 +324,12 @@ Returns a [pool](Pool) containing every entity and corresponding value for a giv
 
 - **Details**
   
-    The returned pool is direct access to the underlying datastructures the registry uses
-    to store entities and components.
+    The returned pool is direct access to the underlying datastructures the
+    registry uses to store entities and components.
 
     Modifying the returned pool results in *undefined behavior*.
 
----
+--------------------------------------------------------------------------------
 
 ### added()
 
@@ -344,9 +343,11 @@ Returns a [signal](Signal) which is fired whenever the given component is added 
 
     The signal is fired *after* the component is changed.
 
-    > ⚠️ Components cannot be added or removed within a listener.
+    ::: warning
+    Components cannot be added or removed within a listener.
+    :::
 
----
+--------------------------------------------------------------------------------
 
 ### changed()
 
@@ -360,9 +361,11 @@ Returns a [signal](Signal) which is fired whenever the given component's value i
 
     The signal is fired *after* the component is changed.
 
-    > ⚠️ Components cannot be added or removed within a listener.
+    ::: warning
+    Components cannot be added or removed within a listener.
+    :::
 
----
+--------------------------------------------------------------------------------
 
 ### removing()
 
@@ -378,9 +381,11 @@ Returns a [signal](Signal) which is fired whenever the given component is being 
 
     The signal is fired *before* the component is actually removed. You can retrieve the component value within the signal listener.
 
-    > ⚠️ Components cannot be added or removed within a listener.
+    ::: warning
+    Components cannot be added or removed within a listener.
+    :::
 
----
+--------------------------------------------------------------------------------
 
 ### handle()
 
@@ -396,7 +401,7 @@ Returns a [handle](Handle) to an entity.
 
     If no entity is given then a new one is created.
 
----
+--------------------------------------------------------------------------------
 
 ### context()
 
@@ -422,4 +427,23 @@ Returns a [handle](Handle) to a special context entity.
 
     The same context entity handle is always returned when called.
 
----
+--------------------------------------------------------------------------------
+
+### release()
+
+Removes the entity from the registry.
+
+- **Type**
+
+    ```lua
+    function Registry:release(id: Entity)
+    ```
+
+- **Details**
+
+    ::: danger
+    This method does **not** remove any of the entity's components. If it is not
+    known that an entity has components, use
+    [`Registry:destroy()`](Registry#destroy.md) instead. Using this method on an
+    entity that still has components will result in *undefined behavior*.
+    :::
