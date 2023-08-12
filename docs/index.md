@@ -19,6 +19,6 @@ hero:
 
 features:
   - title: In Development
-    details: Do not use for production
+    details: Not recommended for production use.
 ---
 

@@ -3,17 +3,19 @@ import { defineConfig } from "vitepress"
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
     title: "ECR",
+    titleTemplate: ":title - A Luau ECS library",
     description: "A Luau ECS library.",
     base: "/ecr/",
-    head: [["link", { rel: "icon", href: "/logo.svg" }]],
+    head: [["link", { rel: "icon", href: "/ecr/favicon.svg" }]],
     ignoreDeadLinks: true,
 
     markdown: {
-        theme: "github-dark",
+        theme: "poimandres"
     },
 
     themeConfig: {
         logo: "/logo.svg",
+        siteTitle: false,
 
         // https://vitepress.dev/reference/default-theme-config
         nav: [
