@@ -1868,6 +1868,11 @@ local ecr = {
 }
 
 -- test functions
-(ecr :: any).id = ID_CREATE
+(ecr :: any).id = ID_CREATE;
+
+-- debug functions
+(ecr :: any).get_names = function()
+    return table.freeze(table.clone(ctype_names))
+end
 
 return table.freeze(ecr)
