@@ -1872,7 +1872,7 @@ local ecr = {
 
 -- debug functions
 (ecr :: any).get_names = function()
-    return ctype_names
+    return table.freeze(table.clone(ctype_names))
 end
 
 return table.freeze(ecr)
