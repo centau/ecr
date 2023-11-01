@@ -23,7 +23,13 @@ local function BULK_CREATE_IDS(reg: ecr.Registry, n: number): { ecr.Entity }
 end
 
 -- power of 2 so arrays are better alined for accurate memory usage reading
-local N = 2^18 --~ 262k
+local N = 2^16-2 --~ 262k
+
+local function RESERVE(reg: ecr.Registry, ...)
+    for _, ctype in { ... } do
+        reg:storage(ctype):reserve(N) -- todo 8 bytes
+    end
+end
 
 do TITLE "Entity creation and release"
     BENCH("Entity creation", function()
@@ -76,6 +82,7 @@ end
 do TITLE "Adding components"
     local function setup()
         local reg = ecr.registry()
+        RESERVE(reg, A, B, C, D, TA, TB, TC, TD)
         local ids = table.create(N)
         for i = 1, N do
             ids[i] = reg:create()
@@ -135,6 +142,7 @@ end
 do TITLE "Setting components"
     local function setup()
         local reg = ecr.registry()
+        RESERVE(reg, A, B, C, D)
         local ids = table.create(N)
         for i = 1, N do
             ids[i] = reg:create()
