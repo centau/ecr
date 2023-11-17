@@ -33,7 +33,7 @@ local function VER(id: ecr.Entity): number
 end
 
 local function GET_KEY_VERSION(reg: ecr.Registry, key: number): number
-    return ecr._test.get_entity_version(reg:storage(ecr.entity), key)
+    return ecr._test.get_key_version(reg:storage(ecr.entity) :: any, key)
 end
 
 local function CREATE_ID(key: number, ver: number)
@@ -42,7 +42,7 @@ end
 
 local function SET_KEY_VERSION(reg: ecr.Registry, key: number, ver: number)
     reg:release(reg:create(CREATE_ID(key, 1))) -- ensure key exists
-    ecr._test.set_entity_version(reg:storage(ecr.entity), key, ver)
+    ecr._test.set_key_version(reg:storage(ecr.entity) :: any, key, ver)
 end
 
 local function CREATE_DEPRECATED_ID(reg: ecr.Registry): ecr.Entity
@@ -269,7 +269,7 @@ TEST("registry:create()", function()
 
         CHECK(id == reg:create())
 
-        CHECK_ERR("key is already in use", function()
+        CHECK_ERR("key already in use", function()
             reg:create(id)
         end)
     end
@@ -392,12 +392,12 @@ TEST("registry:current()", function()
 
     do CASE "get current version"
         CHECK(VER(id_old) == 1)
-        CHECK(CURRENT_VER(reg, id_old) == 2)
+        CHECK(GET_KEY_VERSION(reg, KEY(id_old)) == 2)
     end
 
     do CASE "version increments on release"
         reg:release(id_new)
-        CHECK(CURRENT_VER(reg, id_new) == 3)
+        CHECK(GET_KEY_VERSION(reg, KEY(id_new)) == 3)
     end
 end)
 
@@ -477,7 +477,6 @@ TEST("registry:set()", function()
         local id = reg:create()
 
         do CASE "add component"
-            print(INSPECT_ID(id))
             reg:set(id, A, 1)
             CHECK(reg:get(id, A) == 1)
         end
@@ -856,10 +855,10 @@ TEST("registry:clear()", function()
         local reg = ecr.registry()
     
         -- deprecate key = 1
-        CREATE_DEPRECATED_ID(reg)
+        assert(KEY(CREATE_DEPRECATED_ID(reg)) == 1)
 
         -- set key = 2 version to max
-        SET_ENTITY_VERSION(reg, 2, MAX_VER)
+        SET_KEY_VERSION(reg, 2, MAX_VER)
         do
             local id = reg:create()
             assert(KEY(id) == 2)
@@ -898,7 +897,7 @@ TEST("registry:clear()", function()
 
         reg:clear(A)
 
-        CHECK(#reg:storage(A).entities == 0)
+        CHECK(reg:storage(A).size == 0)
         CHECK(listener.id == eAB.entity and listener.count == 1)
 
         eAB:set(A, 1) -- 1
@@ -906,8 +905,9 @@ TEST("registry:clear()", function()
 
         eAB:remove(A)
 
-        CHECK(#reg:storage(A).entities == 1)
-        CHECK(reg:storage(A).entities[1] == eB.entity)
+        CHECK(reg:storage(A).size == 1)
+        local entities = ecr._test.pool_entities_to_array(reg:storage(A))
+        CHECK(entities[1] == eB.entity)
 
     end
 end)
@@ -1011,6 +1011,11 @@ TEST("#registry", function()
 
     do CASE "size after specific entity creation"
         CHECK(#reg:view(ecr.entity) == 1)
+    end
+
+    do CASE "size after context entity creation"
+        reg:context()
+        CHECK(#reg:view(ecr.entity) == 2)
     end
 end)
 
