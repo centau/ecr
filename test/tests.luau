@@ -661,7 +661,7 @@ TEST("registry:patch()", function()
         reg:set(id, A, 0)
 
         local ran = false
-        reg:changed(A):connect(function()
+        reg:changing(A):connect(function()
             ran = true
         end)
 
@@ -1250,18 +1250,19 @@ TEST("registry:added()", function()
     end
 end)
 
-TEST("registry:changed()", function()
+TEST("registry:changing()", function()
     local reg = ecr.registry()
     local id = reg:create()
 
-    local cc, ce, cv = 0, nil, nil
+    local cc, ce, cv, lv = 0, nil, nil, nil
 
     local function fn(...)
         cc += 1
+        lv = reg:get(id, A) -- get current value
         ce, cv = ...
     end
 
-    local con = reg:changed(A):connect(fn)
+    local con = reg:changing(A):connect(fn)
 
     CASE "Adding does not trigger"
     reg:set(id, A, true)
@@ -1272,6 +1273,7 @@ TEST("registry:changed()", function()
     CHECK(cc == 1)
     CHECK(ce == id)
     CHECK(cv == false)
+    CHECK(lv == true)
 
     reg:patch(id, A, function(v)
         return not v
@@ -1279,6 +1281,7 @@ TEST("registry:changed()", function()
     CHECK(cc == 2)
     CHECK(ce == id)
     CHECK(cv == true)
+    CHECK(lv == false)
 
     CASE "Removing does not trigger"
     reg:remove(id, A)

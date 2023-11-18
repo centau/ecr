@@ -9,8 +9,6 @@
 ## Low Priority
 
 - Non-owning groups.
-- Consider making `Registry:changed()` fire before it is changed.
-  - Rename to `Registry:changing()`?
 - Custom pools and storage based views.
 - Disallow creation of handles for invalid entities?
 - Look into component relationships
@@ -26,7 +24,7 @@
   - An API for pools returned by `Registry:storage()` like adding and removing.
   - Bypass pool lookups and safety check.
   - Bulk operations
-h an alternative API to work with ids
+    h an alternative API to work with ids
 - Investigate if using Vector3s for internal storage can improve perf
   - Can reduce 16 B per component (map and entities arrays combined into 1)
     - A component would only take 32 B and a tag only 16 B!!

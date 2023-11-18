@@ -42,7 +42,7 @@ type Pool<T> = {
 
     -- false instead of nil to preserve table shape
     added: Array<Listener<T>> | false,
-    changed: Array<Listener<T>> | false,
+    changing: Array<Listener<T>> | false,
     removing: Array<Listener<nil>> | false,
     group: GroupData<T> | false,
 
@@ -128,7 +128,7 @@ export type Registry = {
     storage: <T>(self: Registry, ctype: T) -> Pool<T>,
 
     added: <T>(self: Registry, ctype: T) -> Signal<Entity, T>,
-    changed: <T>(self: Registry, ctype: T) -> Signal<Entity, T>,
+    changing: <T>(self: Registry, ctype: T) -> Signal<Entity, T>,
     removing: <T>(self: Registry, ctype: T) -> Signal<Entity, nil>,
 
     handle: ((self: Registry, id: Entity) -> Handle) & ((self: Registry) -> Handle),
@@ -463,7 +463,7 @@ local function pool_create<T>(size: number?): Pool<T>
         values = table.create(n),
 
         added = false,
-        changed = false,
+        changing = false,
         removing = false,
         group = false,
 
@@ -471,8 +471,8 @@ local function pool_create<T>(size: number?): Pool<T>
             local key = ID_KEY(id)
             local idx_ver = self.map[key]
             if idx_ver then
+                if self.changing then fire(self.changing, id, v) end
                 self.values[ID_KEY(idx_ver)] = v
-                if self.changed then fire(self.changed, id, v) end
             else
                 pool_unsafe_add(self, key, id, v)
             end
@@ -535,7 +535,7 @@ local function pool_clone<T>(self: Pool<T>): Pool<T>
         values = table.clone(self.values),
 
         added = false,
-        changed = false,
+        changing = false,
         removing = false,
         group = false,
 
@@ -699,7 +699,7 @@ local View, Observer, Group do
 type IRegistry = {
     storage: <T>(self: IRegistry, ctype: T) -> Pool<T>,
     added: <T>(self: IRegistry, ctype: T) -> Signal<Entity, T>,
-    changed: <T>(self: IRegistry, ctype: T) -> Signal<Entity, T>,
+    changing: <T>(self: IRegistry, ctype: T) -> Signal<Entity, T>,
     removing: <T>(self: IRegistry, ctype: T) -> Signal<Entity, nil>,
 }
 
@@ -1016,7 +1016,7 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
                 end
                 
                 table.insert(connections, reg:added(ctype):connect(listener))
-                table.insert(connections, reg:changed(ctype):connect(listener))
+                table.insert(connections, reg:changing(ctype):connect(listener))
             end
 
             self.connections = connections
@@ -1339,7 +1339,7 @@ local function registry_create(): Registry
 
     local signals = {
         added = {} :: Map<CType, Signal<Entity, unknown>>,
-        changed = {} :: Map<CType, Signal<Entity, unknown>>,
+        changing = {} :: Map<CType, Signal<Entity, unknown>>,
         removing = {} :: Map<CType, Signal<Entity, nil>>
     }
 
@@ -1496,8 +1496,8 @@ local function registry_create(): Registry
         if idx_ver then -- already added, change value
             local idx = ID_KEY(idx_ver)
             ID_ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
+            if pool.changing then fire(pool.changing, id, value) end
             pool.values[idx] = value
-            if pool.changed then fire(pool.changed, id, value) end
         else -- not added, add value
             ASSERT_VALID_ENTITY(key, id)
             pool_unsafe_add(pool, key, id, value)
@@ -1524,8 +1524,8 @@ local function registry_create(): Registry
             ID_ASSERT_VERSIONS_EQUAL(idx, idx_ver, key, id)
             local value = fn(pool.values[idx])
             if value == nil then ASSERT(false, "patcher cannot return nil") end
+            if pool.changing then fire(pool.changing, id, value) end
             pool.values[idx] = value
-            if pool.changed then fire(pool.changed, id, value) end
         end
     end
 
@@ -1664,11 +1664,11 @@ local function registry_create(): Registry
         end)()) :: Signal<Entity, T>
     end
 
-    function registry.changed<T>(self: Registry, ctype: T): Signal<Entity, T>
-        return (signals.changed[ctype] or (function() 
+    function registry.changing<T>(self: Registry, ctype: T): Signal<Entity, T>
+        return (signals.changing[ctype] or (function() 
             local signal, listeners = signal_create()
-            signals.changed[ctype] = signal
-            get_any_pool(ctype).changed = listeners
+            signals.changing[ctype] = signal
+            get_any_pool(ctype).changing = listeners
             return signal    
         end)()) :: Signal<Entity, T>    
     end

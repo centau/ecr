@@ -942,8 +942,8 @@ do TITLE "Registry signals"
         end
     end)
 
-    BENCH("registry::changed", function()
-        reg:changed(A):connect(function() end)
+    BENCH("registry::changing", function()
+        reg:changing(A):connect(function() end)
 
         for i = 1, START(N) do
             reg:set(ids[i], A, false)
