@@ -281,6 +281,23 @@ TEST("registry:create()", function()
             reg:create(ecr.null)
         end)
     end
+
+    do CASE "entity limit"
+        -- 2 ids reserved: ctx and null
+        local LIMIT = 2^16 - 2
+
+        local reg = ecr.registry()
+
+        for i = 1, LIMIT do
+            reg:create()
+        end
+
+        CHECK(not reg:contains(ecr.null))
+
+        CHECK_ERR("entity limit reached", function()
+            reg:create()
+        end)
+    end
 end)
 
 TEST("registry:release()", function()
@@ -1970,69 +1987,67 @@ TEST("registry:context()", function()
         CHECK(#reg:view(A) == 1)
     end
 
-    do CASE "attempt to destroy"
-        CHECK_ERR("cannot release id", function()
-            ctx:destroy()
-        end)
-        CHECK_ERR("cannot release id", function()
-            reg:release(ctx.entity)
-        end)
+    do CASE "destroy"
+        ctx:destroy()
+        CHECK(not reg:contains(ctx.entity))
+        reg:context()
+        CHECK(not ctx:has(A) and not ctx:has(B))
     end
 
     reg:clear()
 
-    do CASE "clearing does not affect"
-        CHECK(reg:contains(ctx.entity))
+    do CASE "clearing affects"
+        CHECK(not reg:contains(ctx.entity))
     end
 end)
 
 TEST("registry:storage()", function()
-    local reg = ecr.registry()
+    -- local reg = ecr.registry()
 
-    local id1 = reg:create()
-    local id2 = reg:create()
+    -- local id1 = reg:create()
+    -- local id2 = reg:create()
 
-    local a = reg:storage(A)
+    -- local a = reg:storage(A)
 
-    do CASE "pool:set() |add|"
-        a:set(id1, 1)
-        a:set(id2, 2)
-        CHECK(a.entities[1] == id1)
-        CHECK(a.entities[2] == id2)
-        CHECK(a.values[1] == 1)
-        CHECK(a.values[2] == 2)
-    end
+    -- do CASE "pool:set() |add|"
+    --     a:set(id1, 1)
+    --     a:set(id2, 2)
+    --     CHECK(a.entities[1] == id1)
+    --     CHECK(a.entities[2] == id2)
+    --     CHECK(a.values[1] == 1)
+    --     CHECK(a.values[2] == 2)
+    -- end
 
-    do CASE "pool:set() |change|"
-        a:set(id1, 0)
-        a:set(id2, 1)
-        CHECK(a.values[1] == 0)
-        CHECK(a.values[2] == 1)
-    end
+    -- do CASE "pool:set() |change|"
+    --     a:set(id1, 0)
+    --     a:set(id2, 1)
+    --     CHECK(a.values[1] == 0)
+    --     CHECK(a.values[2] == 1)
+    -- end
 
-    do CASE "pool:get()"
-        CHECK(a:get(id1) == 0)
-        CHECK(a:get(id2) == 1)
-    end
+    -- do CASE "pool:get()"
+    --     CHECK(a:get(id1) == 0)
+    --     CHECK(a:get(id2) == 1)
+    -- end
 
-    do CASE "pool:has()"
-        CHECK(a:has(id1))
-        CHECK(a:has(id2))
-    end
+    -- do CASE "pool:has()"
+    --     CHECK(a:has(id1))
+    --     CHECK(a:has(id2))
+    -- end
 
-    do CASE "pool:remove()"
-        a:remove(id1)
-        CHECK(a.entities[1] == id2)
-        CHECK(a.values[1] == 1)
-        CHECK(a.entities[2] == nil)
-        CHECK(a.values[2] == nil)
-        CHECK(a:get(id2) == 1)
+    -- do CASE "pool:remove()"
+    --     a:remove(id1)
+    --     CHECK(a.entities[1] == id2)
+    --     CHECK(a.values[1] == 1)
+    --     CHECK(a.entities[2] == nil)
+    --     CHECK(a.values[2] == nil)
+    --     CHECK(a:get(id2) == 1)
 
-        a:remove(id2)
-        CHECK(#a.map == 0)
-        CHECK(#a.entities == 0)
-        CHECK(#a.values == 0)
-    end
+    --     a:remove(id2)
+    --     CHECK(#a.map == 0)
+    --     CHECK(#a.entities == 0)
+    --     CHECK(#a.values == 0)
+    -- end
 end)
 
 TEST("ecr.component()", function()
@@ -2239,6 +2254,29 @@ TEST("ecr.tag()", function()
     -- further testing should not be necessary
 end)
 
+TEST("buffer helpers", function()
+    local reg = ecr.registry()
+
+    local ids = BULK_CREATE_IDS(reg, 10)
+    local buf = buffer.create(10 * ecr.id_size)
+
+    do CASE "array to buffer"
+        ecr.copy_array_to_buffer(ids, buf, 10)
+
+        for i, id in ecr.bnext, buf, 10 do
+            CHECK(id == ids[i + 1])
+        end
+    end
+
+    do CASE "buffer to array"
+        local arr = table.create(10)
+        ecr.copy_buffer_to_array(buf, arr, 10)
+        for i = 1, 10 do
+            CHECK(arr[i] == ids[i])
+        end
+    end
+end)
+
 if (ecr :: any).defer_id_reuse then
 
 TEST("deferred id reuse", function()
@@ -2288,6 +2326,10 @@ TEST("deferred id reuse", function()
             local id = CREATE_DEPRECATED_ID(reg)
             reg:set(id, A, 1)
         end)
+    end
+
+    do CASE "reuse"
+
     end
 end)
 

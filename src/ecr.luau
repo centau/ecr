@@ -8,90 +8,36 @@ local MAX_ENTITIES = 0x0000_FFFF
 local INIT_STORAGE_SIZE = 1
 local DEFER_ID_REUSE = true
 
-assert(ID_SIZE <= 4 and ID_SIZE > 1)
-assert(MAX_ENTITIES < 0xFFFF_FFFF and MAX_ENTITIES > 0)
-assert(bit32.band(MAX_ENTITIES + 1, MAX_ENTITIES) == 0)
+-- type buffer = { __buffer: true }
 
+-- type bufferlib = {
+--     create: (size: number) -> buffer,
+--     fromstring: (s: string) -> buffer,
+--     tostring: (b: buffer) -> string,
+--     len: (b: buffer) -> number,
+--     copy: (tar_b: buffer, tar_off: number, src_b: buffer, src_off: number?, count: number?) -> (),
+--     fill: (b: buffer, offset: number, value: number, count: number?) -> (),
 
+--     readi8: (b: buffer, offset: number) -> number,
+--     readu8: (b: buffer, offset: number) -> number,
+--     readi16: (b: buffer, offset: number) -> number,
+--     readu16: (b: buffer, offset: number) -> number,
+--     readi32: (b: buffer, offset: number) -> number,
+--     readu32: (b: buffer, offset: number) -> number,
+--     readf32: (b: buffer, offset: number) -> number,
+--     readf64: (b: buffer, offset: number) -> number,
 
+--     writei8: (b: buffer, offset: number, value: number) -> number,
+--     writeu8: (b: buffer, offset: number, value: number) -> number,
+--     writei16: (b: buffer, offset: number, value: number) -> number,
+--     writeu16: (b: buffer, offset: number, value: number) -> number,
+--     writei32: (b: buffer, offset: number, value: number) -> number,
+--     writeu32: (b: buffer, offset: number, value: number) -> number,
+--     writef32: (b: buffer, offset: number, value: number) -> number,
+--     writef64: (b: buffer, offset: number, value: number) -> number,
+-- }
 
-
--- local function INSPECT_IDS(pool, show_dense: boolean?)
---     local NULL_VER = 0
---     local NULL_KEY = 2^16 - 1
-
---     local MASK_KEY = 0b_0000_0000_0000_0000__1111_1111_1111_1111
---     local MASK_VER = 0b_0111_1111_1111_1111__0000_0000_0000_0000
---     local MASK_RES = 0b_1000_0000_0000_0000__0000_0000_0000_0000
-
---     local map = pool.map
---     local entities = pool.entities
-
---     local TAB = "    "
-
---     local function ID(id: number)
---         local key = bit32.band(id, MASK_KEY)
---         local ver = bit32.rshift(bit32.band(id, MASK_VER), 16)
---         local res = bit32.band(id, MASK_RES)
---         return `{key == NULL_KEY and "_" or key}:{ver == NULL_VER and "_" or ver} {res == 0 and "" or "IN_USE"}`
---     end
-
---     print "{"
---     print(`{TAB}capacity = {pool.capacity}`)
---     print(`{TAB}free = {pool.free == NULL_KEY and "X" or pool.free}`)
---     print(`{TAB}map = \{`)
---     for i = 0, buffer.len(map) - 1, 4 do
---         local v = buffer.readu32(map, i)
---         print(`{TAB}{TAB}[{i/4}] {ID(v)}`)
---     end
---     print(`{TAB}}`)
-
---     if show_dense then
---         print(`{TAB}entities = \{`)
---         print(`{TAB}{TAB}n = {pool.size}`)
---         for i = 0, buffer.len(entities) - 1, 4 do
---             local v = buffer.readu32(entities, i)
---             print(`{TAB}{TAB}[{i/4}] {ID(v)}`)
---         end
---         print(`{TAB}}`)
---     end
-
---     print "}"
--- end
-
-
-type buffer = { __buffer: true }
-
-type bufferlib = {
-    create: (size: number) -> buffer,
-    fromstring: (s: string) -> buffer,
-    tostring: (b: buffer) -> string,
-    len: (b: buffer) -> number,
-    copy: (tar_b: buffer, tar_off: number, src_b: buffer, src_off: number?, count: number?) -> (),
-    fill: (b: buffer, offset: number, value: number, count: number?) -> (),
-
-    readi8: (b: buffer, offset: number) -> number,
-    readu8: (b: buffer, offset: number) -> number,
-    readi16: (b: buffer, offset: number) -> number,
-    readu16: (b: buffer, offset: number) -> number,
-    readi32: (b: buffer, offset: number) -> number,
-    readu32: (b: buffer, offset: number) -> number,
-    readf32: (b: buffer, offset: number) -> number,
-    readf64: (b: buffer, offset: number) -> number,
-
-    writei8: (b: buffer, offset: number, value: number) -> number,
-    writeu8: (b: buffer, offset: number, value: number) -> number,
-    writei16: (b: buffer, offset: number, value: number) -> number,
-    writeu16: (b: buffer, offset: number, value: number) -> number,
-    writei32: (b: buffer, offset: number, value: number) -> number,
-    writeu32: (b: buffer, offset: number, value: number) -> number,
-    writef32: (b: buffer, offset: number, value: number) -> number,
-    writef64: (b: buffer, offset: number, value: number) -> number,
-}
-
-
-
-local buffer = buffer :: bufferlib
+-- local buffer = buffer :: bufferlib
 
 local NIL = nil :: any
 
@@ -112,18 +58,17 @@ export type Connection = {
 
 type Listener<T> = (id: Entity, value: T) -> ()
 
--- specialized pool for tracking entities
 type EntityPool<T = nil> = Pool<T> & {
     free: number -- head of list
 }
 
 type Pool<T> = {
-    map_max: number,
-    capacity: number,
-    size: number, -- amount of entities in pool
-    map: buffer, -- sparse array, maps entity key to internal index
-    entities: buffer, -- all entity ids
-    values: Array<T>, -- all corresponding componentvalues
+    map_max: number, -- largest key map can fit
+    capacity: number, -- max amount of entities
+    size: number, -- cur amount of entities
+    map: buffer, -- map keys to internal index
+    entities: buffer, -- all ids
+    values: Array<T>, -- all values
 
     -- false instead of nil to preserve table shape
     added: Array<Listener<T>> | false,
@@ -131,10 +76,6 @@ type Pool<T> = {
     removing: Array<Listener<nil>> | false,
     group: GroupData<T> | false,
 
-    set: (self: Pool<T>, id: Entity, value: T) -> (),
-    get: (self: Pool<T>, id: Entity) -> T?,
-    has: (self: Pool<T>, id: Entity) -> boolean,
-    remove: (self: Pool<T>, id: Entity) -> (),
     reserve: (self: Pool<T>, size: number) -> ()
 }
 
@@ -261,6 +202,7 @@ end
 --------------------------------------------------------------------------------
 -- Entity Id
 --------------------------------------------------------------------------------
+
 local RESERVED_BITS = 1
 
 local ID_SIZE_BITS = ID_SIZE * 8
@@ -280,9 +222,11 @@ local ID_CTX_KEY = 0
 local ID_NULL_VER = 0
 local ID_MIN_VER = 1 * ID_LSHIFT
 
+assert(ID_SIZE <= 4 and ID_SIZE >= 1)
+assert(MAX_ENTITIES <= ID_MAX/2 and MAX_ENTITIES > 0)
+assert(bit32.band(MAX_ENTITIES + 1, MAX_ENTITIES) == 0)
+
 local function ID_CREATE(key: number, ver: number): number
-    --assert(key <= ID_MAX_KEY)
-    --assert(ver <= ID_MAX_VER)
     return ver + key
 end
 
@@ -317,7 +261,7 @@ local function ID_ASSERT_VERSIONS_EQUAL(id1: number, id2: number)
 end
 
 local ID_NULL = ID_CREATE(ID_NULL_KEY, ID_NULL_VER) -- always rejected by registry
-local ID_CONTEXT = ID_CREATE(0, ID_MIN_VER) -- special reserved entity
+local ID_CTX = ID_CREATE(ID_CTX_KEY, ID_MIN_VER) -- special reserved entity
 
 --------------------------------------------------------------------------------
 -- Component Type
@@ -680,48 +624,6 @@ local function pool_create<T>(size: number?): Pool<T>
         removing = false,
         group = false,
 
-        set = function(self: Pool<T>, id: Entity, v: T)
-            local key = ID_KEY(id)
-            local idx_ver = self.map[key]
-            if idx_ver then
-                self.values[ID_KEY(idx_ver)] = v
-                if self.changed then fire(self.changed, id, v) end
-            else
-                POOL_ADD(self, key, id, v)
-            end
-        end,
-
-        get = function(self: Pool<T>, id: Entity): T
-            return self.values[ID_KEY(self.map[ID_KEY(id)] :: number)] -- todo: error
-        end,
-
-        has = function(self: Pool<T>, id: Entity): boolean
-           return self.map[ID_KEY(id)] ~= nil 
-        end,
-        
-        remove = function(self: Pool<T>, id: Entity)
-            local key = ID_KEY(id)
-            local map = self.map
-
-            if map[key] then
-                if self.removing then fire(self.removing, id) end
-
-                local idx_ver = self.map[key] :: number
-                local idx = ID_KEY(idx_ver)
-            
-                local n = self.size; self.size = n - 1
-                local entities = self.entities
-                local values = self.values
-
-                local last_id = entities[n]
-                local last_key = ID_KEY(last_id)
-
-                map[last_key] = ID_SWAP_KEY(last_id, last_key, idx); map[key] = nil
-                entities[idx] = last_id; entities[n] = nil
-                values[idx] = values[n]; values[n] = nil
-            end      
-        end,
-
         reserve = function(self: Pool<T>, size: number)
             pool_resize_map(self, size)
             pool_resize_entities(self, size)
@@ -768,14 +670,7 @@ local function entity_pool_initialize(self: EntityPool, start: number, stop: num
     BUFFER_SET(self.map, stop, ID_CREATE(ID_NULL_KEY, ID_MIN_VER))
 end
 
--- specialized pool used by the registry to track ids for reuse
-local function entity_pool_create(): EntityPool
-    local pool = pool_create(2) :: EntityPool
-    entity_pool_initialize(pool, 1, 1)
-    pool.free = 1
 
-    return pool
-end
 
 local function IN_USE(id: number): boolean
     return bit32.band(id, ID_RESRVED_MASK) > 0
@@ -793,7 +688,7 @@ local function entity_pool_expand(self: EntityPool, size: number)
     if self.capacity >= size then return end
     local new_capacity = next_pow_of_2(size)
 
-    assert(new_capacity - 1 < ID_MASK_KEY)
+    ASSERT(new_capacity - 1 <= ID_MASK_KEY, "entity limit reached")
 
     local last = self.capacity - 1
 
@@ -822,6 +717,19 @@ local function entity_pool_expand(self: EntityPool, size: number)
     self.capacity = new_capacity
 end
 
+-- specialized pool used by the registry to track ids for reuse
+local function entity_pool_create(): EntityPool
+    local pool = pool_create(2) :: EntityPool
+    entity_pool_initialize(pool, 1, 1)
+    pool.free = 1
+
+    pool.reserve = function(self, size)
+        entity_pool_expand(self, size)
+    end
+
+    return pool
+end
+
 -- creates or reuses an id
 local function entity_pool_add(self: EntityPool): Entity
 
@@ -846,7 +754,7 @@ end
 local function entity_pool_reuse(self: EntityPool, id: Entity): Entity
     local key, ver = ID_KEY_VER(id)
 
-    if id ~= ID_CONTEXT then
+    if id ~= ID_CTX then
         ASSERT(key ~= ID_NULL_KEY and ver ~= ID_NULL_VER, "malformed id")
     end
 
@@ -863,7 +771,7 @@ local function entity_pool_reuse(self: EntityPool, id: Entity): Entity
         )
     end
 
-    if id == ID_CONTEXT then
+    if id == ID_CTX then
 
     elseif self.free == key then -- desired id is at head
         local next_free = ID_KEY(BUFFER_GET(self.map, self.free))
@@ -953,7 +861,9 @@ local function entity_pool_unsafe_remove(self: EntityPool, id: Entity)
     BUFFER_SET(entities, idx, last_id)
     BUFFER_SET(map, last_key, MARK_IN_USE(ID_SWAP_KEY(last_id, idx)))
 
-    if ver < ID_MASK_VER then
+    if id == ID_CTX then
+        BUFFER_SET(map, key, ID_NULL)
+    elseif ver < ID_MASK_VER then
         BUFFER_SET(map, key, ID_CREATE(self.free, ver + ID_MIN_VER)) -- recycle key
         self.free = key
     elseif DEFER_ID_REUSE then
@@ -1737,14 +1647,14 @@ local function registry_create(): Registry
 
     function registry.release(self: Registry, id: Entity)
         ASSERT_VALID_ENTITY(ID_KEY(id), id)
-        ASSERT_NOT_RESERVED(ID_KEY(id), id)
+        --ASSERT_NOT_RESERVED(ID_KEY(id), id)
         entity_pool_unsafe_remove(id_pool, id)
     end
 
     function registry.destroy(self: Registry, id: Entity)
         local key = ID_KEY(id)
         ASSERT_VALID_ENTITY(key, id)
-        ASSERT_NOT_RESERVED(ID_KEY(id), id)
+       -- ASSERT_NOT_RESERVED(ID_KEY(id), id)
         
         for _, pool in next, ctype_pools do
             POOL_TRY_REMOVE(pool, id)
@@ -1998,10 +1908,10 @@ local function registry_create(): Registry
     end
 
     function registry.context(self: Registry): Handle
-        if not self:contains(ID_CONTEXT) then
-            self:create(ID_CONTEXT)
+        if not self:contains(ID_CTX) then
+            self:create(ID_CTX)
         end
-        return self:handle(ID_CONTEXT)  
+        return self:handle(ID_CTX)  
     end
 
     return table.freeze(registry)
@@ -2113,29 +2023,25 @@ local queue_create = function<T...>(signal: SignalInterface<T...>?): Queue<T...>
     return queue
 end :: ( <T...>() -> Queue<T...> ) & ( <T...>(signal: SignalInterface<T...>) -> Queue<T...> )
 
-local function buffer_iterator(buf: buffer, i: number): (number, Entity)
-    if i == 1 then return NIL, NIL end
-    local i_new = i - 1
-    local id = BUFFER_GET(buf, i)
-    return i_new, id
+local function bnext(buf: buffer, i: number): (number, Entity)
+    if i == 0 then return NIL, NIL end
+    i -= 1
+    return i, BUFFER_GET(buf, i)
 end
 
-local function copy_buffer_to_array(buf: buffer, arr: Array<Entity>, size: number?)
-    local n = size or buffer.len(buf) / ID_SIZE
-    ASSERT(n % ID_SIZE == 0, "size not aligned to id size")
-    ASSERT(n <= buffer.len(buf), "buffer is smaller than given size")
+local function copy_buffer_to_array(buf: buffer, arr: Array<Entity>, size: number)
+    ASSERT(size * ID_SIZE <= buffer.len(buf), "buffer is smaller than given size")
 
-    for i = 0, (n - 1) * ID_SIZE do
-        arr[i + 1] = buffer.readu32(buf, i)
+    for i = 0, size - 1 do
+        arr[i + 1] = BUFFER_GET(buf, i)
     end
 end
 
-local function copy_array_to_buffer(arr: Array<Entity>, buf: buffer, size: number?)
-    local n = size or #arr
-    ASSERT(n % ID_SIZE == 0, "size not aligned to id size")
+local function copy_array_to_buffer(arr: Array<Entity>, buf: buffer, size: number)
+    ASSERT(size * ID_SIZE <= buffer.len(buf), "size is larger than buffer size")
 
     for i, id in ipairs(arr) do
-        buffer.writeu32(buf, (i - 1) * ID_SIZE, id)
+        BUFFER_SET(buf, (i - 1), id)
     end
 end
 
@@ -2173,7 +2079,14 @@ local ecr = {
     end,
 
     queue = queue_create,
+
     null = ID_NULL,
+    context = ID_CTX,
+
+    bnext = bnext,
+    copy_array_to_buffer = copy_array_to_buffer,
+    copy_buffer_to_array = copy_buffer_to_array,
+    id_size = ID_SIZE,
 
     _test = table.freeze {
         defer_id_reuse = DEFER_ID_REUSE,

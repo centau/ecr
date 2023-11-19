@@ -22,8 +22,7 @@ local function BULK_CREATE_IDS(reg: ecr.Registry, n: number): { ecr.Entity }
     return ids
 end
 
--- power of 2 so arrays are better alined for accurate memory usage reading
-local N = 2^16-2 --~ 262k
+local N = 2^16-2 -- 65,534
 
 local function RESERVE(reg: ecr.Registry, ...)
     for _, ctype in { ... } do
@@ -31,25 +30,27 @@ local function RESERVE(reg: ecr.Registry, ...)
     end
 end
 
-do TITLE "Entity creation and release"
-    BENCH("Entity creation", function()
-        local reg = ecr.registry()
+local function REG_INIT()
+    local reg = ecr.registry()
+
+    for _, ctype in { ecr.entity, A, B, C, D, E, F, G, H, TA, TB, TC, TD } do
+        reg:storage(ctype):reserve(N/2)
+    end
+
+    return reg
+end
+
+do TITLE "entities"
+    BENCH("create", function()
+        local reg = REG_INIT()
 
         for i = 1, START(N) do
             reg:create()
         end
     end)
 
-    BENCH("Entity creation (no pre-alloc)", function()
-        local reg = ecr.registry()
-
-        for i = 1, START(N) do
-            reg:create()
-        end
-    end)
-
-    BENCH("Entity release", function()
-        local reg = ecr.registry()
+    BENCH("release", function()
+        local reg = REG_INIT()
 
         local id = table.create(N)
 
@@ -62,8 +63,8 @@ do TITLE "Entity creation and release"
         end
     end)
 
-    BENCH("Entity creation with desired id", function()
-        local sreg = ecr.registry()
+    BENCH("create with id", function()
+        local sreg = REG_INIT()
         
         local id = table.create(N)
 
@@ -71,7 +72,7 @@ do TITLE "Entity creation and release"
             id[i] = sreg:create()
         end
 
-        local reg = ecr.registry()
+        local reg = REG_INIT()
 
         for i = 1, START(N) do
             reg:create(id[i])
@@ -79,10 +80,10 @@ do TITLE "Entity creation and release"
     end)
 end
 
-do TITLE "Adding components"
+do TITLE "add"
     local function setup()
-        local reg = ecr.registry()
-        RESERVE(reg, A, B, C, D, TA, TB, TC, TD)
+        local reg = REG_INIT()
+
         local ids = table.create(N)
         for i = 1, N do
             ids[i] = reg:create()
@@ -93,7 +94,7 @@ do TITLE "Adding components"
     do
         local reg, ids = setup()
 
-        BENCH("Add 1 component", function()
+        BENCH("1 component", function()
             for i = 1, START(N) do
                 reg:add(ids[i], A)
             end
@@ -103,7 +104,7 @@ do TITLE "Adding components"
     do
         local reg, ids = setup()
 
-        BENCH("Add 2 components", function()
+        BENCH("2 components", function()
             for i = 1, START(N) do
                 reg:add(ids[i], A, B)
             end
@@ -113,7 +114,7 @@ do TITLE "Adding components"
     do
         local reg, ids = setup()
 
-        BENCH("Add 4 components", function()
+        BENCH("4 components", function()
             for i = 1, START(N) do
                 reg:add(ids[i], A, B, C, D)
             end
@@ -122,7 +123,7 @@ do TITLE "Adding components"
 
     do
         local reg, ids = setup()
-        BENCH("Add 1 tag", function()
+        BENCH("1 tag", function()
             for i = 1, START(N) do
                 reg:add(ids[i], TA)
             end
@@ -131,7 +132,7 @@ do TITLE "Adding components"
 
     do
         local reg, ids = setup()
-        BENCH("Add 4 tags", function()
+        BENCH("4 tags", function()
             for i = 1, START(N) do
                 reg:add(ids[i], TA, TB, TC, TD)
             end
@@ -139,9 +140,9 @@ do TITLE "Adding components"
     end
 end
 
-do TITLE "Setting components"
+do TITLE "set"
     local function setup()
-        local reg = ecr.registry()
+        local reg = REG_INIT()
         RESERVE(reg, A, B, C, D)
         local ids = table.create(N)
         for i = 1, N do
@@ -153,13 +154,13 @@ do TITLE "Setting components"
     do
         local reg, ids = setup()
 
-        BENCH("Add 1 component", function()
+        BENCH("add 1", function()
             for i = 1, START(N) do
                 reg:set(ids[i], A, true)
             end
         end)
 
-        BENCH("Change 1 component", function()
+        BENCH("change 1", function()
             for i = 1, START(N) do
                 reg:set(ids[i], A, true)
             end
@@ -169,7 +170,7 @@ do TITLE "Setting components"
     do
         local reg, ids = setup()
 
-        BENCH("Add 2 components", function()
+        BENCH("add 2", function()
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:set(e, A, true)
@@ -177,7 +178,7 @@ do TITLE "Setting components"
             end
         end)
 
-        BENCH("Change 2 components", function()
+        BENCH("change 2", function()
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:set(e, A, true)
@@ -188,7 +189,7 @@ do TITLE "Setting components"
 
     do
         local reg, ids = setup()
-        BENCH("Add 4 components", function()
+        BENCH("add 4", function()
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:set(e, A, true)
@@ -198,7 +199,7 @@ do TITLE "Setting components"
             end
         end)
 
-        BENCH("Change 4 components", function()
+        BENCH("change 4", function()
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:set(e, A, true)
@@ -210,9 +211,9 @@ do TITLE "Setting components"
     end
 end
 
-do TITLE "Patching components"
+do TITLE "patch"
     local function setup()
-        local reg = ecr.registry()
+        local reg = REG_INIT()
         local ids = table.create(N)
         for i = 1, N do
             local e = reg:create()
@@ -232,7 +233,7 @@ do TITLE "Patching components"
     do
         local reg, ids = setup()
 
-        BENCH("Update 1 existing component", function()
+        BENCH("patch 1", function()
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:patch(e, A, patcher)
@@ -243,7 +244,7 @@ do TITLE "Patching components"
     do
         local reg, ids = setup()
         
-        BENCH("Update 2 existing components", function()
+        BENCH("patch 2", function()
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:patch(e, A, patcher)
@@ -255,7 +256,7 @@ do TITLE "Patching components"
     do
         local reg, ids = setup()
         
-        BENCH("Update 4 existing components", function()
+        BENCH("patch 4", function()
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:patch(e, A, patcher)
@@ -267,8 +268,8 @@ do TITLE "Patching components"
     end
 end
 
-do TITLE "Has components"
-    local reg = ecr.registry()
+do TITLE "has"
+    local reg = REG_INIT()
     local ids = table.create(N)
 
     for i = 1, N do
@@ -279,20 +280,20 @@ do TITLE "Has components"
         reg:set(ids[i], D, true)
     end
 
-    BENCH("Has 1 component", function()
+    BENCH("1 component", function()
         for i = 1, START(N) do
             reg:has(ids[i], A)
         end
     end)
 
-    BENCH("Has 2 component", function()
+    BENCH("2 components", function()
         for i = 1, START(N) do
             local e = ids[i]
             reg:has(e, A, B)
         end
     end)
 
-    BENCH("Has 4 component", function()
+    BENCH("4 components", function()
         for i = 1, START(N) do
             local e = ids[i]
             reg:has(e, A, B, C, D)
@@ -300,8 +301,8 @@ do TITLE "Has components"
     end)
 end
 
-do TITLE("Getting components")
-    local reg = ecr.registry()
+do TITLE("get")
+    local reg = REG_INIT()
     local ids = table.create(N)
 
     for i = 1, N do
@@ -318,42 +319,42 @@ do TITLE("Getting components")
         reg:set(e, H, true)
     end
 
-    BENCH("Get 1 component", function()
+    BENCH("1 component", function()
         for i = 1, START(N) do
             reg:get(ids[i], A)
         end
     end)
 
-    BENCH("Get 2 component", function()
+    BENCH("2 components", function()
         for i = 1, START(N) do
             local e = ids[i]
             reg:get(e, A, B)
         end
     end)
 
-    BENCH("Get 4 component", function()
+    BENCH("4 components", function()
         for i = 1, START(N) do
             local e = ids[i]
             reg:get(e, A, B, C, D)
         end
     end)
 
-    BENCH("Get 8 components", function()
+    BENCH("8 components", function()
         for i = 1, START(N) do
             reg:get(ids[i], A, B, C, D, E, F, G, H)
         end
     end)
 
-    BENCH("Try get component", function()
+    BENCH("try 1 component", function()
         for i = 1, START(N) do
             reg:try_get(ids[i], A)
         end
     end)
 end
 
-do TITLE("Removing components")
+do TITLE("remove")
     local function setup()
-        local reg = ecr.registry()
+        local reg = REG_INIT()
         local ids = table.create(N)
         for i = 1, N do
             local e = reg:create()
@@ -370,7 +371,7 @@ do TITLE("Removing components")
         return reg, ids
     end
 
-    BENCH("Attempt remove of non-existant component", function()
+    BENCH("1 unowned", function()
         local reg, ids = setup()
 
         for i = 1, N do
@@ -382,7 +383,7 @@ do TITLE("Removing components")
         end
     end)
 
-    BENCH("Remove 1 component", function()
+    BENCH("1 component", function()
         local reg, ids = setup()
 
         for i = 1, START(N) do
@@ -390,7 +391,7 @@ do TITLE("Removing components")
         end
     end)
 
-    BENCH("Remove 2 components", function()
+    BENCH("2 components", function()
         local reg, ids = setup()
 
         for i = 1, START(N) do
@@ -399,7 +400,7 @@ do TITLE("Removing components")
         end
     end)
 
-    BENCH("Remove 4 components", function()
+    BENCH("4 components", function()
         local reg, ids = setup()
 
         for i = 1, START(N) do
@@ -408,7 +409,7 @@ do TITLE("Removing components")
         end
     end)
 
-    BENCH("Remove 8 components", function()
+    BENCH("8 components", function()
         local reg, ids = setup()
 
         for i = 1, START(N) do
@@ -418,9 +419,9 @@ do TITLE("Removing components")
     end)
 end
 
-do TITLE "Clear components"
+do TITLE "clear"
     local function setup()
-        local reg = ecr.registry()
+        local reg = REG_INIT()
         local ids = table.create(N)
         for i = 1, N do
             local e = reg:create()
@@ -437,43 +438,43 @@ do TITLE "Clear components"
         return reg, ids
     end
 
-    BENCH("Clear 1 component", function()
+    BENCH("1 component", function()
         local reg = setup()
 
         START(N)
         reg:clear(A)
     end)
 
-    BENCH("Clear 2 components", function()
+    BENCH("2 components", function()
         local reg = setup()
 
         START(N)
         reg:clear(A, B)
     end)
 
-    BENCH("Clear 4 components", function()
+    BENCH("4 components", function()
         local reg = setup()
 
         START(N)
         reg:clear(A, B, C, D)
     end)
 
-    BENCH("Clear 8 components", function()
+    BENCH("8 components", function()
         local reg = setup()
 
         START(N)
         reg:clear(A, B, C, D, E, F, G, H)
     end)
 
-    BENCH("Clear all entities (no components)", function()
-        local reg = ecr.registry()
+    BENCH("all entities (no components)", function()
+        local reg = REG_INIT()
         for i = 1, N do reg:create() end
 
         START(N)
         reg:clear()
     end)
 
-    BENCH("Clear 1 component (grouped)", function()
+    BENCH("1 component (grouped)", function()
         local reg = setup()
         reg:group(A, B)
 
@@ -482,32 +483,20 @@ do TITLE "Clear components"
     end)
 end
 
-do TITLE("Create view")
-    local reg = ecr.registry()
+do TITLE("create view")
+    local reg = REG_INIT()
 
     reg:view(A, B, C, D, E, F, G, H) -- register components
 
-    BENCH("View 1 component", function()
+    BENCH("1 component", function()
         for i = 1, START(N) do
             reg:view(A)
         end
     end)
 
-    BENCH("View 4 component", function()
+    BENCH("4 component", function()
         for i = 1, START(N) do
             reg:view(A, B, C, D)
-        end
-    end)
-
-    BENCH("View and iter 1 component", function()
-        for i = 1, START(N) do
-            for _ in reg:view(A) do end
-        end
-    end)
-
-    BENCH("View and iter 4 component", function()
-        for i = 1, START(N) do
-            for _ in reg:view(A, B, C, D) do end
         end
     end)
 end
@@ -522,28 +511,28 @@ do
             return i
         end
 
-        BENCH("View 1 component", function()
+        BENCH("1 component", function()
             local view = reg:view(A)
 
             START(getExactSize(view))
             for entity, a in view do end
         end)
 
-        BENCH("View 2 components", function()
+        BENCH("2 components", function()
             local view = reg:view(A, B)
 
             START(getExactSize(view))
             for entity, a, b in view do end
         end)
 
-        BENCH("View 4 components", function()
+        BENCH("4 components", function()
             local view = reg:view(A, B, C, D)
 
             START(getExactSize(view))
             for entity, a, b, c, d in view do end
         end)
 
-        BENCH("View 8 components", function()
+        BENCH("8 components", function()
             local view = reg:view(A, B, C, D, E, F, G, H)
 
             START(getExactSize(view))
@@ -551,8 +540,8 @@ do
         end)
     end
 
-    do TITLE("View all entities with ordered components")
-        local reg = ecr.registry()
+    do TITLE("iter view (ordered)")
+        local reg = REG_INIT()
 
         for i = 1, N do
             local entity = reg:create()
@@ -569,8 +558,8 @@ do
         viewBench(reg)
     end
 
-    do TITLE("View all entities with random components (50% distr.)")
-        local reg = ecr.registry()
+    do TITLE("iter view (random)")
+        local reg = REG_INIT()
 
         local function flip() return math.random() > 0.5 end
 
@@ -589,13 +578,13 @@ do
         viewBench(reg)
     end
 
-    do TITLE("View all entities with common component (50% distr.)")
+    do TITLE("iter view (random + common)")
         -- 7 components are randomly assigned to entities,
         -- any entities that receive all 7 will be tagged with an 8th component.
         -- This guarantees that when iterating over this 8th component, all
         -- entities iterated will also contain the other 7.
 
-        local reg = ecr.registry()
+        local reg = REG_INIT()
 
         local function flip() return math.random() > 0.5 end
 
@@ -615,37 +604,37 @@ do
         viewBench(reg)
     end
 
-    do TITLE("View tags")
-        local reg = ecr.registry()
+    do TITLE("iter view (tags)")
+        local reg = REG_INIT()
 
         for i = 1, N do
             local e = reg:handle()
             e:add(TA, TB, TC, TD)
         end
 
-        BENCH("View 1 tag", function()
+        BENCH("1 tag", function()
             START(N)
             for id, a in reg:view(TA) do end
         end)
 
-        BENCH("View 4 tag", function()
+        BENCH("4 tags", function()
             START(N)
             for id, a, b, c, d in reg:view(TA, TB, TC, TD) do end
         end)
     end
 end
 
-do TITLE ("Handles")
+do TITLE("handle")
     local N2 = N/32
 
-    local reg = ecr.registry()
+    local reg = REG_INIT()
     local ids = table.create(N2)
 
     for i = 1, N2 do
         ids[i] = reg:create()
     end
 
-    BENCH("Create new handles", function()
+    BENCH("create new", function()
         for i = 1, START(N2) do
             reg:handle(ids[i])
         end
@@ -657,16 +646,16 @@ do TITLE ("Handles")
         cache[i] = reg:handle(ids[i])
     end
 
-    BENCH("Reuse cached handles", function()
+    BENCH("create cached", function()
         for i = 1, START(N2) do
             reg:handle(ids[i])
         end
     end)
 end
 
-do TITLE "Registry group"
+do TITLE "group"
     do
-        local reg = ecr.registry()
+        local reg = REG_INIT()
 
         local group = reg:group(A, B)
 
@@ -676,7 +665,7 @@ do TITLE "Registry group"
             ids[i] = reg:create()
         end
 
-        BENCH("Add 2 components", function()
+        BENCH("add 2 components", function()
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:set(e, A, 1)
@@ -684,19 +673,19 @@ do TITLE "Registry group"
             end
         end)
 
-        BENCH("Iterate 2 components", function()
+        BENCH("iter 2 components", function()
             START(N)
             for entity, a, b in group do end
         end)
 
-        BENCH("Remove 2 components", function()
+        BENCH("remove 2 components", function()
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:remove(e, A, B)
             end
         end)
 
-        BENCH("Add 1 component", function()
+        BENCH("add 1 component", function()
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:set(e, A, 1)
@@ -705,7 +694,7 @@ do TITLE "Registry group"
     end
 
     do
-        local reg = ecr.registry()
+        local reg = REG_INIT()
 
         local group2 = reg:group(C, D, E, F)
         
@@ -715,7 +704,7 @@ do TITLE "Registry group"
             ids[i] = reg:create()
         end
 
-        BENCH("Add 4 components", function()
+        BENCH("add 4 components", function()
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:set(e, C, 1)
@@ -725,19 +714,19 @@ do TITLE "Registry group"
             end
         end)
 
-        BENCH("Iterate 4 components", function()
+        BENCH("iter 4 components", function()
             START(N)
             for entity, a, b, c, d in group2 do end
         end)
 
-        BENCH("Remove 4 components", function()
+        BENCH("remove 4 components", function()
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:remove(e, C, D, E, F)
             end
         end)
 
-        BENCH("Add 1 component", function()
+        BENCH("add 1 component", function()
             for i = 1, START(N) do
                 local e = ids[i]
                 reg:set(e, C, 1)
@@ -746,9 +735,9 @@ do TITLE "Registry group"
     end
 end
 
-do TITLE("Destroying entities")
-    BENCH("Destroy entity with 0 components", function()
-        local reg = ecr.registry()
+do TITLE("destroy")
+    BENCH("0 components", function()
+        local reg = REG_INIT()
         local ids = table.create(N)
 
         for i = 1, N do
@@ -760,8 +749,8 @@ do TITLE("Destroying entities")
         end
     end)
 
-    BENCH("Destroy entity with 1 components", function()
-        local reg = ecr.registry()
+    BENCH("1 component", function()
+        local reg = REG_INIT()
         local ids = table.create(N)
 
         for i = 1, N do
@@ -775,8 +764,8 @@ do TITLE("Destroying entities")
         end
     end)
 
-    BENCH("Destroy entity with 2 components", function()
-        local reg = ecr.registry()
+    BENCH("2 components", function()
+        local reg = REG_INIT()
         local ids = table.create(N)
 
         for i = 1, N do
@@ -791,8 +780,8 @@ do TITLE("Destroying entities")
         end
     end)
 
-    BENCH("Destroy entity with 4 components", function()
-        local reg = ecr.registry()
+    BENCH("4 components", function()
+        local reg = REG_INIT()
         local ids = table.create(N)
 
         for i = 1, N do
@@ -809,11 +798,11 @@ do TITLE("Destroying entities")
         end
     end)
 
-    BENCH("Destroy entity with no components (8 component registered)", function()
-        local reg = ecr.registry()
+    BENCH("0 components (8 registered)", function()
+        local reg = REG_INIT()
         local ids = table.create(N)
 
-        for i = 1, N do
+        for i = 1, N - 1 do
             local e = reg:create()
             ids[i] = e
         end
@@ -830,13 +819,13 @@ do TITLE("Destroying entities")
             reg:set(e, H, true)
         end
 
-        for i = 1, START(N) do
+        for i = 1, START(N - 1) do
             reg:destroy(ids[i])
         end
     end)
 
-    BENCH("Destroy entity with no components (128 component registered)", function()
-        local reg = ecr.registry()
+    BENCH("0 components (128 registered)", function()
+        local reg = REG_INIT()
 
         do
             local id = reg:create()
@@ -846,19 +835,19 @@ do TITLE("Destroying entities")
             end
         end
 
-        local ids = table.create(N)
+        local ids = table.create(N - 1)
 
-        for i = 1, N do
+        for i = 1, N - 1 do
             ids[i] = reg:create()
         end
 
-        for i = 1, START(N) do
+        for i = 1, START(N - 1) do
             reg:destroy(ids[i])
         end
     end)
 
-    BENCH("Destroy entity with no components (1024 component registered)", function()
-        local reg = ecr.registry()
+    BENCH("0 components (1024 registered)", function()
+        local reg = REG_INIT()
 
         do
             local id = reg:create()
@@ -880,47 +869,47 @@ do TITLE("Destroying entities")
     end)
 end
 
-do TITLE("Direct storage")
-    local reg = ecr.registry()
-    local a = reg:storage(A)
-    a:reserve(N)
+-- do TITLE("Direct storage")
+--     local reg = REG_INIT()
+--     local a = reg:storage(A)
+--     a:reserve(N)
 
-    local ids = BULK_CREATE_IDS(reg, N)
+--     local ids = BULK_CREATE_IDS(reg, N)
 
-    BENCH("Add component", function()
-        for i = 1, START(N) do
-            a:set(ids[i], i)
-        end
-    end)
+--     BENCH("Add component", function()
+--         for i = 1, START(N) do
+--             a:set(ids[i], i)
+--         end
+--     end)
 
-    BENCH("Change component", function()
-        for i = 1, START(N) do
-            a:set(ids[i], i)
-        end
-    end)
+--     BENCH("Change component", function()
+--         for i = 1, START(N) do
+--             a:set(ids[i], i)
+--         end
+--     end)
 
-    BENCH("Get component", function()
-        for i = 1, START(N) do
-            a:get(ids[i])
-        end
-    end)
+--     BENCH("Get component", function()
+--         for i = 1, START(N) do
+--             a:get(ids[i])
+--         end
+--     end)
 
-    BENCH("Has component", function()
-        for i = 1, START(N) do
-            a:has(ids[i])
-        end
-    end)
+--     BENCH("Has component", function()
+--         for i = 1, START(N) do
+--             a:has(ids[i])
+--         end
+--     end)
 
-    BENCH("Remove component", function()
-        for i = 1, START(N) do
-            a:remove(ids[i])
-        end
-    end)
-end
+--     BENCH("Remove component", function()
+--         for i = 1, START(N) do
+--             a:remove(ids[i])
+--         end
+--     end)
+-- end
 
-do TITLE("Valid id checking")
-    BENCH("registry::contains", function()
-        local reg = ecr.registry()
+do TITLE("contains")
+    BENCH("", function()
+        local reg = REG_INIT()
         local ids = table.create(N)
         for i = 1, N do
             ids[i] = reg:create()
@@ -934,15 +923,15 @@ do TITLE("Valid id checking")
     end)
 end
 
-do TITLE "Registry signals"
-    local reg = ecr.registry()
+do TITLE "signal"
+    local reg = REG_INIT()
     local ids = table.create(N)
 
     for i = 1, N do
         ids[i] = reg:create()
     end
 
-    BENCH("registry::added", function()
+    BENCH("added", function()
         reg:added(A):connect(function() end)
 
         for i = 1, START(N) do
@@ -950,7 +939,7 @@ do TITLE "Registry signals"
         end
     end)
 
-    BENCH("registry::changed", function()
+    BENCH("changed", function()
         reg:changed(A):connect(function() end)
 
         for i = 1, START(N) do
@@ -959,7 +948,7 @@ do TITLE "Registry signals"
     end)
 
 
-    BENCH("registry::removing", function()
+    BENCH("removing", function()
         reg:removing(A):connect(function() end)
 
         for i = 1, START(N) do
@@ -968,8 +957,8 @@ do TITLE "Registry signals"
     end)
 end
 
-do TITLE "Observers"
-    local reg = ecr.registry()
+do TITLE "observer"
+    local reg = REG_INIT()
     local observer = reg:track(A)
 
     local ids = table.create(N)
@@ -977,46 +966,46 @@ do TITLE "Observers"
         ids[i] = reg:create()
     end
 
-    BENCH("Add component", function()
+    BENCH("add", function()
         for i = 1, START(N) do
             reg:set(ids[i], A, true)
         end
     end)
 
-    BENCH("Change component", function()
+    BENCH("change", function()
         for i = 1, START(N) do
             reg:set(ids[i], A, false)
         end
     end)
 
-    BENCH("Iterate", function()
+    BENCH("iterate", function()
         START(N)
         for id, v in observer do end
     end)
 
-    BENCH("Remove component", function()
+    BENCH("remove", function()
         for i = 1, START(N) do
             reg:remove(ids[i], A)
         end
     end)
 
-    BENCH("Clear", function()
+    BENCH("clear", function()
         START(N)
         observer:clear()
     end)
 end
 
-do TITLE "Queues"
+do TITLE "queue"
     do
         local q = ecr.queue()
 
-        BENCH("Add 1", function()
+        BENCH("add 1", function()
             for i = 1, START(N) do
                 q:add(i)
             end
         end)
 
-        BENCH("Iter 1", function()
+        BENCH("iter 1", function()
             START(N)
             for i in q do end
         end)
@@ -1025,21 +1014,45 @@ do TITLE "Queues"
     do
         local q = ecr.queue()
 
-        BENCH("Add 4", function()
+        BENCH("add 4", function()
             for i = 1, START(N) do
                 q:add(i, i, i, i)
             end
         end)
 
-        BENCH("Iter 4", function()
+        BENCH("iter 4", function()
             START(N)
             for a, b, c, d in q do end
         end)
     end
 end
 
-do TITLE "Practical tests"
-    local world = ecr.registry()
+do TITLE "buffer"
+    local reg = ecr.registry()
+
+    local ids = BULK_CREATE_IDS(reg, N)
+    local buf = buffer.create(N * ecr.id_size)
+
+    BENCH("array to buffer", function()
+        ecr.copy_array_to_buffer(ids, buf, START(N))
+    end)
+
+    BENCH("iter buffer", function()
+        for i, id in ecr.bnext, buf, START(N) do
+        end
+    end)
+
+    local arr = table.create(N)
+
+    BENCH("buffer to array", function()
+        ecr.copy_buffer_to_array(buf, arr, START(N))
+    end)
+end
+
+local PN = 2^12
+
+do TITLE(`practical test ({PN} entities)`)
+    local world = REG_INIT()
 
     local Position = ecr.component() :: number
     local Velocity = ecr.component() :: number
@@ -1068,17 +1081,17 @@ do TITLE "Practical tests"
         world:clear()
     end
 
-    BENCH("Create ~4k entities with 3 components", function()
+    BENCH("create entities with 3 components", function()
        init()
     end)
 
-    BENCH("Update position ~4k entities", function()
+    BENCH("update positions", function()
         for id, pos, vel in world:group(Position, Velocity) do
             world:set(id, Position, pos + vel*1/60)
         end
     end)
 
-    BENCH("Raw update position ~4k entities", function()
+    BENCH("raw update positions", function()
         local n = #world:group(Position, Velocity)
         local positions  = world:storage(Position).values
         local velocities = world:storage(Velocity).values
@@ -1089,7 +1102,7 @@ do TITLE "Practical tests"
             
     end)
 
-    BENCH("Add tag ~4k entities", function()
+    BENCH("add tags", function()
         for id, health in world:view(Health) do
             if health <= 0 then
                 world:add(id, Dead)
@@ -1097,7 +1110,7 @@ do TITLE "Practical tests"
         end
     end)
 
-    BENCH("Destroy ~4k entities", function()
+    BENCH("destroy", function()
         for id in world:view(Dead) do
             world:destroy(id)
         end
@@ -1118,36 +1131,54 @@ do TITLE "Practical test OOP"
         Dead: boolean
     }
 
+    local function create(i)
+        return {
+            Position = i,
+            Velocity = i,
+            Health = 0,
+            -- dummy fields
+            A = 0,
+            B = 0,
+            C = 0,
+            D = 0
+        }
+    end
+
+    local tmp = {}
+    do
+        for i = 1, 2^14 do
+            tmp[i] = create(i)
+        end
+
+        for i = 1, 2^14 do
+            if math.random() > 0.7 then
+                tmp[i] = nil
+            end
+        end
+        collectgarbage("collect")
+    end
+
+    local permutation = {}
+
     -- luaus table allocator is really good and allocates tables in linear
     -- pages in memory, causing sequential access to tables to hit cache.
     -- i dont think this would occur in complex real games unless you
     -- specifically design for it so attempt to randomize here to try
     -- eliminate cache hits (this reduces performance by around ~5x)
     do
-        for i = 1, 2^15 do
-            cache[i] =  {
-                Position = 0,
-                Velocity = 0,
-                Health = 0,
-                -- dummy fields
-                A = 0,
-                B = 0,
-                C = 0,
-                D = 0
-            }
+        for i = 1, 2^12 do
+            cache[i] =  i
         end
 
-        for i = 1, 2^12 do
-            world[i] = cache[math.random(1, #cache)]
-            table.clear(world[i])
+        for i = 1, 2^14 do
+            permutation[i] = cache[math.random(1, #cache)]
         end
     end
 
     BENCH("Create ~4k entities with 3 components", function()
         for i = 1, 2^12 do
-            world[i].Position = i
-            world[i].Velocity = i
-            world[i].Health = 0
+            local idx = permutation[i]
+            world[idx] = create(i)
         end
     end)
 
