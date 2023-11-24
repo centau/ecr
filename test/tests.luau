@@ -20,6 +20,7 @@ local ecr = require "src/ecr"
 local A, B, C, D = ecr.component(), ecr.component(), ecr.component(), ecr.component()
 local E, F, G, H = ecr.component(), ecr.component(), ecr.component(), ecr.component(function() return true end)
 
+local DEFER_ID_REUSE = ecr._test.defer_id_reuse
 local MAX_VER = ecr._test.max_ver
 
 local function KEY(id: ecr.Entity): number
@@ -882,19 +883,40 @@ TEST("registry:clear()", function()
             assert(VER(id) == MAX_VER)
         end
 
-        local ids = BULK_CREATE_IDS(reg, N)
+        local ids = table.create(N)
+        for i = 1, N do
+            ids[i] = reg:create()
+            if i == N/2 then
+                reg:release(ids[i])
+                ids[i] = reg:create()
+            end
+        end
 
         reg:clear()
 
         local ids_after = BULK_CREATE_IDS(reg, N)
 
-        CHECK(KEY(ids_after[1]) == 3) -- key = 1 should not be reused
-        CHECK(KEY(ids_after[2]) == 4) -- key = 2 should now be deprecated
+        if DEFER_ID_REUSE then
+            CHECK(KEY(ids_after[1]) == 3) -- key = 1 should not be reused
+            CHECK(KEY(ids_after[2]) == 4) -- key = 2 should now be deprecated
 
-        for i = 1, N do
-            CHECK(KEY(ids_after[i]) ~= 1)
-            CHECK(KEY(ids_after[i]) ~= 2)
-            CHECK(VER(ids[i]) + 1 == VER(ids_after[i]))
+            for i = 1, N do
+                CHECK(KEY(ids_after[i]) ~= 1)
+                CHECK(KEY(ids_after[i]) ~= 2)
+                CHECK(VER(ids[i]) + 1 == VER(ids_after[i]))
+            end
+        else
+            for i = 1, N do
+                if i == 1 then
+                    assert(ids[i] == CREATE_ID(1, 1))
+                    CHECK(ids_after[i] == CREATE_ID(2, 1))
+                elseif i == 2 then
+                    assert(ids[i] == CREATE_ID(3, 1))
+                    CHECK(ids_after[i] == CREATE_ID(1, 2))
+                else
+                    CHECK(VER(ids[i - 1]) + 1 == VER(ids_after[i]))
+                end
+            end
         end
     end
 
@@ -2277,16 +2299,15 @@ TEST("buffer helpers", function()
     end
 end)
 
-if (ecr :: any).defer_id_reuse then
+if DEFER_ID_REUSE then
 
 TEST("deferred id reuse", function()
-    local reg
     do CASE "version overflow"
         local reg2 = ecr.registry()
         
         reg2:release( reg2:create() ); -- ensure id internally exists
 
-        SET_ENTITY_VERSION(reg2, 1, MAX_VER - 1)
+        SET_KEY_VERSION(reg2, 1, MAX_VER - 1)
 
         -- verify version was set to MAX-1 correctly
         local id = reg2:create()
@@ -2311,17 +2332,22 @@ TEST("deferred id reuse", function()
     end
 
     do CASE "deprecated key"
-        CHECK(CURRENT_VER(reg, CREATE_DEPRECATED_ID(reg)) == MAX_VER)
+        local reg = ecr.registry()
+        CHECK(GET_KEY_VERSION(reg, KEY(CREATE_DEPRECATED_ID(reg))) == 0)
     end
 
     do CASE "add component to deprecated id"
+        local reg = ecr.registry()
+    
         CHECK_ERR("invalid entity", function()
             local id = CREATE_DEPRECATED_ID(reg)
-            reg:add(id, ADD_A)
+            reg:add(id, A)
         end)
     end
 
     do CASE "add component to deprecated id"
+        local reg = ecr.registry()
+
         CHECK_ERR("invalid entity", function()
             local id = CREATE_DEPRECATED_ID(reg)
             reg:set(id, A, 1)
@@ -2329,14 +2355,36 @@ TEST("deferred id reuse", function()
     end
 
     do CASE "reuse"
+        local reg = ecr.registry()
 
+        local ids = table.create(ecr._test.max_creatable)
+
+        for i = 1, ecr._test.max_creatable do
+            ids[i] = reg:create(CREATE_ID(i, MAX_VER))
+        end
+
+        for i = 1, ecr._test.max_creatable do
+            reg:release(ids[i])
+        end
+
+        local id = reg:create()
+        CHECK(KEY(id) == 1)
+        CHECK(VER(id) == 1)
     end
 end)
 
 else
 
 TEST("immediate id reuse", function()
+    local reg = ecr.registry()
 
+    for i = 1, MAX_VER do
+        reg:release(reg:create())
+    end
+
+    local id = reg:create()
+    CHECK(KEY(id) == 1)
+    CHECK(VER(id) == 1)
 end)
 
 end

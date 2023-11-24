@@ -8,37 +8,6 @@ local MAX_ENTITIES = 0x0000_FFFF
 local INIT_STORAGE_SIZE = 1
 local DEFER_ID_REUSE = true
 
--- type buffer = { __buffer: true }
-
--- type bufferlib = {
---     create: (size: number) -> buffer,
---     fromstring: (s: string) -> buffer,
---     tostring: (b: buffer) -> string,
---     len: (b: buffer) -> number,
---     copy: (tar_b: buffer, tar_off: number, src_b: buffer, src_off: number?, count: number?) -> (),
---     fill: (b: buffer, offset: number, value: number, count: number?) -> (),
-
---     readi8: (b: buffer, offset: number) -> number,
---     readu8: (b: buffer, offset: number) -> number,
---     readi16: (b: buffer, offset: number) -> number,
---     readu16: (b: buffer, offset: number) -> number,
---     readi32: (b: buffer, offset: number) -> number,
---     readu32: (b: buffer, offset: number) -> number,
---     readf32: (b: buffer, offset: number) -> number,
---     readf64: (b: buffer, offset: number) -> number,
-
---     writei8: (b: buffer, offset: number, value: number) -> number,
---     writeu8: (b: buffer, offset: number, value: number) -> number,
---     writei16: (b: buffer, offset: number, value: number) -> number,
---     writeu16: (b: buffer, offset: number, value: number) -> number,
---     writei32: (b: buffer, offset: number, value: number) -> number,
---     writeu32: (b: buffer, offset: number, value: number) -> number,
---     writef32: (b: buffer, offset: number, value: number) -> number,
---     writef64: (b: buffer, offset: number, value: number) -> number,
--- }
-
--- local buffer = buffer :: bufferlib
-
 local NIL = nil :: any
 
 type Array<T> = { [number]: T }
@@ -221,6 +190,9 @@ local ID_CTX_KEY = 0
 
 local ID_NULL_VER = 0
 local ID_MIN_VER = 1 * ID_LSHIFT
+
+local ID_MAX_VALID_KEY = ID_MASK_KEY - 1
+local ID_MAX_CAPACITY = ID_MASK_KEY + 1
 
 assert(ID_SIZE <= 4 and ID_SIZE >= 1)
 assert(MAX_ENTITIES <= ID_MAX/2 and MAX_ENTITIES > 0)
@@ -688,7 +660,7 @@ local function entity_pool_expand(self: EntityPool, size: number)
     if self.capacity >= size then return end
     local new_capacity = next_pow_of_2(size)
 
-    ASSERT(new_capacity - 1 <= ID_MASK_KEY, "entity limit reached")
+    ASSERT(new_capacity <= ID_MAX_CAPACITY, "entity limit reached")
 
     local last = self.capacity - 1
 
@@ -734,10 +706,21 @@ end
 local function entity_pool_add(self: EntityPool): Entity
 
     if self.free == ID_NULL_KEY then
-        entity_pool_expand(self, self.capacity*2)
-        assert(self.free ~= ID_NULL_KEY)
+        if DEFER_ID_REUSE and self.capacity == ID_MAX_CAPACITY then
+            for i = ID_CTX_KEY + 1, ID_MAX_VALID_KEY do
+                if BUFFER_GET(self.map, i) == ID_NULL then
+                    BUFFER_SET(self.map, i, ID_CREATE(ID_NULL_KEY, ID_MIN_VER))
+                    self.free = i
+                    break
+                end
+                ASSERT(self.free ~= ID_NULL_KEY, "entity limit reached")
+            end
+        else
+            entity_pool_expand(self, self.capacity*2)
+        end
     end
-
+    
+    assert(self.free ~= ID_NULL_KEY)
     local next_key_ver = BUFFER_GET(self.map, self.free)
     local next_key = ID_KEY(next_key_ver)
     local new_key = self.free
@@ -2092,6 +2075,7 @@ local ecr = {
         defer_id_reuse = DEFER_ID_REUSE,
         ver_shift = ID_LSHIFT,
         max_ver = ID_MASK_VER * ID_RSHIFT,
+        max_creatable = ID_MASK_KEY - 1,
 
         get_names = function()
             return table.freeze(table.clone(ctype_names))
