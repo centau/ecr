@@ -24,17 +24,11 @@ end
 
 local N = 2^16-2 -- 65,534
 
-local function RESERVE(reg: ecr.Registry, ...)
-    for _, ctype in { ... } do
-        reg:storage(ctype):reserve(N) -- todo 8 bytes
-    end
-end
-
-local function REG_INIT()
+local function REG_INIT(size: number)
     local reg = ecr.registry()
 
     for _, ctype in { ecr.entity, A, B, C, D, E, F, G, H, TA, TB, TC, TD } do
-        reg:storage(ctype):reserve(N/2)
+        reg:storage(ctype):reserve(size)
     end
 
     return reg
@@ -42,7 +36,7 @@ end
 
 do TITLE "entities"
     BENCH("create", function()
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
 
         for i = 1, START(N) do
             reg:create()
@@ -50,7 +44,7 @@ do TITLE "entities"
     end)
 
     BENCH("release", function()
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
 
         local id = table.create(N)
 
@@ -64,7 +58,7 @@ do TITLE "entities"
     end)
 
     BENCH("create with id", function()
-        local sreg = REG_INIT()
+        local sreg = REG_INIT(N/2)
         
         local id = table.create(N)
 
@@ -72,7 +66,7 @@ do TITLE "entities"
             id[i] = sreg:create()
         end
 
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
 
         for i = 1, START(N) do
             reg:create(id[i])
@@ -82,7 +76,8 @@ end
 
 do TITLE "add"
     local function setup()
-        local reg = REG_INIT()
+        -- todo: why is (N + 2) / 2 + 1 so slow - something to do with array idx set to nil
+        local reg = REG_INIT(N/2)
 
         local ids = table.create(N)
         for i = 1, N do
@@ -121,8 +116,11 @@ do TITLE "add"
         end)
     end
 
+    
     do
         local reg, ids = setup()
+
+        -- todo: despite causing a reallocation why is this not recorded by gcinfo()?
         BENCH("1 tag", function()
             for i = 1, START(N) do
                 reg:add(ids[i], TA)
@@ -132,6 +130,7 @@ do TITLE "add"
 
     do
         local reg, ids = setup()
+
         BENCH("4 tags", function()
             for i = 1, START(N) do
                 reg:add(ids[i], TA, TB, TC, TD)
@@ -142,8 +141,7 @@ end
 
 do TITLE "set"
     local function setup()
-        local reg = REG_INIT()
-        RESERVE(reg, A, B, C, D)
+        local reg = REG_INIT(N/2)
         local ids = table.create(N)
         for i = 1, N do
             ids[i] = reg:create()
@@ -213,7 +211,7 @@ end
 
 do TITLE "patch"
     local function setup()
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
         local ids = table.create(N)
         for i = 1, N do
             local e = reg:create()
@@ -269,7 +267,7 @@ do TITLE "patch"
 end
 
 do TITLE "has"
-    local reg = REG_INIT()
+    local reg = REG_INIT(N/2)
     local ids = table.create(N)
 
     for i = 1, N do
@@ -302,7 +300,7 @@ do TITLE "has"
 end
 
 do TITLE("get")
-    local reg = REG_INIT()
+    local reg = REG_INIT(N/2)
     local ids = table.create(N)
 
     for i = 1, N do
@@ -354,7 +352,7 @@ end
 
 do TITLE("remove")
     local function setup()
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
         local ids = table.create(N)
         for i = 1, N do
             local e = reg:create()
@@ -421,7 +419,7 @@ end
 
 do TITLE "clear"
     local function setup()
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
         local ids = table.create(N)
         for i = 1, N do
             local e = reg:create()
@@ -467,7 +465,7 @@ do TITLE "clear"
     end)
 
     BENCH("all entities (no components)", function()
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
         for i = 1, N do reg:create() end
 
         START(N)
@@ -484,7 +482,7 @@ do TITLE "clear"
 end
 
 do TITLE("create view")
-    local reg = REG_INIT()
+    local reg = REG_INIT(N/2)
 
     reg:view(A, B, C, D, E, F, G, H) -- register components
 
@@ -541,7 +539,7 @@ do
     end
 
     do TITLE("iter view (ordered)")
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
 
         for i = 1, N do
             local entity = reg:create()
@@ -559,7 +557,7 @@ do
     end
 
     do TITLE("iter view (random)")
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
 
         local function flip() return math.random() > 0.5 end
 
@@ -584,7 +582,7 @@ do
         -- This guarantees that when iterating over this 8th component, all
         -- entities iterated will also contain the other 7.
 
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
 
         local function flip() return math.random() > 0.5 end
 
@@ -605,7 +603,7 @@ do
     end
 
     do TITLE("iter view (tags)")
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
 
         for i = 1, N do
             local e = reg:handle()
@@ -627,7 +625,7 @@ end
 do TITLE("handle")
     local N2 = N/32
 
-    local reg = REG_INIT()
+    local reg = REG_INIT(N/2)
     local ids = table.create(N2)
 
     for i = 1, N2 do
@@ -655,7 +653,7 @@ end
 
 do TITLE "group"
     do
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
 
         local group = reg:group(A, B)
 
@@ -694,7 +692,7 @@ do TITLE "group"
     end
 
     do
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
 
         local group2 = reg:group(C, D, E, F)
         
@@ -737,7 +735,7 @@ end
 
 do TITLE("destroy")
     BENCH("0 components", function()
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
         local ids = table.create(N)
 
         for i = 1, N do
@@ -750,7 +748,7 @@ do TITLE("destroy")
     end)
 
     BENCH("1 component", function()
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
         local ids = table.create(N)
 
         for i = 1, N do
@@ -765,7 +763,7 @@ do TITLE("destroy")
     end)
 
     BENCH("2 components", function()
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
         local ids = table.create(N)
 
         for i = 1, N do
@@ -781,7 +779,7 @@ do TITLE("destroy")
     end)
 
     BENCH("4 components", function()
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
         local ids = table.create(N)
 
         for i = 1, N do
@@ -799,7 +797,7 @@ do TITLE("destroy")
     end)
 
     BENCH("0 components (8 registered)", function()
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
         local ids = table.create(N)
 
         for i = 1, N - 1 do
@@ -825,7 +823,7 @@ do TITLE("destroy")
     end)
 
     BENCH("0 components (128 registered)", function()
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
 
         do
             local id = reg:create()
@@ -847,7 +845,7 @@ do TITLE("destroy")
     end)
 
     BENCH("0 components (1024 registered)", function()
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
 
         do
             local id = reg:create()
@@ -870,7 +868,7 @@ do TITLE("destroy")
 end
 
 -- do TITLE("Direct storage")
---     local reg = REG_INIT()
+--     local reg = REG_INIT(N/2)
 --     local a = reg:storage(A)
 --     a:reserve(N)
 
@@ -909,7 +907,7 @@ end
 
 do TITLE("contains")
     BENCH("", function()
-        local reg = REG_INIT()
+        local reg = REG_INIT(N/2)
         local ids = table.create(N)
         for i = 1, N do
             ids[i] = reg:create()
@@ -924,7 +922,7 @@ do TITLE("contains")
 end
 
 do TITLE "signal"
-    local reg = REG_INIT()
+    local reg = REG_INIT(N/2)
     local ids = table.create(N)
 
     for i = 1, N do
@@ -958,7 +956,7 @@ do TITLE "signal"
 end
 
 do TITLE "observer"
-    local reg = REG_INIT()
+    local reg = REG_INIT(N/2)
     local observer = reg:track(A)
 
     local ids = table.create(N)
@@ -1049,25 +1047,25 @@ do TITLE "buffer"
     end)
 end
 
-local PN = 2^12
+local PN = 2^11 -- 2048
 
-do TITLE(`practical test ({PN} entities)`)
-    local world = REG_INIT()
+do TITLE(`practical test ECS ({PN} entities)`)
+    local world = ecr.registry()
 
     local Position = ecr.component() :: number
     local Velocity = ecr.component() :: number
     local Health = ecr.component() :: number
-
     local Dead = ecr.tag()
 
     world:group(Position, Velocity)
 
     local function init()
-        for i = 1, 2^12 do -- ~4k
+        for i = 1, PN do
             local id = world:create()
             world:set(id, Position, i)
             world:set(id, Velocity, i)
             world:set(id, Health, 0)
+
         end
     end
 
@@ -1091,13 +1089,13 @@ do TITLE(`practical test ({PN} entities)`)
         end
     end)
 
-    BENCH("raw update positions", function()
+    BENCH("update positions (direct)", function()
         local n = #world:group(Position, Velocity)
         local positions  = world:storage(Position).values
         local velocities = world:storage(Velocity).values
         
         for i = 1, n do
-            positions[i] = positions[i] + velocities[i] * 1/60
+            positions[i] += velocities[i] * 1/60
         end
             
     end)
@@ -1117,78 +1115,133 @@ do TITLE(`practical test ({PN} entities)`)
     end)
 end
 
--- attempt to repeat the same test above but with regular OOP instead of ECS
--- this is just curiosity to see how ECS really fares against OOP in Luau
-do TITLE "Practical test OOP"
-    local world = {}
+-- attempt to repeat the same test above but OOP equivalent
+do TITLE(`practical test OOP ({PN} entities)`)
+    local function gc()
+        (collectgarbage :: any)("collect")
+    end
 
-    local cache = {}
-
+    
     type Obj = {
         Position: number,
         Velocity: number,
         Health: number,
-        Dead: boolean
+        Dead: boolean?
     }
 
-    local function create(i)
-        return {
-            Position = i,
-            Velocity = i,
-            Health = 0,
-            -- dummy fields
-            A = 0,
-            B = 0,
-            C = 0,
-            D = 0
-        }
+    local world = {} :: { Obj }
+
+    --[[
+
+    One advantage of ECS is the dependence on interfaces and not complete object
+    structure.
+
+    Luau has many optimizations for accessing a table index of known shape, so
+    we use multiple table shapes with a common interface to try simulate what
+    we would do in ECS. This should degrade OOP performance as the table index
+    predicter will not be correct every time as table shapes differ.
+
+    Note: In OOP, composition is usually done instead of below, but that needs
+    manual separation of data and behavior by the programmer, which needs more
+    work than what ECS can do.
+
+    ]]
+
+    local ctors = {
+        function(i: number): Obj
+            return {
+                Position = i, Velocity = i, Health = 0,
+            }
+        end,
+        function(i: number): Obj
+            return {
+                Position = i, Velocity = i, Health = 0,
+                A = 0, B = 0, C = 0, D = 0 -- dummy fields
+            }
+        end,
+        function(i: number): Obj
+            return {
+                Position = i, Velocity = i, Health = 0,
+                A = 0, B = 0 -- dummy fields
+            }
+        end,
+        function(i: number): Obj
+            return {
+                Position = i, Velocity = i, Health = 0,
+                A = 0, B = 0, C = 0, D = 0, E = 0, F = 0, G = 0 -- dummy fields
+            }
+        end,
+    }
+
+    local ctor_n = #ctors
+
+    local function create(i): Obj
+        return ctors[math.random(1, ctor_n)](i)
     end
 
-    local tmp = {}
+    --[[
+
+    We garbage collect random tables to make the heap more fragmented, making it
+    more difficult to allocate new table objects, as would happen in a practical
+    scenario when as a game runs for a long period of time.
+
+    ]]
+
+    local junk = {}
+
     do
-        for i = 1, 2^14 do
-            tmp[i] = create(i)
+
+        for i = 1, PN*4 do
+            junk[i] = create(i)
         end
 
-        for i = 1, 2^14 do
-            if math.random() > 0.7 then
-                tmp[i] = nil
+        for i = 1, PN*4 do
+            if math.random() > 0.6 then
+                junk[i] = nil
             end
         end
-        collectgarbage("collect")
+        
+        gc()
     end
-
+    
+    --[[
+        
+    Luau allocates same-shape tables in linear pages which will be more cache
+    friendly. However, in a practical game program, tables will be constantly
+    garbage collected and recreated, which will cause a mismatch and randomness
+    between an array of tables vs how those tables are allocated on the heap.
+    We try artifically cause this randomness by allocating in a random pattern.
+        
+    ]]
+        
     local permutation = {}
-
-    -- luaus table allocator is really good and allocates tables in linear
-    -- pages in memory, causing sequential access to tables to hit cache.
-    -- i dont think this would occur in complex real games unless you
-    -- specifically design for it so attempt to randomize here to try
-    -- eliminate cache hits (this reduces performance by around ~5x)
+    
     do
-        for i = 1, 2^12 do
-            cache[i] =  i
+        local idxs = {}
+
+        for i = 1, PN do
+            idxs[i] =  i
         end
 
-        for i = 1, 2^14 do
-            permutation[i] = cache[math.random(1, #cache)]
+        for i = 1, PN do
+            permutation[i] = idxs[math.random(1, PN)]
         end
     end
 
-    BENCH("Create ~4k entities with 3 components", function()
-        for i = 1, 2^12 do
+    BENCH("create entities with 3 components", function()
+        for i = 1, PN do
             local idx = permutation[i]
             world[idx] = create(i)
         end
     end)
 
-    BENCH("Update position ~4k entities", function()
+    BENCH("update positions", function()
         for _, obj in world do
-            obj.Position = obj.Position + obj.Velocity * 1/60
+            obj.Position += obj.Velocity * 1/60
         end
     end)
 
-    BENCH("Add tag ~4k entities", function()
+    BENCH("add tags", function()
         for _, obj in world do
             if obj.Health <= 0 then
                 obj.Dead = true
@@ -1196,8 +1249,9 @@ do TITLE "Practical test OOP"
         end
     end)
 
-    BENCH("Destroy ~4k entities", function()
-        table.clear(world)
-        collectgarbage("collect" :: any) -- this probably isnt a fair test
+    BENCH("destroy", function()
+        --table.clear(world) -- this hangs the program for some reason
+        -- forcing a full gc cycle isn't fair \o/
+        gc()
     end)
 end

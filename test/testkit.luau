@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------
 -- testkit.luau
--- v0.6.0
+-- v0.7.3
 --------------------------------------------------------------------------------
 
 local color = {
@@ -39,23 +39,27 @@ local color = {
 
 local function convert_units(unit: string, value: number): (number, string)
     local prefix_colors = {
+        [4] = color.red,
         [3] = color.red,
         [2] = color.yellow,
         [1] = color.yellow,
         [0] = color.green,
         [-1] = color.red,
         [-2] = color.yellow,
-        [-3] = color.green
+        [-3] = color.green,
+        [-4] = color.red
     }
 
     local prefixes = {
+        [4] = "T",
         [3] ="G",
         [2] ="M",
         [1] = "k",
         [0] = " ",
         [-1] = "m",
         [-2] = "u",
-        [-3] = "n"
+        [-3] = "n",
+        [-4] = "p"
     }
 
     local order = 0
@@ -106,6 +110,7 @@ type Case = {
 
 local PASS, FAIL, NONE, ERROR = 1, 2, 3, 4
 
+local skip: string?
 local test: Test?
 local tests: { Test } = {}
 
@@ -165,6 +170,8 @@ local function CHECK<T>(value: T, stack: number?): T
 end
 
 local function TEST(name: string, fn: () -> ())
+    if skip and name ~= skip then return end
+
     local active = test
     assert(not active, "cannot start test while another test is in progress")
 
@@ -232,6 +239,11 @@ local function FINISH(): boolean
     return success, table.clear(tests)
 end
 
+local function SKIP(name: string)
+    assert(not test, "cannot skip during test")
+    skip = name
+end
+
 --------------------------------------------------------------------------------
 -- Benchmarking
 --------------------------------------------------------------------------------
@@ -284,7 +296,7 @@ local function BENCH(name: string, fn: () -> ())
 
         local n = bench.iterations or 1
         local d, d_unit = convert_units("s", (time_stop - time_start) / n)
-        local a, a_unit = convert_units("B", math.floor((mem_stop - mem_start) / n * 1e3))
+        local a, a_unit = convert_units("B", math.round((mem_stop - mem_start) / n * 1e3))
 
         local function round(x: number): string
             return x > 0 and x < 10 and (x - math.floor(x)) > 0
@@ -294,9 +306,9 @@ local function BENCH(name: string, fn: () -> ())
         
         print(string.format(
             `%s %s %s %s{WALL} %s`,
-            color.gray(tostring(round(d))),
+            color.gray(round(d)),
             d_unit,
-            color.gray(tostring(round(a))),
+            color.gray(round(a)),
             a_unit,
             color.gray(name)
         ))
@@ -311,9 +323,10 @@ end
 
 local function print2(v: unknown)
     type Buffer = { n: number, [number]: string }
+    type Cyclic = { n: number, [{}]: number }
 
     -- overkill concatenationless string buffer
-    local function tos(value: any, stack: number, str: Buffer)
+    local function tos(value: any, stack: number, str: Buffer, cyclic: Cyclic)
         local TAB = "    "
         local indent = table.concat(table.create(stack, TAB))
 
@@ -331,11 +344,22 @@ local function print2(v: unknown)
             local n = str.n
             str[n + 1] = "{}"
             str.n = n + 1
-        else
+        else -- is table
             local tabbed_indent = indent .. TAB
 
-            str.n += 1
-            str[str.n] = "{\n"
+            if cyclic[value] then
+                str.n += 1
+                str[str.n] = color.gray(`CYCLIC REF {cyclic[value]}`)
+                return
+            else
+                cyclic.n += 1
+                cyclic[value] = cyclic.n
+            end
+
+            str.n += 3
+            str[str.n - 2] = "{ "
+            str[str.n - 1] = color.gray(tostring(cyclic[value]))
+            str[str.n - 0] = "\n"
 
             local i, v = next(value, nil)
             while v ~= nil do
@@ -355,7 +379,7 @@ local function print2(v: unknown)
                 str[n + 1] = " = "
                 str.n = n + 1
 
-                tos(v, stack + 1, str)
+                tos(v, stack + 1, str, cyclic)
                 
                 i, v = next(value, i)
 
@@ -372,7 +396,8 @@ local function print2(v: unknown)
     end
 
     local str = { n = 0 }
-    tos(v, 0, str)
+    local cyclic = { n = 0 }
+    tos(v, 0, str, cyclic)
     print(table.concat(str))
 end
 
@@ -426,14 +451,14 @@ end
 
 return {
     test = function()
-        return TEST, CASE, CHECK, FINISH
+        return TEST, CASE, CHECK, FINISH, SKIP
     end,
 
     benchmark = function()
         return BENCH, START
     end,
 
-    print2 = print2,
+    print = print2,
 
     seq = shallow_eq,
     deq = deep_eq,

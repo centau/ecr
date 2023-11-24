@@ -2024,7 +2024,20 @@ TEST("registry:context()", function()
 end)
 
 TEST("registry:storage()", function()
-    -- local reg = ecr.registry()
+    local reg = ecr.registry()
+
+    local ids = BULK_CREATE_IDS(reg, N)
+
+    for i = 1, N do
+        reg:set(ids[i], A, i)
+    end
+
+    local pool = reg:storage(A)
+
+    for i, id in ecr.bnext, pool.entities, pool.size do
+        CHECK(ids[i + 1] == id)
+        CHECK(pool.values[i + 1] == i + 1)
+    end
 
     -- local id1 = reg:create()
     -- local id2 = reg:create()
