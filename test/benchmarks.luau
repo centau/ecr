@@ -141,7 +141,7 @@ end
 
 do TITLE "set"
     local function setup()
-        local reg = REG_INIT(N/2)
+        local reg = REG_INIT(N)
         local ids = table.create(N)
         for i = 1, N do
             ids[i] = reg:create()
@@ -1217,14 +1217,13 @@ do TITLE(`practical test OOP ({PN} entities)`)
     local permutation = {}
     
     do
-        local idxs = {}
-
         for i = 1, PN do
-            idxs[i] =  i
+            permutation[i] =  i
         end
 
-        for i = 1, PN do
-            permutation[i] = idxs[math.random(1, PN)]
+        for _ = 1, PN do
+            local a, b = math.random(1, PN), math.random(1, PN)
+            permutation[a], permutation[b] =  permutation[b], permutation[a]
         end
     end
 
