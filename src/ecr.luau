@@ -1510,15 +1510,11 @@ end)()
 --------------------------------------------------------------------------------
 
 local function registry_create(): Registry
+    local MAX_CTYPE = ctype_n
+
     local registry = {}
 
     local id_pool = ENTITY_POOL_CREATE()
-
-    --INSPECT_IDS(id_pool, true)
-
-
-
-    --INSPECT_IDS(id_pool, true)
 
     local all_pools: Map<CType, Pool<unknown>> = table.create(ctype_n)
     all_pools[ctype_entity] = id_pool :: Pool<any>
@@ -1536,6 +1532,7 @@ local function registry_create(): Registry
     setmetatable(all_pools, {
         __index = function(self, ctype: CType): Pool<unknown>
             ASSERT(ctype_valid(ctype), "invalid component type")
+            ASSERT(ctype <= MAX_CTYPE, `cannot use {ctype_debug(ctype)}, component must be created before registry creation`)
             local pool = POOL_CREATE(INIT_STORAGE_SIZE)
             self[ctype] = pool
             return pool

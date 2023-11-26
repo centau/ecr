@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- All components must be defined before the registry using them is created.
 - Renamed `ecr.Entity` type alias to `ecr.entity`.
 - Property `Pool.entities` is now a `buffer`.
 - The context entity does not exist until `Registry:context()` is first called.

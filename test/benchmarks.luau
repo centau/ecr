@@ -823,13 +823,17 @@ do TITLE("destroy")
     end)
 
     BENCH("0 components (128 registered)", function()
+        local ctypes = {}
+        for i = 1, 128 do
+            ctypes[i] = ecr.component()
+        end
+
         local reg = REG_INIT(N/2)
 
         do
             local id = reg:create()
             for i = 1, 128  do
-                local component = ecr.component()
-                reg:set(id, component, true)
+                reg:set(id, ctypes[i], true)
             end
         end
 
@@ -845,13 +849,17 @@ do TITLE("destroy")
     end)
 
     BENCH("0 components (1024 registered)", function()
+        local ctypes = {}
+        for i = 1, 1024 do
+            ctypes[i] = ecr.component()
+        end
+
         local reg = REG_INIT(N/2)
 
         do
             local id = reg:create()
             for i = 1, 1024  do
-                local component = ecr.component()
-                reg:set(id, component, true)
+                reg:set(id, ctypes[i], true)
             end
         end
 
@@ -1050,12 +1058,12 @@ end
 local PN = 2^11 -- 2048
 
 do TITLE(`practical test ECS ({PN} entities)`)
-    local world = ecr.registry()
-
     local Position = ecr.component() :: number
     local Velocity = ecr.component() :: number
     local Health = ecr.component() :: number
     local Dead = ecr.tag()
+
+    local world = ecr.registry()
 
     world:group(Position, Velocity)
 

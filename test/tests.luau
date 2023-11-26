@@ -420,11 +420,11 @@ TEST("registry:current()", function()
 end)
 
 TEST("registry:add()", function()
-    local reg = ecr.registry()
-
     local ADD_A = ecr.component(function() return true end)
     local ADD_B = ecr.component(function() return false end)
     local ADD_C = ecr.component(function() return nil end)
+
+    local reg = ecr.registry()
 
     do CASE "add components"
         local id = reg:create()
@@ -1758,6 +1758,8 @@ TEST("registry:group()", function()
         return cache
     end
 
+    local Z, X = ecr.component(), ecr.component()
+
     local reg = ecr.registry()
     local groupAB = reg:group(A, B)
     reg:group(C, D, E)
@@ -1936,8 +1938,6 @@ TEST("registry:group()", function()
     end
 
     do CASE "invalidation check"
-        local Z, X = ecr.component(), ecr.component()
-
         reg:group(Z, X)
 
         local e1 = reg:handle()
