@@ -20,6 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Property `Pool.entities` is now a `buffer`.
 - The context entity does not exist until `Registry:context()` is first called.
 - Renamed `Registry:removing()` to `Registry:removed()`.
+- Observers are now empty when first created.
+- Method `Observer:disconnect()` can only be called on empty observers.
 - Signal `Registry:changed()` now fires *before* the component is changed.
   - New value still given as argument, but now can retrive old value with `Registry:get()`.
 

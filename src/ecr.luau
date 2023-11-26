@@ -1139,7 +1139,7 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
 
     local self: _Observer<T...> = setmetatable({
         registry = reg,
-        pool = pool_clone(reg:storage(ctype_first)), -- treat all initial ids as changed
+        pool = POOL_CREATE(), -- treat all initial ids as changed
         includes = {},
         excludes = nil,
         connections = nil,
@@ -1171,6 +1171,7 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
         end,
 
         disconnect = function(self: _Observer<T...>): _Observer<T...>
+            ASSERT(self.pool.size == 0, "attempt to disconnect a non-empty observer")
             if not self.connections then return self end
             disconnect_all(self.connections)
             self.connections = nil
@@ -1187,12 +1188,17 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
             local connections = {}
 
             for i, ctype in includes do
-                local function listener(id)
+                local function added_or_changed_listener(id)
                     POOL_TRY_ADD_ID(pool, id)
                 end
+
+                local function removed_listener(id: number)
+                    POOL_TRY_REMOVE_ID(pool, id) -- todo: inline
+                end
                 
-                table.insert(connections, reg:added(ctype):connect(listener))
-                table.insert(connections, reg:changed(ctype):connect(listener))
+                table.insert(connections, reg:added(ctype):connect(added_or_changed_listener))
+                table.insert(connections, reg:changed(ctype):connect(added_or_changed_listener))
+                table.insert(connections, reg:removed(ctype):connect(removed_listener))
             end
 
             self.connections = connections
@@ -1280,22 +1286,6 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
         ASSERT(ctype_valid(ctype), `invalid { ctype_debug(nil, i) }`)
         ASSERT(not table.find(includes, ctype), `duplicate { ctype_debug(ctype, i) } included`)
         table.insert(includes, ctype)
-    end
-
-    local connections = {}
-    local pool = self.pool
-
-    -- must keep remove listener connected after `Observer:disconnect()`
-    -- weakref is used to check if the observer has been garbage collected
-    local weakref = setmetatable({ self = self }, WEAK_VALUES) :: any
-    local function try_remove(id: number)
-        if weakref.self == nil then disconnect_all(connections) end
-        POOL_TRY_REMOVE_ID(pool, id) -- todo: inline
-    end
-
-    for i = 1, select("#", ...) do
-        local ctype = select(i, ...)
-        table.insert(connections, reg:removed(ctype):connect(try_remove))
     end
 
     return self:reconnect()

@@ -1518,33 +1518,33 @@ TEST("registry:track()", function()
         CHECK(#observerAnotC >= #AnotCs)
     end
 
-    do CASE "initial components treated as changed"
-        do
-            local observer = reg:track(A)
+    -- do CASE "initial components treated as changed"
+    --     do
+    --         local observer = reg:track(A)
 
-            local cache = cache_ids(observer)
-            CHECK(not empty(cache))
+    --         local cache = cache_ids(observer)
+    --         CHECK(not empty(cache))
 
-            for _, id in As do
-                local v = cache[id]
-                if not CHECK(v) then continue end
-                CHECK(v[1] == id)
-            end
-        end
-        do
-            local observer = reg:track(A, B, C)
-            local cache = cache_ids(observer)
-            CHECK(not empty(cache))
+    --         for _, id in As do
+    --             local v = cache[id]
+    --             if not CHECK(v) then continue end
+    --             CHECK(v[1] == id)
+    --         end
+    --     end
+    --     do
+    --         local observer = reg:track(A, B, C)
+    --         local cache = cache_ids(observer)
+    --         CHECK(not empty(cache))
 
-            for _, id in ABCs do
-                local v = cache[id]
-                if not CHECK(v) then continue end
-                CHECK(v[1] == id)
-                CHECK(v[2] == id)
-                CHECK(v[3] == id)
-            end
-        end
-    end
+    --         for _, id in ABCs do
+    --             local v = cache[id]
+    --             if not CHECK(v) then continue end
+    --             CHECK(v[1] == id)
+    --             CHECK(v[2] == id)
+    --             CHECK(v[3] == id)
+    --         end
+    --     end
+    -- end
 
     do CASE "a tracked"
         local cache = cache_ids(observerA)
@@ -1657,38 +1657,50 @@ TEST("registry:track()", function()
     observerA:clear()
     table.clear(As)
 
-    do CASE "observer returns up-to-date values despite being changed while disconnected"
-        local observer = reg:track(A):clear():persist()
-        local id1 = reg:create()
-        local id2 = reg:create()
-        local id3 = reg:create()
+    -- do CASE "observer returns up-to-date values despite being changed while disconnected"
+    --     local observer = reg:track(A):clear():persist()
+    --     local id1 = reg:create()
+    --     local id2 = reg:create()
+    --     local id3 = reg:create()
 
-        reg:set(id1, A, 1)
-        reg:set(id2, A, 2)
-        reg:set(id3, A, 3)
+    --     reg:set(id1, A, 1)
+    --     reg:set(id2, A, 2)
+    --     reg:set(id3, A, 3)
 
-        observer:disconnect()
+    --     observer:disconnect()
 
-        reg:remove(id1, A) -- remove id1
-        reg:set(id2, A, -2) -- change id2
+    --     reg:remove(id1, A) -- remove id1
+    --     reg:set(id2, A, -2) -- change id2
 
-        local values = {}
+    --     local values = {}
 
-        for id, v in observer do
-            values[id] = v
-        end
+    --     for id, v in observer do
+    --         values[id] = v
+    --     end
 
-        CHECK(#observer == 2)
-        CHECK(not values[id1])
-        CHECK(values[id2] == -2)
-        CHECK(values[id3] == 3)
+    --     CHECK(#observer == 2)
+    --     CHECK(not values[id1])
+    --     CHECK(values[id2] == -2)
+    --     CHECK(values[id3] == 3)
+    -- end
+
+    do CASE "disconnect non-empty observer"
+        local observer = reg:track(A)
+
+        reg:handle():set(A, true)
+
+        CHECK_ERR("attempt to disconnect a non-empty observer", function()
+            observer:disconnect()
+        end)
+
+        observer:clear():disconnect()
     end
 
     do CASE "observer garbage collection"
         local wref = setmetatable({}, { __mode = "v" })
         wref.observer = observerA
         wref.pool = (observerA :: any).pool
-        observerA:disconnect()
+        observerA:clear():disconnect()
         observerA = nil :: any
 
         if not game then -- check if running in roblox (collect is sandboxed)
@@ -2228,6 +2240,8 @@ TEST("ecr.tag()", function()
 
     local reg = ecr.registry()
 
+    local observer = reg:track(TA, TB, TC, TD, A)
+
     local e = reg:handle()
 
     do CASE "add"
@@ -2269,7 +2283,7 @@ TEST("ecr.tag()", function()
             CHECK(a == true)
         end
 
-        for id, ta, tb, tc, td, a in reg:track(TA, TB, TC, TD, A) do
+        for id, ta, tb, tc, td, a in observer do
             ran += 1
             CHECK(a == true)
         end
