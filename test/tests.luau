@@ -926,7 +926,7 @@ TEST("registry:clear()", function()
 
         local listener = { count = 0 } :: { id: number?, count: number }
 
-        reg:removing(A):connect(function(id)
+        reg:removed(A):connect(function(id)
             listener.id = id
             listener.count += 1
         end)
@@ -1321,11 +1321,12 @@ TEST("registry:changed()", function()
     local reg = ecr.registry()
     local id = reg:create()
 
-    local cc, ce, cv = 0, nil, nil
+    local cc, ce, cv, ov = 0, nil, nil, nil
 
     local function fn(...)
         cc += 1
         ce, cv = ...
+        ov = reg:get(..., A)
     end
 
     local con = reg:changed(A):connect(fn)
@@ -1339,6 +1340,7 @@ TEST("registry:changed()", function()
     CHECK(cc == 1)
     CHECK(ce == id)
     CHECK(cv == false)
+    CHECK(ov == true)
 
     reg:patch(id, A, function(v)
         return not v
@@ -1365,7 +1367,7 @@ TEST("registry:changed()", function()
     CHECK(cc == 3)
 end)
 
-TEST("registry:removing()", function()
+TEST("registry:removed()", function()
     do
         local reg = ecr.registry()
         local id = reg:create()
@@ -1378,7 +1380,7 @@ TEST("registry:removing()", function()
             ce, cv = ...
         end
 
-        local con = reg:removing(A):connect(fn)
+        local con = reg:removed(A):connect(fn)
 
         do CASE "removing triggers"
             reg:set(id, A, true)
@@ -1428,7 +1430,7 @@ TEST("registry:removing()", function()
 
         local cache = {}
 
-        reg:removing(A):connect(function(entity)
+        reg:removed(A):connect(function(entity)
             cache[entity] = true
         end)
 
@@ -1443,7 +1445,7 @@ TEST("registry:removing()", function()
         local reg = ecr.registry()
 
         local cid
-        reg:removing(ecr.entity):connect(function(id_)
+        reg:removed(ecr.entity):connect(function(id_)
             cid = id_
         end)
 

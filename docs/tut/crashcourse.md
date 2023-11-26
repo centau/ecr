@@ -100,7 +100,7 @@ given entity is added, changed or removed.
 ```lua
 registry:added(type):connect(listener)
 registry:changed(type):connect(listener)
-registry:removing(type):connect(listener)
+registry:removed(type):connect(listener)
 ```
 
 All three listeners are called with:

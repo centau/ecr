@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## Unreleased
+
+### Added
+
+- Constant `ecr.context`.
+- Function `ecr.copy_array_to_buffer()`.
+- Function `ecr.copy_buffer_to_array()`.
+
+### Changed
+
+- Renamed `ecr.Entity` type alias to `ecr.entity`.
+- Property `Pool.entities` is now a `buffer`.
+- The context entity does not exist until `Registry:context()` is first called.
+- Renamed `Registry:removing()` to `Registry:removed()`.
+- Signal `Registry:changed()` now fires *before* the component is changed.
+  - New value still given as argument, but now can retrive old value with `Registry:get()`.
+
+### Improved
+
+Large refactor to use the new Luau `buffer` datatype. Up to 2x faster and 2-4x
+less memory usage across the board.
+
+---
+
 ## [0.7.0] - 2023-07-20
 
 ### Added

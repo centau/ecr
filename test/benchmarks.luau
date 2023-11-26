@@ -947,7 +947,7 @@ do TITLE "signal"
 
 
     BENCH("removing", function()
-        reg:removing(A):connect(function() end)
+        reg:removed(A):connect(function() end)
 
         for i = 1, START(N) do
             reg:remove(ids[i], A)
