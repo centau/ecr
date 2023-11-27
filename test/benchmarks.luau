@@ -14,7 +14,7 @@ local E, F, G, H = ecr.component(), ecr.component(), ecr.component(), ecr.compon
 
 local TA, TB, TC, TD = ecr.tag(), ecr.tag(), ecr.tag(), ecr.tag()
 
-local function BULK_CREATE_IDS(reg: ecr.Registry, n: number): { ecr.Entity }
+local function BULK_CREATE_IDS(reg: ecr.Registry, n: number): { ecr.entity }
     local ids = table.create(n)
     for i = 1, n do
         ids[i] = reg:create()
@@ -1041,11 +1041,6 @@ do TITLE "buffer"
 
     BENCH("array to buffer", function()
         ecr.copy_array_to_buffer(ids, buf, START(N))
-    end)
-
-    BENCH("iter buffer", function()
-        for i, id in ecr.bnext, buf, START(N) do
-        end
     end)
 
     local arr = table.create(N)

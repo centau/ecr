@@ -118,7 +118,7 @@ export type Registry = {
     group: <T...>(self: Registry, T...) -> Group<T...>,
 
     clear: <T...>(self: Registry, T...) -> (),
-    storage: <T>(self: Registry, ctype: T) -> Pool<T>,
+    storage: (<T>(self: Registry, ctype: T) -> Pool<T>) & (<T>(self: Registry) -> () -> (unknown, Pool<unknown>)),
 
     added: <T>(self: Registry, ctype: T) -> Signal<entity, T>,
     changed: <T>(self: Registry, ctype: T) -> Signal<entity, T>,
@@ -649,7 +649,7 @@ local function POOL_CREATE<T>(size: number?): Pool<T>
     }
 end
 
-local function pool_clone<T>(self: Pool<T>): Pool<T>
+local function POOL_CLONE<T>(self: Pool<T>): Pool<T>
     return {
         map_max = self.map_max,
         capacity = self.capacity,
@@ -674,8 +674,6 @@ local function ENTITY_POOL_INIT(self: EntityPool, start: number, stop: number)
 
     BUFFER_SET(self.map, stop, ID_CREATE(ID_NULL_KEY, ID_MIN_VER))
 end
-
-
 
 local function IN_USE(id: number): boolean
     return bit32.band(id, ID_RESRVED_MASK) > 0
@@ -876,8 +874,6 @@ type IRegistry = {
     changed: <T>(self: IRegistry, ctype: T) -> Signal<entity, T>,
     removed: <T>(self: IRegistry, ctype: T) -> Signal<entity, nil>,
 }
-
-local WEAK_VALUES = { __mode = "v" }
 
 -- checks if any of the given pools contain a key
 local function has_any(pools: Array<Pool<unknown>>, key: number): boolean
@@ -1135,8 +1131,6 @@ Observer = {}
 Observer.__index = Observer
 
 function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
-    local ctype_first = select(1, ...) :: unknown
-
     local self: _Observer<T...> = setmetatable({
         registry = reg,
         pool = POOL_CREATE(), -- treat all initial ids as changed
@@ -1535,6 +1529,7 @@ local function registry_create(): Registry
             ASSERT(ctype <= MAX_CTYPE, `cannot use {ctype_debug(ctype)}, component must be created before registry creation`)
             local pool = POOL_CREATE(INIT_STORAGE_SIZE)
             self[ctype] = pool
+            ctype_pools[ctype] = pool
             return pool
         end
     })
@@ -1542,9 +1537,7 @@ local function registry_create(): Registry
     setmetatable(ctype_pools, {
         __index = function(self, ctype: CType): Pool<unknown>
             ASSERT(ctype ~= ctype_entity, "cannot modify entity pool")
-            local pool = all_pools[ctype]
-            self[ctype] = pool
-            return pool
+            return all_pools[ctype]
         end
     })
 
@@ -1838,8 +1831,16 @@ local function registry_create(): Registry
         return Group.new(self, group or group_init(...), ...)
     end
 
-    function registry.storage<T>(self: Registry, ctype: T): Pool<T>
-        return get_any_pool(ctype)
+    function registry.storage<T>(self: Registry, ctype: T?): any
+        if ctype then
+            return get_any_pool(ctype)
+        else
+            return coroutine.wrap(function()
+                for ctype, pool in next, ctype_pools do
+                    coroutine.yield(ctype, pool)
+                end
+            end)
+        end
     end
 
     function registry.added<T>(self: Registry, ctype: T): Signal<entity, T>
@@ -2005,12 +2006,6 @@ local queue_create = function<T...>(signal: SignalInterface<T...>?): Queue<T...>
     return queue
 end :: ( <T...>() -> Queue<T...> ) & ( <T...>(signal: SignalInterface<T...>) -> Queue<T...> )
 
-local function bnext(buf: buffer, i: number): (number, entity)
-    if i == 0 then return NIL, NIL end
-    i -= 1
-    return i, BUFFER_GET(buf, i)
-end
-
 local function copy_buffer_to_array(buf: buffer, arr: Array<entity>, size: number)
     ASSERT(size * ID_SIZE <= buffer.len(buf), "buffer is smaller than given size")
 
@@ -2065,7 +2060,6 @@ local ecr = {
     null = ID_NULL,
     context = ID_CTX,
 
-    bnext = bnext,
     copy_array_to_buffer = copy_array_to_buffer,
     copy_buffer_to_array = copy_buffer_to_array,
     id_size = ID_SIZE,

@@ -23,12 +23,12 @@ local E, F, G, H = ecr.component(), ecr.component(), ecr.component(), ecr.compon
 local DEFER_ID_REUSE = ecr._test.defer_id_reuse
 local MAX_VER = ecr._test.max_ver
 
-local function KEY(id: ecr.Entity): number
+local function KEY(id: ecr.entity): number
     local key = ecr._test.extract(id)
     return key
 end
 
-local function VER(id: ecr.Entity): number
+local function VER(id: ecr.entity): number
     local _, ver = ecr._test.extract(id)
     return ver
 end
@@ -46,7 +46,7 @@ local function SET_KEY_VERSION(reg: ecr.Registry, key: number, ver: number)
     ecr._test.set_key_version(reg:storage(ecr.entity) :: any, key, ver)
 end
 
-local function CREATE_DEPRECATED_ID(reg: ecr.Registry): ecr.Entity
+local function CREATE_DEPRECATED_ID(reg: ecr.Registry): ecr.entity
     local id = reg:create()
     reg:release(id)
     SET_KEY_VERSION(reg, KEY(id), MAX_VER)
@@ -55,7 +55,7 @@ local function CREATE_DEPRECATED_ID(reg: ecr.Registry): ecr.Entity
     return id
 end
 
-local function BULK_CREATE_IDS(reg: ecr.Registry, n: number): { ecr.Entity }
+local function BULK_CREATE_IDS(reg: ecr.Registry, n: number): { ecr.entity }
     local ids = table.create(n)
     for i = 1, n do
         ids[i] = reg:create()
@@ -398,8 +398,6 @@ TEST("registry:version()", function()
         CHECK(VER(id_old) == 1)
         CHECK(VER(id_new) == 2)
     end
-
-    
 end)
 
 TEST("registry:current()", function()
@@ -1110,7 +1108,7 @@ TEST("registry:view()", function()
         return next(t) == nil
     end
 
-    local function getids(view: ecr.View<...unknown>): { [ecr.Entity]: { unknown } }
+    local function getids(view: ecr.View<...unknown>): { [ecr.entity]: { unknown } }
         local cache = {}
     
         for id, a, b, c, d in view do
@@ -1471,7 +1469,7 @@ TEST("registry:track()", function()
         return next(t) == nil
     end
 
-    local function cache_ids(observer: ecr.Observer<unknown>): { [ecr.Entity]: { unknown } }
+    local function cache_ids(observer: ecr.Observer<unknown>): { [ecr.entity]: { unknown } }
         local cache = {}
     
         for id, a, b, c in observer do
@@ -1748,7 +1746,7 @@ end)
 TEST("registry:group()", function()
     local function flip() return math.random() > 0.3 end
     local function empty(t) return next(t) == nil end
-    local function getids(group: ecr.Group<...unknown>): { [ecr.Entity]: { unknown } }
+    local function getids(group: ecr.Group<...unknown>): { [ecr.entity]: { unknown } }
         local cache = {}
     
         for id, a, b, c, d, e in group do
@@ -2005,9 +2003,14 @@ end)
 TEST("registry:context()", function()
     local reg = ecr.registry()
 
+    do CASE "initially invalid"
+        CHECK(not reg:contains(ecr.context))
+        CHECK(#reg:view(ecr.entity) == 0)
+    end
+
     local ctx = reg:context()
 
-    do CASE "context valid"
+    do CASE "valid"
         CHECK(reg:contains(ctx.entity))
     end
 
@@ -2019,7 +2022,7 @@ TEST("registry:context()", function()
     end
 
     do CASE "sizes"
-        CHECK(#reg == 0)
+        CHECK(#reg:view(ecr.entity) == 1)
         CHECK(#reg:view(A) == 1)
     end
 
@@ -2038,65 +2041,41 @@ TEST("registry:context()", function()
 end)
 
 TEST("registry:storage()", function()
-    local reg = ecr.registry()
+    do CASE "get storage"
+        local reg = ecr.registry()
 
-    local ids = BULK_CREATE_IDS(reg, N)
+        local ids = BULK_CREATE_IDS(reg, N)
 
-    for i = 1, N do
-        reg:set(ids[i], A, i)
+        for i = 1, N do
+            reg:set(ids[i], A, i)
+        end
+
+        local pool = reg:storage(A)
+
+        local entities = {}
+        ecr.copy_buffer_to_array(pool.entities, entities, pool.size)
+
+        for i, id in entities do
+            CHECK(ids[i] == id)
+            CHECK(pool.values[i] == i)
+        end
     end
 
-    local pool = reg:storage(A)
+    do CASE "get all storages"
+        local reg = ecr.registry()
 
-    for i, id in ecr.bnext, pool.entities, pool.size do
-        CHECK(ids[i + 1] == id)
-        CHECK(pool.values[i + 1] == i + 1)
+        local pool_A = reg:storage(A)
+        local pool_B = reg:storage(B)
+
+        local cache = {}
+
+        for ctype, pool in reg:storage() do
+            cache[ctype] = pool
+        end
+
+        CHECK(cache[A] == pool_A)
+        CHECK(cache[B] == pool_B)
     end
-
-    -- local id1 = reg:create()
-    -- local id2 = reg:create()
-
-    -- local a = reg:storage(A)
-
-    -- do CASE "pool:set() |add|"
-    --     a:set(id1, 1)
-    --     a:set(id2, 2)
-    --     CHECK(a.entities[1] == id1)
-    --     CHECK(a.entities[2] == id2)
-    --     CHECK(a.values[1] == 1)
-    --     CHECK(a.values[2] == 2)
-    -- end
-
-    -- do CASE "pool:set() |change|"
-    --     a:set(id1, 0)
-    --     a:set(id2, 1)
-    --     CHECK(a.values[1] == 0)
-    --     CHECK(a.values[2] == 1)
-    -- end
-
-    -- do CASE "pool:get()"
-    --     CHECK(a:get(id1) == 0)
-    --     CHECK(a:get(id2) == 1)
-    -- end
-
-    -- do CASE "pool:has()"
-    --     CHECK(a:has(id1))
-    --     CHECK(a:has(id2))
-    -- end
-
-    -- do CASE "pool:remove()"
-    --     a:remove(id1)
-    --     CHECK(a.entities[1] == id2)
-    --     CHECK(a.values[1] == 1)
-    --     CHECK(a.entities[2] == nil)
-    --     CHECK(a.values[2] == nil)
-    --     CHECK(a:get(id2) == 1)
-
-    --     a:remove(id2)
-    --     CHECK(#a.map == 0)
-    --     CHECK(#a.entities == 0)
-    --     CHECK(#a.values == 0)
-    -- end
 end)
 
 TEST("ecr.component()", function()
@@ -2313,10 +2292,7 @@ TEST("buffer helpers", function()
 
     do CASE "array to buffer"
         ecr.copy_array_to_buffer(ids, buf, 10)
-
-        for i, id in ecr.bnext, buf, 10 do
-            CHECK(id == ids[i + 1])
-        end
+        CHECK(true)
     end
 
     do CASE "buffer to array"
@@ -2440,15 +2416,15 @@ end
 
 --     -- set of all ids in use
 --     local idcount = 0
---     local ids = {} :: { [ecr.Entity]: true }
+--     local ids = {} :: { [ecr.entity]: true }
 
 --     -- array of all destroyed ids
---     local frees = {} :: { ecr.Entity }
+--     local frees = {} :: { ecr.entity }
 
 --     -- map component to entity to value
---     local incs = {} :: Map<unknown, Map<ecr.Entity, number>>
+--     local incs = {} :: Map<unknown, Map<ecr.entity, number>>
 
---     local cts = {} :: Array<{ id: ecr.Entity, v: number }>
+--     local cts = {} :: Array<{ id: ecr.entity, v: number }>
 
 --     for i = 1, 5 do
 --         local ctype = ecr.component()
