@@ -1,7 +1,7 @@
 # To do
 
 - Optimize entity destruction.
-- Method to view all registry storages.
+- Optimize tagging.
 - Bulk entity + component loading.
 - Non-owning groups.
 - Custom pools and storage based views.

@@ -953,8 +953,7 @@ do TITLE "signal"
         end
     end)
 
-
-    BENCH("removing", function()
+    BENCH("removed", function()
         reg:removed(A):connect(function() end)
 
         for i = 1, START(N) do

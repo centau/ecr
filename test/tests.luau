@@ -2394,144 +2394,167 @@ end)
 
 end
 
--- TEST("Random usage test", function()
---     --[[
---         This test simulates modifying a registry through a sequence of systems
---         by randomly creating, destroying, adding, updating, removing entities
---         and their components.
+TEST("random test", function()
+    --[[
 
---         Each component value contains the id of the entity that owns it as well
---         as a counter that is maintained separately from the registry.
+    This test simulates modifying a registry through a sequence of systems
+    by randomly creating, destroying, adding, updating, removing entities
+    and their components.
 
---         To check if the case passes we check if the two independent counters
---         match up and that the id in the component corresponds to the entity that
---         owns it.
---     ]]
+    Each component value contains the id of the entity that owns it as well
+    as a counter that is maintained separately from the registry.
 
---     local reg = ecr.registry()
+    To check if the case passes we check if the two independent counters
+    match up and that the id in the component corresponds to the entity that
+    owns it.
 
---     local function flip(p: number?)
---         return math.random() > (p and (1 - p) or 0.5)
---     end
+    ]]
 
---     -- set of all ids in use
---     local idcount = 0
---     local ids = {} :: { [ecr.entity]: true }
+    -- map component to entity to value
+    local incs = {} :: Map<unknown, Map<ecr.entity, number>>
 
---     -- array of all destroyed ids
---     local frees = {} :: { ecr.entity }
+    local cts = {} :: Array<{ id: ecr.entity, v: number }>
 
---     -- map component to entity to value
---     local incs = {} :: Map<unknown, Map<ecr.entity, number>>
+    for i = 1, 5 do
+        local ctype = ecr.component()
+        cts[i] = ctype :: any
+        incs[ctype] = {}
+    end
 
---     local cts = {} :: Array<{ id: ecr.entity, v: number }>
+    local reg = ecr.registry()
 
---     for i = 1, 5 do
---         local ctype = ecr.component()
---         cts[i] = ctype :: any
---         incs[ctype] = {}
---     end
+    local function flip(p: number?)
+        return math.random() > (p and (1 - p) or 0.5)
+    end
 
---     local group1 = reg:group(cts[1], cts[3])
---     local group2 = reg:group(cts[2], cts[4], cts[5])
+    -- set of all ids in use
+    local idcount = 0
+    local ids = {} :: { [ecr.entity]: true }
 
---     for i = 1, N do
---         if flip(0.6) then
---             local id = reg:create()
---             ids[id] = true
---             idcount += 1
---         end
+    -- array of all destroyed ids
+    local frees = {} :: { ecr.entity }
 
---         do
---             local id = table.remove(frees)
---             if flip(0.2) and id then
---                 local ok = pcall(reg.create, reg, id)
---                 ids[id] = ok or nil :: any
---                 idcount += 1
---             end
---         end
 
---         for _, ctype in cts do
---             local inc = incs[ctype]
+    local group1 = reg:group(cts[1], cts[3])
+    local group2 = reg:group(cts[2], cts[4], cts[5])
 
---             for id in ids do
---                 -- add component
---                 if flip() and not inc[id] then
---                     inc[id] = 0
---                     --
---                     if not reg:try_get(id, ctype) then
---                         reg:set(id, ctype, { id = id, v = 0 })
---                     end
---                 end
+    for i = 1, N do
+        if flip(0.6) then
+            local id = reg:create()
+            ids[id] = true
+            idcount += 1
+        end
 
---                 -- increment component
---                 if flip() and inc[id] then
---                     inc[id] += 1
---                     --
---                     reg:patch(id, ctype, function(old)
---                         return { id = old.id, v = old.v + 1 }
---                     end)
---                 end
+        do
+            local id = table.remove(frees)
+            if flip(0.2) and id then
+                local ok = pcall(reg.create, reg, id)
+                ids[id] = ok or nil :: any
+                idcount += 1
+            end
+        end
 
---                 -- decrement component
---                 if flip(0.2) and inc[id] then
---                     inc[id] -= 1
---                     --
---                     local old = reg:get(id, ctype)
---                     reg:set(id, ctype, { id = old.id, v = old.v - 1 })
---                 end
+        for _, ctype in cts do
+            local inc = incs[ctype]
 
---                 -- remove component
---                 if flip(0.1) and inc[id] then
---                     inc[id] = nil
---                     --
---                     reg:remove(id, ctype)
---                 end
---             end
---         end
+            do -- test iterators
+                local ctype2
+                local ctype3
 
---         for id in ids do
---             -- destroy id
---             if flip(0.005) then
---                 ids[id] = nil
---                 idcount -= 1
---                 table.insert(frees, id)
---                 for _, inc in incs do
---                     inc[id] = nil
---                 end
---                 --
---                 reg:destroy(id)
---             end
---         end
---     end
+                repeat
+                    ctype2 = cts[math.random(1, #cts)]
+                until ctype2 ~= ctype
 
---     local ran = 0
+                if flip(0.3) then
+                    repeat
+                        ctype3 = cts[math.random(1, #cts)]
+                    until ctype3 ~= ctype2 and ctype3 ~= ctype
+                end
+        
+                if ctype3 then
+                    for _ in reg:view(ctype, ctype2, ctype3) do end
+                else
+                    for _ in reg:view(ctype, ctype2) do end
+                end
+            end
 
---     for _, ctype in cts do
---         local inc = incs[ctype]
+            for id in ids do
+                -- add component
+                if flip() and not inc[id] then
+                    inc[id] = 0
+                    --
+                    if not reg:try_get(id, ctype) then
+                        reg:set(id, ctype, { id = id, v = 0 })
+                    end
+                end
 
---         for id in ids do
---             ran += 1
---             local component = reg:try_get(id, ctype) :: any
---             if inc[id] then
---                 CHECK(component)
---                 CHECK(inc[id] == component.v)  
---                 CHECK(component.id == id) 
---             else
---                 CHECK(not component)
---             end
---         end
---     end
+                -- increment component
+                if flip() and inc[id] then
+                    inc[id] += 1
+                    --
+                    reg:patch(id, ctype, function(old)
+                        return { id = old.id, v = old.v + 1 }
+                    end)
+                end
 
---     for id in reg:view(ecr.entity) do
---         CHECK(ids[id])
---     end
+                -- decrement component
+                if flip(0.2) and inc[id] then
+                    inc[id] -= 1
+                    --
+                    local old = reg:get(id, ctype)
+                    reg:set(id, ctype, { id = old.id, v = old.v - 1 })
+                end
 
---     CHECK(#group1 > 0 and #group2 > 0)
---     CHECK(ran > 0)
---     CHECK(idcount > 50)
---     --testkit.print2(incs)
--- end)
+                -- remove component
+                if flip(0.1) and inc[id] then
+                    inc[id] = nil
+                    --
+                    reg:remove(id, ctype)
+                end
+            end
+        end
+
+        for id in ids do
+            -- destroy id
+            if flip(0.005) then
+                ids[id] = nil
+                idcount -= 1
+                table.insert(frees, id)
+                for _, inc in incs do
+                    inc[id] = nil
+                end
+                --
+                reg:destroy(id)
+            end
+        end
+    end
+
+    local ran = 0
+
+    for _, ctype in cts do
+        local inc = incs[ctype]
+
+        for id in ids do
+            ran += 1
+            local component = reg:try_get(id, ctype) :: any
+            if inc[id] then
+                CHECK(component)
+                CHECK(inc[id] == component.v)  
+                CHECK(component.id == id) 
+            else
+                CHECK(not component)
+            end
+        end
+    end
+
+    for id in reg:view(ecr.entity) do
+        CHECK(ids[id])
+    end
+
+    CHECK(#group1 > 0 and #group2 > 0)
+    CHECK(ran > 0)
+    CHECK(idcount > 50)
+end)
 
 local success = FINISH()
 if not success then error(nil, 0) end
