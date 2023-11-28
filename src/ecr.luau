@@ -1637,23 +1637,32 @@ local function registry_create(): Registry
     end
     
 
-    function registry.set<T>(self: Registry, id: entity, ctype: T, value: T)
-        if value == nil then ASSERT(false, "cannot set nil value") end
+    function registry.set<T>(self: Registry, id: entity, ctype: T, value: T)        
         local pool = get_ctype_pool(ctype)
-
         local key = ID_KEY(id)
 
         POOL_CHECK_MAP_SIZE(pool, key)
 
         local idx_ver = BUFFER_GET(pool.map, key)
 
-        if idx_ver ~= ID_NULL then -- already added, change value
-            ID_ASSERT_VERSIONS_EQUAL(idx_ver, id)
-            if pool.changed then fire(pool.changed, id, value) end
-            ARRAY_SET(pool.values, ID_KEY(idx_ver), value)
-        else -- not added, add value
+        if value == nil then
             ASSERT_VALID_ENTITY(key, id)
-            POOL_ADD(pool, id, value)
+
+            if ctype_is_tag(ctype) then
+                if BUFFER_GET(pool.map, key) ~= ID_NULL then return end
+                POOL_ADD_ID(pool, id)
+            else
+                ASSERT(false, "cannot set component value to nil")
+            end
+        else
+            if idx_ver ~= ID_NULL then -- already added, change value
+                ID_ASSERT_VERSIONS_EQUAL(idx_ver, id)
+                if pool.changed then fire(pool.changed, id, value) end
+                ARRAY_SET(pool.values, ID_KEY(idx_ver), value)
+            else -- not added, add value
+                ASSERT_VALID_ENTITY(key, id)
+                POOL_ADD(pool, id, value)
+            end
         end
     end
     
@@ -1967,20 +1976,28 @@ local queue_create = function<T...>(signal: SignalInterface<T...>?): Queue<T...>
     return queue
 end :: ( <T...>() -> Queue<T...> ) & ( <T...>(signal: SignalInterface<T...>) -> Queue<T...> )
 
-local function copy_buffer_to_array(buf: buffer, arr: Array<entity>, size: number)
+local function buffer_to_array(buf: buffer, size: number, arr: Array<entity>?): Array<entity>
     ASSERT(size * ID_SIZE <= buffer.len(buf), "buffer is smaller than given size")
+
+    arr = arr or table.create(size); assert(arr)
 
     for i = 0, size - 1 do
         arr[i + 1] = BUFFER_GET(buf, i)
     end
+
+    return arr
 end
 
-local function copy_array_to_buffer(arr: Array<entity>, buf: buffer, size: number)
+local function array_to_buffer(arr: Array<entity>, size: number, buf: buffer?): buffer
+    buf = buf or buffer.create(size * ID_SIZE); assert(buf)
+
     ASSERT(size * ID_SIZE <= buffer.len(buf), "size is larger than buffer size")
 
     for i, id in ipairs(arr) do
         BUFFER_SET(buf, (i - 1), id)
     end
+
+    return buf
 end
 
 --------------------------------------------------------------------------------
@@ -2021,8 +2038,8 @@ local ecr = {
     null = ID_NULL,
     context = ID_CTX,
 
-    copy_array_to_buffer = copy_array_to_buffer,
-    copy_buffer_to_array = copy_buffer_to_array,
+    array_to_buffer = array_to_buffer,
+    buffer_to_array = buffer_to_array,
     id_size = ID_SIZE,
 
     _test = table.freeze {

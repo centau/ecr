@@ -20,6 +20,8 @@ local ecr = require "src/ecr"
 local A, B, C, D = ecr.component(), ecr.component(), ecr.component(), ecr.component()
 local E, F, G, H = ecr.component(), ecr.component(), ecr.component(), ecr.component(function() return true end)
 
+local TA, TB, TC, TD = ecr.tag(), ecr.tag(), ecr.tag(), ecr.tag()
+
 local DEFER_ID_REUSE = ecr._test.defer_id_reuse
 local MAX_VER = ecr._test.max_ver
 
@@ -564,10 +566,16 @@ TEST("registry:set()", function()
     end
 
     do CASE "attempt to set nil value"
-        CHECK_ERR("cannot set nil value", function()
+        CHECK_ERR("cannot set component value to nil", function()
             local id = reg:create()
             reg:set(id, A, nil)
         end)
+    end
+
+    do CASE "set tag"
+        local id = reg:create()
+        reg:set(id, TA, nil)
+        CHECK(reg:has(id, TA))
     end
 end)
 
@@ -2052,8 +2060,7 @@ TEST("registry:storage()", function()
 
         local pool = reg:storage(A)
 
-        local entities = {}
-        ecr.copy_buffer_to_array(pool.entities, entities, pool.size)
+        local entities = ecr.buffer_to_array(pool.entities, pool.size)
 
         for i, id in entities do
             CHECK(ids[i] == id)
@@ -2210,8 +2217,6 @@ TEST("ecr.name()", function()
 end)
 
 TEST("ecr.tag()", function()
-    local TA, TB, TC, TD = ecr.tag(), ecr.tag(), ecr.tag(), ecr.tag()
-
     do CASE "is tag"
         CHECK(ecr.is_tag(TA))
         CHECK(not ecr.is_tag(A))
@@ -2291,13 +2296,13 @@ TEST("buffer helpers", function()
     local buf = buffer.create(10 * ecr.id_size)
 
     do CASE "array to buffer"
-        ecr.copy_array_to_buffer(ids, buf, 10)
+        ecr.array_to_buffer(ids, 10, buf)
         CHECK(true)
     end
 
     do CASE "buffer to array"
         local arr = table.create(10)
-        ecr.copy_buffer_to_array(buf, arr, 10)
+        ecr.buffer_to_array(buf, 10, arr)
         for i = 1, 10 do
             CHECK(arr[i] == ids[i])
         end

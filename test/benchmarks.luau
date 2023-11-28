@@ -207,6 +207,15 @@ do TITLE "set"
             end
         end)
     end
+
+    do
+        local reg, ids = setup()
+        BENCH("add tag", function()
+            for i = 1, START(N) do
+                reg:set(ids[i], TA)
+            end
+        end)
+    end
 end
 
 do TITLE "patch"
@@ -1039,13 +1048,13 @@ do TITLE "buffer"
     local buf = buffer.create(N * ecr.id_size)
 
     BENCH("array to buffer", function()
-        ecr.copy_array_to_buffer(ids, buf, START(N))
+        ecr.array_to_buffer(ids, START(N), buf)
     end)
 
     local arr = table.create(N)
 
     BENCH("buffer to array", function()
-        ecr.copy_buffer_to_array(buf, arr, START(N))
+        ecr.buffer_to_array(buf, START(N), arr)
     end)
 end
 
