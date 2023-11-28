@@ -11,8 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - Constant `ecr.context`.
-- Function `ecr.copy_array_to_buffer()`.
-- Function `ecr.copy_buffer_to_array()`.
+- Function `ecr.array_to_buffer()`.
+- Function `ecr.buffer_to_array()`.
 - Overload for `Registry:storage()` to get an iterator for all storages.
 
 ### Changed

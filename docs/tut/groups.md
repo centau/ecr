@@ -1,6 +1,6 @@
 # Groups
 
-Groups are a technique used to optimize iteration over a set of components.
+Groups are a technique used to optimize iteration over a set of component types.
 Groups achieve perfect [SoA](https://en.wikipedia.org/wiki/AoS_and_SoA) for the
 best iteration performance at the cost of more expensive addition and removal of
 group-owned components.
@@ -31,17 +31,17 @@ group is created it is stored permanently inside the registry, future
 `registry:group()` calls will just return the same group for the same set of
 components.
 
-Groups are initialized on the first call and will automatically re-arrange
-entities in itself as you change components.
+Once a group is created, it will ensure that its owned components are aligned
+with each other in memory whenever a component is added or removed from an
+entity.
 
 ## Usage
 
-The main use for groups is the ability to iterate over all entities with the
-given set of components much faster than if you did so with a view.
+A group is iterated in the same way as a view.
 
 ```lua
-for entity, position, velocity in registry:group(Position, Velocity) do
-    registry:set(entity, Position, position + velocity*dt)
+for id, position, velocity in registry:group(Position, Velocity) do
+    registry:set(id, Position, position + velocity*dt)
 end
 ```
 
@@ -55,26 +55,28 @@ local size = #registry:group(A, B)
 
 ## Limitations
 
-Groups, while powerful, do impose some limitations on the registry.
-
 - As mentioned before, each component type can only be owned by one group,
-  groups cannot share components so you are required to plan ahead for what
-  components you would like to group.
+  groups cannot share components so you need to profile to determine where the
+  most benefit is gained.
 
-- Due to how groups organise their components in memory, when iterating a view
-  that includes group-owned components, you cannot add any component owned by
-  any of those groups unless you:
-    1. specify a component to lead that is not owned by the same group as the components you intend to add.
-    2. know that adding those group-owned components will not cause the entity to enter the group.
+- In a rare case, causing an entity to join a group during iteration of a view
+  with a group-owned component, will invalidate the view iterator.
+  
+  This is due to how groups organise their components in memory. This can be
+  avoided if you:
+    1. queue the entities to add components later, instead of during iteration.
+    2. know that adding those group-owned components will not cause the entity
+       to enter the group.
 
-The library can detect and will error if the above rules are broken.
+Views can detect and will error if the above rules are broken so you do not need
+to worry about it until it happens.
 
-## Why use groups?
+## When to group
 
 While views are fast, in certain situations like where a view contains many
 components, iteration of a view may be the bottleneck of a system.
 In such cases, by grouping components together, iteration becomes as fast as
 possible at the cost of the above limitations.
 
-You should only use grouping when you have benchmarked and identified that the
+You should only use grouping when you have profiled and identified that the
 iteration of a view is the bottleneck of a system.

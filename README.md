@@ -24,7 +24,7 @@ ECR is a pure Luau ECS library.
 
 ## Getting started
 
-Read the [crash course](https://centau.github.io/ecr/tut/crashcourse) for a
+Read the [crash course](https://centau.github.io/ecr/tut/crash-course) for a
 brief introduction to the library.
 
 ## Code sample

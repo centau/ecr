@@ -2,7 +2,8 @@
 
 Observers are used to track component changes.
 
-The observer records changed components that can be iterated over and cleared at will.
+The observer records changed components that can be iterated over and cleared at
+will.
 
 ## Methods
 
@@ -18,11 +19,10 @@ Excludes entities with the given components from the observer.
 
 - **Details**
 
-    The method will return the same observer that it was called on.
+    Any entities encountered with *any* of the excluded components, will not be
+    returned during iteration.
 
-    Any entities encountered with **any** of the excluded components, will not be returned during iteration.
-
----
+--------------------------------------------------------------------------------
 
 ### disconnect()
 
@@ -34,19 +34,17 @@ Disconnects the observer, stopping any new changes from being tracked
     function Observer:disconnect<T...>(): Observer<T...>
     ```
 
-- **Details**
-
-    Returns the same observer that it was called on.
+    The observer must be empty before it is disconnected.
 
     ::: warning
     This must be called for the observer to be garbage collected.
     :::
 
----
+--------------------------------------------------------------------------------
 
 ### reconnect()
 
-Reconnects the Observer and allows it to track future changes again.
+Reconnects the Observer and allows it to track changes again.
 
 - **Type**
 
@@ -54,15 +52,11 @@ Reconnects the Observer and allows it to track future changes again.
     function Observer:reconnect<T...>(): Observer<T...>
     ```
 
-- **Details**
-
-    Returns the same observer that it was called on.
-
----
+--------------------------------------------------------------------------------
 
 ### persist()
 
-Stops automatic clearing of the observer.
+Stops automatic clearing of its entities when it is iterated.
 
 - **Type**
 
@@ -72,27 +66,17 @@ Stops automatic clearing of the observer.
 
 - **Details**
 
-    Returns the same observer that it was called on.
-
-    Stops the observer from automatically clearing after it is iterated.
-
----
+--------------------------------------------------------------------------------
 
 ### clear()
 
-Clears all recorded changes.
+Clears all stored entities.
 
 - **Type**
 
     ```lua
     function Observer:clear<T...>(): Observer<T...>
     ```
-
-- **Details**
-
-    Returns the same observer that it was called on.
-
-    Use to clear all recorded changes after they have been processed to avoid reprocessing the same changes again later.
 
 ## Iteration
 
@@ -102,9 +86,14 @@ Observers support generalized iteration.
 for id: Entity, ...: T... in Observer<T...> do
 ```
 
-The entity id followed by the group components are returned.
+The observer will return entities that have had any components given added or
+changed since the last iteration and still have all components given at the time
+of iteration.
 
-Components can be added, changed and removed during iteration. Newly added components and their entities will not be returned until the next iteration.
+The entity followed by the latest component values are returned.
+
+Components can be added, changed and removed during iteration.
+Components added during iteration are not returned for that iteration.
 
 Will automatically clear the observer unless `Observer:persist()` was called.
 
@@ -118,10 +107,6 @@ During iteration, adding or removing components from entities not currently
 being iterated can invalidate the iterator.
 :::
 
-::: warning
-Clearing during iteration can result in an error.
-:::
-
 ## Length
 
 Returns the amount of entities in the observer.
@@ -129,5 +114,3 @@ Returns the amount of entities in the observer.
 ```lua
 #Observer<T...>: number
 ```
-
----

@@ -1,12 +1,11 @@
 # Signal
 
-ECR Signal class.
-
 ## Methods
 
 ### connect()
 
-Connects a given function to the signal to be called whenever the signal is fired.
+Connects a given function to the signal to be called whenever the signal is
+fired.
 
 - **Type**
 
@@ -16,7 +15,8 @@ Connects a given function to the signal to be called whenever the signal is fire
 
 - **Details**
 
-    New connections made within a listener will not be ran until the next time the signal is fired.
+    New connections made within a listener will not be ran until the next time
+    the signal is fired.
 
 ## Connection
 
@@ -33,8 +33,9 @@ Disconnects a listener from a signal.
 - **Details**
 
     ::: warning
- Disconnecting other listeners from within a listener may result in *undefined behavior*.
-:::    > Disconnecting a listenener from within itself is allowed.
+    Disconnecting other listeners from within a listener is not allowed.
+    Disconnecting a listenener from within itself is allowed.
+    :::
 
 --------------------------------------------------------------------------------
 

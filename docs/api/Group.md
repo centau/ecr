@@ -10,10 +10,10 @@ Groups support generalized iteration.
 for id: Entity, ...: T... in Group<T...> do
 ```
 
-The entity id followed by the group components are returned.
+The entity followed by the component values are returned.
 
-Components can be added, changed and removed during iteration. Newly added
-components and their entities will not be returned until the next iteration.
+Components can be added, changed and removed during iteration.
+Components added during iteration are not returned for that iteration.
 
 ::: warning
 During iteration, adding or removing components from entities not currently

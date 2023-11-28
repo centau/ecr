@@ -23,7 +23,7 @@ The entity the handle refers to.
 - **Type**
 
     ```lua
-    Handle.entity: Entity
+    Handle.entity: entity
     ```
 
 ## Methods
@@ -40,15 +40,16 @@ The `Handle` class wraps the following registry methods:
 - try_get()
 - remove()
 
-One difference is that the `set()` method will return the handle it is called on.
+The `set()` method will also return the handle it is called
+on.
 
 - **Example**
 
     ```lua
-    local handle = registry:handle()
+    local e = registry:handle()
 
-    handle:set(A, 1)
-          :set(B, 2)
+    e:set(A, 1)
+     :set(B, 2)
 
-    print(handle:get(A, B)) --> 1, 2
+    print(e:get(A, B)) --> 1, 2
     ```

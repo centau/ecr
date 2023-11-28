@@ -12,7 +12,7 @@ hero:
   actions:
     - theme: brand
       text: Tutorials
-      link: /tut/crashcourse
+      link: /tut/crash-course
     - theme: alt
       text: API Reference
       link: /api/ecr

@@ -19,19 +19,21 @@ The amount of entities contained in the pool.
 
 ### entities
 
-An array of all entities with the given component type.
+A buffer of all entities with the given component type.
 
 - **Type**
   
     ```lua
-    Pool.entities: Array<Entity>
+    Pool.entities: buffer
     ```
 
 - **Details**
 
+    0-indexed.
+
     Sorted in the same order as [`Pool.values`](Pool#values).
 
-    - i.e. `entities[n]`'s component value is located at `values[n]`.
+    - i.e. `entities[n]`'s component value is located at `values[n + 1]`.
 
 --------------------------------------------------------------------------------
 
@@ -46,5 +48,7 @@ An array of all values for the given component type.
     ```
 
 - **Details**
+
+    1-indexed.
 
     Sorted in the same order as [`Pool.entities`](Pool#entities.md).

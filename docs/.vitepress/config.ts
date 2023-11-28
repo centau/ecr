@@ -20,7 +20,7 @@ export default defineConfig({
         // https://vitepress.dev/reference/default-theme-config
         nav: [
             { text: "Home", link: "/" },
-            { text: "Tutorials", link: "/tut/crashcourse" },
+            { text: "Tutorials", link: "/tut/crash-course" },
             { text: "API", link: "/api/ecr"},
             { text: "GitHub", link: "https://github.com/centau/ecr" }
         ],
@@ -50,15 +50,15 @@ export default defineConfig({
                 {
                     text: "Tutorials",
                     items: [
-                        { text: "Crash Course", link: "/tut/crashcourse" },
+                        { text: "Crash Course", link: "/tut/crash-course" },
+                        { text: "Tags", link: "/tut/tags" },
                         { text: "Groups", link: "/tut/groups" },
+                        { text: "Pools", link: "/tut/storage" },
+                        { text: "Entity Type", link: "/tut/entity-type" },
+                        { text: "Context", link: "/tut/context" }
                     ]
                 }
             ],
         }
-
-        // socialLinks: [
-        //     { icon: "github", link: "https://github.com/centau/vide" }
-        // ]
     }
 })

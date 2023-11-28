@@ -17,11 +17,11 @@ local registry = ecr.registry()
 
 ## Entities
 
-An entity represents a unique object in the world. Entities are referenced using
-unique ids and can be created and destroyed.
+An entity represents an object in the world. Entities are created and destroyed,
+and are referenced using unique ids.
 
 ```lua
-local id = registry:create()
+local id: ecr.entity = registry:create()
 registry:contains(id) -- true
 
 registry:destroy(id)
@@ -30,40 +30,41 @@ registry:contains(id) -- false
 
 ## Components
 
-A component is a type of value that can be assigned to entities.
+A component is data that can be linked to entities.
 
 There is the *component type*, which represents a type of data, and there is
-the *component value*, which is a particular value associated with an entity.
+the *component value*, which is a particular value of that type associated with
+an entity.
 
 Component types are referenced using unique ids returned by `ecr.component()`.
-You can typecast this to the type of value it is supposed to represent to
-use typechecking features.
+You can typecast this to the type of value it represents for typechecking.
 
 ```lua
 local Name = ecr.component() :: string
 local Health = ecr.component() :: number
 ```
 
-Entities can have any amount of components added to or removed from them
-at runtime. This behaves similarly to tables, where they can have any amount of
-key-value pairs, where the component type and component value are the key-value
-pair.
+Entities can have any amount of components added to or removed from them,
+whenever. They are like tables, where they can have any amount of key-value
+pairs, where the component type is the key, and the component value is the
+value.
 
 ```lua
 registry:set(id, Health, 100) -- adds a new component with a value of 100
 registry:get(id, Health) -- 100
 
-registry:remove(id, Health) -- removes the component from the entity
+registry:remove(id, Health) -- removes the component
 registry:has(id, Health) -- false
 ```
 
-Eventually when an entity needs to be removed from the world you can destroy
-the entity which will mark its id as dead and remove any components added to it.
+Component values cannot be `nil`, components should be removed instead.
+
+Using `registry:destroy(id)` on an entity will remove all its components.
 
 ## Views
 
-A view allows you to look into the registry and get all entities that have a
-set of components.
+A view allows you to look into the registry and get all entities that have the
+specified component types.
 
 ```lua
 registry:view(Health)
@@ -72,7 +73,7 @@ registry:view(Position, Velocity)
 ```
 
 You can also exclude components from views. Any entities that have an excluded
-component will not be returned.
+component will not be included in the view.
 
 ```lua
 local view = registry:view(A, B):exclude(C)
@@ -106,15 +107,15 @@ registry:removed(type):connect(listener)
 All three listeners are called with:
 
 1. The entity whose component is being changed.
-2. The new component value (always `nil` in the case of `removing`).
+2. The new component value (always `nil` in the case of `removed`).
 
-`added` and `changed` are fired *after* the component is set.
+`added` is fired *after* the component is set.
 
-`removing` is fired *before* the component is removed, so you can still retrieve
-it if needed.
+`changed` and `removed` is fired *before* the component is removed, so you can
+still retrieve the old value if needed.
 
-These signals give you the ability to run side-effects like clean-up when
-changing components.
+You cannot modify the registry within a listener, they should only be used to
+help track entities or clean up values.
 
 ## Observers
 
@@ -137,16 +138,16 @@ end
 After iterating, the observer automatically clears so that only fresh changes
 are iterated.
 
-Observers provide a concise way to track and act on only specific components
+Observers provide a concise way to track and act on only specific entities
 that have changed since the last time a system ran.
 
 ## Example Usage
 
 All components are defined in a single file to keep things organised.
 
-```lua
--- cts.luau
+::: code-group
 
+```lua [cts.luau]
 local ecr = require(ecr)
 
 return {
@@ -156,12 +157,16 @@ return {
 }
 ```
 
-The library doesn't have any bult-in support for systems, instead this is left
-to the user to implement either as plain functions or through a custom scheduler.
+:::
 
-```lua
--- updatePositions.luau
+The library doesn't have any bult-in support for systems, the user is free to
+do this however they please.
 
+Examples using plain functions:
+
+::: code-group
+
+```lua [updatePositions.luau]
 local cts = require(cts)
 
 return function(world: ecr.Registry, dt: number)
@@ -172,9 +177,7 @@ return function(world: ecr.Registry, dt: number)
 end
 ```
 
-```lua
--- killEntities.luau
-
+```lua [destroyDead.luau]
 local cts = require(cts)
 
 return function(world: ecr.Registry)
@@ -186,8 +189,10 @@ return function(world: ecr.Registry)
 end
 ```
 
+:::
+
 ## End
 
-At this point, the basics concepts and features of ECR have been covered.
-You can read other guides on more specific usages or view the API for more
+At this point, the main concepts and features of ECR have been covered.
+You can read other guides on more advanced usage or view the API for more
 details.

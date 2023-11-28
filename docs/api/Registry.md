@@ -3,34 +3,35 @@
 ## Methods
 
 ::: info
-There are certain [*restrictions*](restrictions) with what you can do with the registry that you should be aware of.
+There are certain [*restrictions*](restrictions) with what you can do with the
+registry that you should be aware of.
 :::
 
 ### create()
 
-Creates a new entity and returns the entity's identifier.
+Creates a new entity and returns the entity id.
 
 - **Type**
 
     ```lua
-    function Registry:create(): Entity
-    function Registry:create(id: Entity): Entity
+    function Registry:create(): entity
+    function Registry:create(id: entity): entity
     ```
 
 - **Details**
 
-    All ids returned are guaranteed to be unique unless an old id is explicitly reused.
-
-    An entity can be created using a specific id that was created by another registry or previously by the same registry. Will error if it is unable to do so.
+    An entity can be created using a specific id that was created by another
+    registry or previously by the same registry.
 
     ::: warning
-    Reusing an old identifier previously returned by this registry will no
-    longer guarantee new identifiers returned to be unique.
+    An unused id can be reused every `32,000` times an entity is created then
+    destroyed. Be wary of storing ids of destroyed entities for long periods of
+    time or else they may eventually refer to a newly created entity.
     :::
 
     ::: warning
-    The total amount of entities in a registry at any given time **cannot**
-    exceed `1,048,575`. Attempting to exceed this limit will throw an error.
+    The total amount of entities in a registry at any given time *cannot*
+    exceed `65,535`. Attempting to exceed this limit will throw an error.
     :::
 
 --------------------------------------------------------------------------------
@@ -42,7 +43,7 @@ Removes the entity from the registry and removes all of its components.
 - **Type**
 
     ```lua
-    function Registry:destroy(id: Entity)
+    function Registry:destroy(id: entity)
     ```
 
 --------------------------------------------------------------------------------
@@ -54,7 +55,7 @@ Checks if the given entity exists in the registry.
 - **Type**
 
     ```lua
-    function Registry:contains(id: Entity): boolean
+    function Registry:contains(id: entity): boolean
     ```
 
 --------------------------------------------------------------------------------
@@ -66,57 +67,48 @@ Checks if the given entity has no components.
 - **Type**
 
     ```lua
-    function Registry:orphaned(id: Entity): boolean
+    function Registry:orphaned(id: entity): boolean
     ```
-
-- **Details**
-
-    An entity is considered an orphan if it has no components.
 
 --------------------------------------------------------------------------------
 
 ### add()
 
-Adds all components specified to an entity.
+Adds all given components to an entity.
 
 - **Type**
   
     ```lua
-    function Registry:add<T...>(id: Entity, components: T...)
+    function Registry:add<T...>(id: entity, components: T...)
     ```
 
 - **Details**
 
-    Adds the given components to the entity by calling each component constructor
-    or assigning no value at all if the component is a tag type.
+    Adds the given components to the entity by using each component
+    constructor or no value at all if the component is a tag type.
 
-    Adding a component to an entity that already has the component will do nothing.
-
-    ::: warning
-    Attempting to add components with this method that do not have constructors will error.
-    :::
+    Adding a component to an entity that already has the component will do
+    nothing.
 
 --------------------------------------------------------------------------------
 
 ### set()
 
-Sets an entity's component.
+Adds or changes an entity's component.
 
 - **Type**
 
     ```lua
-    function Registry:set<T>(id: Entity, component: T, value: T)
+    function Registry:set<T>(id: entity, component: T, value: T)
     ```
 
 - **Details**
 
-    Adds the component to the entity with the given value
-    if the entity does not already have the component.
+    Adds the component to the entity with the given value if the entity does not
+    already have the component.
 
     Changes the component value for the given entity if the entity already has
     the component.
-
-    Will error if value is `nil`.
 
 --------------------------------------------------------------------------------
 
@@ -127,22 +119,17 @@ Updates an entity's component.
 - **Type**
 
     ```lua
-    function Registry:patch<T>(id: Entity, component: T, patcher: (T) -> T)
+    function Registry:patch<T>(id: entity, component: T, patcher: (T) -> T)
     ```
 
 - **Details**
 
-    Takes a callback which is given the current component value as the only argument.
-    The value returned by the callback is then set as the new value.
+    Takes a callback which is given the current component value as the only
+    argument. The value returned by the callback is then set as the new value.
 
-    If there is a constructor defined for the given component and the entity does
-    not have the component, the constructor will be called and the returned value
-    passed into the callback.
-
-    ::: warning
-    Attempting to patch a component that an entity does not have and that has
-    no constructor will throw an error.
-    :::
+    If there is a constructor defined for the given component and the entity
+    does not have the component, the constructor will be called and the returned
+    value passed into the callback.
 
 - **Example**
 
@@ -161,12 +148,12 @@ Checks if an entity has all of the given components.
 - **Type**
 
     ```lua
-    function Registry:has<T...>(id: Entity, components: T...): boolean
+    function Registry:has<T...>(id: entity, components: T...): boolean
     ```
 
 - **Details**
 
-    Will return `true` only if the entity has *every* component specified.
+    Will return `true` only if the entity has *every* component given.
 
 --------------------------------------------------------------------------------
 
@@ -177,7 +164,7 @@ Gets an entity's component values.
 - **Type**
 
     ```lua
-    function Registry:get<T...>(id: Entity, components: T...): T...
+    function Registry:get<T...>(id: entity, components: T...): T...
     ```
 
 - **Details**
@@ -193,7 +180,7 @@ Gets an entity's component value.
 - **Type**
 
     ```lua
-    function Registry:try_get<T>(id: Entity, components: T): T?
+    function Registry:try_get<T>(id: entity, components: T): T?
     ```
 
 - **Details**
@@ -209,7 +196,7 @@ Removes the given components from an entity.
 - **Type**
 
     ```lua
-    function Registry:remove<T...>(id: Entity, components: T...): ()
+    function Registry:remove<T...>(id: entity, components: T...): ()
     ```
 
 - **Details**
@@ -240,7 +227,7 @@ Removes all entities and components from the registry.
 
 ### view()
 
-Creates a [`view`](View.md) for all entities with the specified components.
+Creates a [`view`](View) with the given component types.
 
 - **Type**
 
@@ -248,17 +235,11 @@ Creates a [`view`](View.md) for all entities with the specified components.
     function Registry:view<T...>(components: T...): View<T...>
     ```
 
-- **Details**
-
-    Creates a new view with the given components.
-
-    Entities in the view are guaranteed to have *at least all* of the given components.
-
 --------------------------------------------------------------------------------
 
 ### track()
 
-Creates an [`observer`](Observer) which records changes that occur for a given component.
+Creates an [`observer`](Observer) with the given component types.
 
 - **Type**
 
@@ -266,29 +247,11 @@ Creates an [`observer`](Observer) which records changes that occur for a given c
     function Registry:track<T...>(...: T...): Observer<T...>
     ```
 
-- **Details**
-
-    Tracks all components in the argument list.
-
-    The observer will only return entities that:
-
-    1. Have had any component in the argument list added or changed since the
-       last iteration.
-    2. Have all components specified at the time of iteration.
-
-    When an observer is first created, it treats all current entities with the given components in the registry as newly changed.
-
-    ::: warning
-    After iterating over an observer and processing the changes, call
-    [`Observer:clear()`](Observer#clear.md) to clear all changes so you do not
-    reprocess the same changes again.
-    :::
-
 --------------------------------------------------------------------------------
 
 ### group()
 
-[`Groups`](Group.md) the given components.
+Creates a [`group`](Group.md) with the given component types.
 
 - **Type**
 
@@ -302,7 +265,7 @@ Creates an [`observer`](Observer) which records changes that occur for a given c
     performance when iterated together.
 
     Groups must be mutually exclusive, i.e. each component type can only belong
-    to a single group. Will error if this occurs.
+    to a single group.
 
     ::: warning
     This method introduces restrictions on adding components during views.
@@ -313,8 +276,7 @@ Creates an [`observer`](Observer) which records changes that occur for a given c
 
 ### storage()
 
-Returns a [pool](Pool) containing every entity and corresponding value for a
-given component
+Returns the [pool](Pool) for a given component type.
 
 - **Type**
 
@@ -322,26 +284,22 @@ given component
     function Registry:storage<T>(component: T): Pool<T>
     ```
 
-- **Details**
-  
-    The returned pool is direct access to the underlying datastructures the
-    registry uses to store entities and components.
-
-    Modifying the returned pool results in *undefined behavior*.
-
 --------------------------------------------------------------------------------
 
 ### added()
 
-Returns a [signal](Signal) which is fired whenever the given component is added to an entity.
+Returns a [signal](Signal) which is fired whenever the given component type is
+added to an entity.
 
 - **Type**
 
     ```lua
-    function Registry:added<T>(component: T): Signal<Entity, T>
+    function Registry:added<T>(component: T): Signal<entity, T>
     ```
 
     The signal is fired *after* the component is changed.
+
+    The listener is called with the entity and new component value.
 
     ::: warning
     Components cannot be added or removed within a listener.
@@ -351,15 +309,18 @@ Returns a [signal](Signal) which is fired whenever the given component is added 
 
 ### changed()
 
-Returns a [signal](Signal) which is fired whenever the given component's value is changed for an entity.
+Returns a [signal](Signal) which is fired whenever the given component value is
+changed for an entity.
 
 - **Type**
 
     ```lua
-    function Registry:changed<T>(component: T): Signal<Entity, T>
+    function Registry:changed<T>(component: T): Signal<entity, T>
     ```
 
-    The signal is fired *after* the component is changed.
+    The signal is fired *before* the component is changed.
+
+    The listener is called with the entity and new component value.
 
     ::: warning
     Components cannot be added or removed within a listener.
@@ -369,17 +330,20 @@ Returns a [signal](Signal) which is fired whenever the given component's value i
 
 ### removing()
 
-Returns a [signal](Signal) which is fired whenever the given component is being removed from an entity.
+Returns a [signal](Signal) which is fired whenever the given component is
+removed from an entity.
 
 - **Type**
 
     ```lua
-    function Registry:removing<T>(component: T): Signal<Entity, nil>
+    function Registry:removing<T>(component: T): Signal<entity, nil>
     ```
 
 - **Details**
 
-    The signal is fired *before* the component is actually removed. You can retrieve the component value within the signal listener.
+    The signal is fired *before* the component is removed.
+
+    The listener is called with the entity.
 
     ::: warning
     Components cannot be added or removed within a listener.
@@ -394,18 +358,21 @@ Returns a [handle](Handle) to an entity.
 - **Type**
 
     ```lua
-    function Registry:handle(id: Entity?): Handle
+    function Registry:handle(id: entity?): Handle
     ```
 
 - **Details**
 
     If no entity is given then a new one is created.
 
+    Handles are cached so that `registry:handle(id) == registry:handle(id)` is
+    always true.
+
 --------------------------------------------------------------------------------
 
 ### context()
 
-Returns a [handle](Handle) to a special context entity.
+Returns a [handle](Handle) to the context entity.
 
 - **Type**
 
@@ -415,17 +382,7 @@ Returns a [handle](Handle) to a special context entity.
 
 - **Details**
 
-    The context is a special entity that always exists and cannot be
-    destroyed. Components added to it will still be returned by views and fire
-    signals.
-
-    The purpose of the context is to store components that are not specific
-    to entities but instead are concerned with the world itself.
-
-    Examples of when this can be used is to store data such as time, gravity,
-    difficulty, etc.
-
-    The same context entity handle is always returned when called.
+    Will automatically created the context entity if it does not already exist.
 
 --------------------------------------------------------------------------------
 
@@ -436,14 +393,12 @@ Removes the entity from the registry.
 - **Type**
 
     ```lua
-    function Registry:release(id: Entity)
+    function Registry:release(id: entity)
     ```
 
 - **Details**
 
     ::: danger
-    This method does **not** remove any of the entity's components. If it is not
-    known that an entity has components, use
-    [`Registry:destroy()`](Registry#destroy.md) instead. Using this method on an
-    entity that still has components will result in *undefined behavior*.
+    This method does not remove any of the entity's components. Using this
+    method on an entity that still has components is *undefined behavior*.
     :::

@@ -2,6 +2,18 @@
 
 ## Functions
 
+### registry()
+
+Creates a new registry.
+
+- **Type**
+
+    ```lua
+    function ecr.registry(): Registry
+    ```
+
+--------------------------------------------------------------------------------
+
 ### component()
 
 Creates a new component type.
@@ -15,71 +27,51 @@ Creates a new component type.
 
 - **Details**
 
-    Returns a unique identifier representing a new component type.
+    Returns a unique id representing a new component type.
 
     Component types can be given a constructor which can be invoked when
-    [`registry:add()`](Registry#add.md) or [`registry:patch()`](Registry#patch.md)
-    is used.
+    [`registry:add()`](Registry#add.md) or
+    [`registry:patch()`](Registry#patch.md) is used.
 
 - **Example**
 
     No constructor.
 
     ```lua
+    local Position = ecr.component() :: Vector3
     local Health = ecr.component() :: number
-    local Model = ecr.component() :: Model
     ```
 
     With constructor.
 
     ```lua
+    local Position = ecr.component(Vector3.new)
+
     local Health = ecr.component(function()
         return {
             Current = 100,
             Max = 100
         }
     end)
-
-    local Position = ecr.component(function()
-        return Vector3.new(0, 0, 0)
-    end)
-    ```
-
---------------------------------------------------------------------------------
-
-### registry()
-
-Creates a new registry.
-
-- **Type**
-
-    ```lua
-    function ecr.registry(): Registry
     ```
 
 --------------------------------------------------------------------------------
 
 ### tag()
 
-Creates a new valueless component type.
+Creates a new tag component type.
 
 - **Type**
 
     ```lua
-    function ecr.tag(): unknown
+    function ecr.tag(): nil
     ```
 
 - **Details**
 
-    Returns a unique identifier representing a new component type.
+    Returns a unique id representing a new component type.
 
-    Tag components are a special type of component where no value is stored
-    alongside.
-
-    Use [`add()`](Registry.md#add) to add tags to entities.
-    [`set()`](Registry.md#set) will not apply the valueless optimization.
-    [`get()`](Registry.md#get) will return `nil` so use [`has()`](Registry.md#has)
-    instead.
+    Tag components are a special type of component that have no value.
 
 --------------------------------------------------------------------------------
 
@@ -113,8 +105,8 @@ Creates a new queue.
 - **Details**
 
     Accepts any signal object that matches the given interface. Will
-    automatically connect a callback where any values passed into the callback
-    will automatically be queued.
+    automatically connect a callback where any arguments it is called with are
+    queued.
 
 --------------------------------------------------------------------------------
 
@@ -125,62 +117,106 @@ Associates names with components for debugging.
 - **Type**
 
     ```lua
-    function ecr.name<T>(names: T & Map<string>, Component>) -> T
+    function ecr.name<T>(names: T & Map<string, Component>) -> T
     ```
 
 - **Details**
 
     Allows for errors raised to display the component name instead of its
-    argument list position.
+    argument position.
 
     The table returned is the same table object given and is also frozen.
+
+--------------------------------------------------------------------------------
+
+### buffer_to_array()
+
+Converts a buffer of entities into an array of entities.
+
+- **Type**
+
+    ```lua
+    function ecr.buffer_to_array(buf: buffer, size: number, arr: Array<entity>?) -> Array<entity>
+    ```
+
+- **Details**
+
+    Copies the first `size` ids into a target array.
+
+    If no target array is given, one will be created.
+
+--------------------------------------------------------------------------------
+
+### array_to_buffer()
+
+Converts an array of entities into a buffer of entities.
+
+- **Type**
+
+    ```lua
+    function ecr.buffer_to_array(arr: Array<entity>, size: number, buf: buffer?) -> buffer
+    ```
+
+- **Details**
+
+    Copies the first `size` ids into a target buffer.
+
+    If no target buffer is given, one will be created.
 
 ## Constants
 
 ### entity
 
-A special component type that refers to the registry entity pool.
+A special component type that represents entities themselves.
 
 - **Type**
   
     ```lua
-    ecr.entity: Entity
+    ecr.entity: entity
     ```
 
-- **Examples**
+--------------------------------------------------------------------------------
 
-    View all entities:
+### context
 
+The context entity id.
+
+- **Type**
+  
     ```lua
-    registry:view(ecr.entity)
-    ```
-
-    Listen to entity creation:
-
-    ```lua
-    registry:added(ecr.entity):connect()
+    ecr.context: entity
     ```
 
 --------------------------------------------------------------------------------
 
 ### null
 
-A null entity.
+The null entity id.
 
 - **Type**
   
     ```lua
-    ecr.null: Entity
+    ecr.null: entity
     ```
 
 - **Details**
 
-    This id behaves like the id of an entity that has been destroyed.
+    Attempting to use this entity with a registry will error.
 
-    Attempting to add or remove components using this id will error.
-  
     The following expression will always return `false`:
 
     ```lua
     registry:contains(ecr.null)
+    ```
+
+--------------------------------------------------------------------------------
+
+### id_size
+
+The size of the entity id in bytes.
+
+- **Type**
+  
+    ```lua
+    ecr.id_size: number
     ```
