@@ -35,7 +35,7 @@ local function REG_INIT(size: number)
 end
 
 do TITLE "entities"
-    BENCH("create", function()
+    BENCH("create (init)", function()
         local reg = REG_INIT(N/2)
 
         for i = 1, START(N) do
@@ -43,8 +43,16 @@ do TITLE "entities"
         end
     end)
 
+    BENCH("create", function()
+        local reg = REG_INIT(N)
+
+        for i = 1, START(N) do
+            reg:create()
+        end
+    end)
+
     BENCH("release", function()
-        local reg = REG_INIT(N/2)
+        local reg = REG_INIT(N)
 
         local id = table.create(N)
 
@@ -58,7 +66,7 @@ do TITLE "entities"
     end)
 
     BENCH("create with id", function()
-        local sreg = REG_INIT(N/2)
+        local sreg = REG_INIT(N)
         
         local id = table.create(N)
 
@@ -66,7 +74,7 @@ do TITLE "entities"
             id[i] = sreg:create()
         end
 
-        local reg = REG_INIT(N/2)
+        local reg = REG_INIT(N)
 
         for i = 1, START(N) do
             reg:create(id[i])
@@ -75,9 +83,9 @@ do TITLE "entities"
 end
 
 do TITLE "add"
-    local function setup()
+    local function setup(n: number)
         -- todo: why is (N + 2) / 2 + 1 so slow - something to do with array idx set to nil
-        local reg = REG_INIT(N/2)
+        local reg = REG_INIT(n)
 
         local ids = table.create(N)
         for i = 1, N do
@@ -87,7 +95,17 @@ do TITLE "add"
     end
 
     do
-        local reg, ids = setup()
+        local reg, ids = setup(N/4) -- todo: inaccurate reading
+
+        BENCH("1 component (init)", function()
+            for i = 1, START(N) do
+                reg:add(ids[i], A)
+            end
+        end)
+    end
+
+    do
+        local reg, ids = setup(N)
 
         BENCH("1 component", function()
             for i = 1, START(N) do
@@ -97,7 +115,7 @@ do TITLE "add"
     end
 
     do
-        local reg, ids = setup()
+        local reg, ids = setup(N)
 
         BENCH("2 components", function()
             for i = 1, START(N) do
@@ -107,7 +125,7 @@ do TITLE "add"
     end
 
     do
-        local reg, ids = setup()
+        local reg, ids = setup(N)
 
         BENCH("4 components", function()
             for i = 1, START(N) do
@@ -116,9 +134,18 @@ do TITLE "add"
         end)
     end
 
+    do
+        local reg, ids = setup(N/2)
+
+        BENCH("1 tag (init)", function()
+            for i = 1, START(N) do
+                reg:add(ids[i], TA)
+            end
+        end)
+    end
     
     do
-        local reg, ids = setup()
+        local reg, ids = setup(N)
 
         -- todo: despite causing a reallocation why is this not recorded by gcinfo()?
         BENCH("1 tag", function()
@@ -129,7 +156,7 @@ do TITLE "add"
     end
 
     do
-        local reg, ids = setup()
+        local reg, ids = setup(N)
 
         BENCH("4 tags", function()
             for i = 1, START(N) do
@@ -220,7 +247,7 @@ end
 
 do TITLE "patch"
     local function setup()
-        local reg = REG_INIT(N/2)
+        local reg = REG_INIT(N)
         local ids = table.create(N)
         for i = 1, N do
             local e = reg:create()
@@ -276,7 +303,7 @@ do TITLE "patch"
 end
 
 do TITLE "has"
-    local reg = REG_INIT(N/2)
+    local reg = REG_INIT(N)
     local ids = table.create(N)
 
     for i = 1, N do
@@ -309,7 +336,7 @@ do TITLE "has"
 end
 
 do TITLE("get")
-    local reg = REG_INIT(N/2)
+    local reg = REG_INIT(N)
     local ids = table.create(N)
 
     for i = 1, N do
@@ -361,7 +388,7 @@ end
 
 do TITLE("remove")
     local function setup()
-        local reg = REG_INIT(N/2)
+        local reg = REG_INIT(N)
         local ids = table.create(N)
         for i = 1, N do
             local e = reg:create()
@@ -428,7 +455,7 @@ end
 
 do TITLE "clear"
     local function setup()
-        local reg = REG_INIT(N/2)
+        local reg = REG_INIT(N)
         local ids = table.create(N)
         for i = 1, N do
             local e = reg:create()
@@ -474,7 +501,7 @@ do TITLE "clear"
     end)
 
     BENCH("all entities (no components)", function()
-        local reg = REG_INIT(N/2)
+        local reg = REG_INIT(N)
         for i = 1, N do reg:create() end
 
         START(N)
@@ -491,7 +518,7 @@ do TITLE "clear"
 end
 
 do TITLE("create view")
-    local reg = REG_INIT(N/2)
+    local reg = REG_INIT(N)
 
     reg:view(A, B, C, D, E, F, G, H) -- register components
 
@@ -548,7 +575,7 @@ do
     end
 
     do TITLE("iter view (ordered)")
-        local reg = REG_INIT(N/2)
+        local reg = REG_INIT(N)
 
         for i = 1, N do
             local entity = reg:create()
@@ -566,7 +593,7 @@ do
     end
 
     do TITLE("iter view (random)")
-        local reg = REG_INIT(N/2)
+        local reg = REG_INIT(N)
 
         local function flip() return math.random() > 0.5 end
 
@@ -591,7 +618,7 @@ do
         -- This guarantees that when iterating over this 8th component, all
         -- entities iterated will also contain the other 7.
 
-        local reg = REG_INIT(N/2)
+        local reg = REG_INIT(N)
 
         local function flip() return math.random() > 0.5 end
 
@@ -612,7 +639,7 @@ do
     end
 
     do TITLE("iter view (tags)")
-        local reg = REG_INIT(N/2)
+        local reg = REG_INIT(N)
 
         for i = 1, N do
             local e = reg:handle()
@@ -634,7 +661,7 @@ end
 do TITLE("handle")
     local N2 = N/32
 
-    local reg = REG_INIT(N/2)
+    local reg = REG_INIT(N)
     local ids = table.create(N2)
 
     for i = 1, N2 do
@@ -662,7 +689,7 @@ end
 
 do TITLE "group"
     do
-        local reg = REG_INIT(N/2)
+        local reg = REG_INIT(N)
 
         local group = reg:group(A, B)
 
@@ -701,7 +728,7 @@ do TITLE "group"
     end
 
     do
-        local reg = REG_INIT(N/2)
+        local reg = REG_INIT(N)
 
         local group2 = reg:group(C, D, E, F)
         
@@ -913,7 +940,7 @@ do TITLE("destroy")
 end
 
 -- do TITLE("Direct storage")
---     local reg = REG_INIT(N/2)
+--     local reg = REG_INIT(N)
 --     local a = reg:storage(A)
 --     a:reserve(N)
 
@@ -952,7 +979,7 @@ end
 
 do TITLE("contains")
     BENCH("", function()
-        local reg = REG_INIT(N/2)
+        local reg = REG_INIT(N)
         local ids = table.create(N)
         for i = 1, N do
             ids[i] = reg:create()
@@ -967,7 +994,7 @@ do TITLE("contains")
 end
 
 do TITLE "signal"
-    local reg = REG_INIT(N/2)
+    local reg = REG_INIT(N)
     local ids = table.create(N)
 
     for i = 1, N do
@@ -1000,13 +1027,23 @@ do TITLE "signal"
 end
 
 do TITLE "observer"
-    local reg = REG_INIT(N/2)
+    local reg = REG_INIT(N)
     local observer = reg:track(A)
 
     local ids = table.create(N)
     for i = 1, N do
         ids[i] = reg:create()
     end
+
+    (observer :: any).pool:reserve(N/2)
+
+    BENCH("add (init)", function()
+        for i = 1, START(N) do
+            reg:set(ids[i], A, true)
+        end
+    end)
+
+    observer:clear()
 
     BENCH("add", function()
         for i = 1, START(N) do
