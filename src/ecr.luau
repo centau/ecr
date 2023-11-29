@@ -202,9 +202,7 @@ local function ID_VER(id: number): number
     return bit32.band(id, ID_MASK_VER)
 end
 
--- todo: optimize
 local function ID_SWAP_KEY(id: number, new_key: number): number
-    --return id - ID_KEY(id) + new_key
     return ID_VER(id) + new_key
 end
 
@@ -437,8 +435,8 @@ local function POOL_TRY_UNGROUP<T>(pool: Pool<T>, id: entity)
     end
 end
 
-local function POOL_CHECK_ENTITIES_SIZE<T>(self: Pool<T>)
-    if self.size == self.capacity then
+local function POOL_CHECK_ENTITIES_SIZE<T>(self: Pool<T>, size: number)
+    if size == self.capacity then
         POOL_RESIZE_ENTITIES(self, self.capacity * 2)
     end
 end
@@ -450,9 +448,8 @@ local function _POOL_ADD_1(self, id, n, v)
 end
 
 local function POOL_ADD<T>(self: Pool<T>, id: entity, v: T)
-    POOL_CHECK_ENTITIES_SIZE(self)
-    
     local n = self.size
+    POOL_CHECK_ENTITIES_SIZE(self, n)
     self.size = n + 1
 
     -- separated to encourage inline
@@ -467,9 +464,8 @@ local function _POOL_ADD_ID_1(self, id, n)
 end
 
 local function POOL_ADD_ID<T>(self: Pool<T>, id: entity)
-    POOL_CHECK_ENTITIES_SIZE(self)
-    
     local n = self.size
+    POOL_CHECK_ENTITIES_SIZE(self, n)
     self.size = n + 1
 
     _POOL_ADD_ID_1(self, id, n)
@@ -513,6 +509,12 @@ end
 local function POOL_CLEAR<T>(self: Pool<T>)
     local signal = self.removed :: Array<Listener<nil>>
 
+    if self.group then
+        for _, connection in self.group.connections do
+            connection:disconnect()
+        end
+    end
+
     if signal then
         local entities = self.entities
         for i = 0, self.size - 1 do
@@ -520,7 +522,12 @@ local function POOL_CLEAR<T>(self: Pool<T>)
         end
     end
 
-    if self.group then self.group.size = 0 end
+    if self.group then
+        self.group.size = 0
+        for _, connection in self.group.connections do
+            connection:reconnect()
+        end
+    end
 
     self.size = 0
     BUFFER_FILL(self.map, 0, self.map_max, ID_NULL)
@@ -763,7 +770,7 @@ local function ENTITY_POOL_HAS(self: EntityPool, id: number): boolean
     local key = ID_KEY(id)
     return
         self.capacity > key and
-        MARK_IN_USE(bit32.band(id, ID_MASK_VER)) == bit32.band(BUFFER_GET(self.map, key), ID_MASK_VER_RES)
+        MARK_IN_USE(ID_VER(id)) == bit32.band(BUFFER_GET(self.map, key), ID_MASK_VER_RES)
 end
 
 local function ENTITY_POOL_CLEAR(self: EntityPool)
@@ -1104,56 +1111,45 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
 
             local connections = {}
 
-            local function POOL_TRY_ADD_ID<T>(self: Pool<T>, id: entity)
-    
-                local key = ID_KEY(id)
-                
-                POOL_CHECK_MAP_SIZE(self, key)
-                local map = self.map
-            
-                local idx_ver = BUFFER_GET(map, key)
-            
-                if idx_ver == ID_NULL then
-                    POOL_CHECK_ENTITIES_SIZE(self)
-                    local n = self.size; self.size = n + 1
-                    BUFFER_SET(map, key, ID_SWAP_KEY(id, n))
-                    BUFFER_SET(self.entities, n, id)
-                end 
-            end
-            
-            -- removes only id from pool
-            -- does nothing if already removed
-            -- does not fire signals
-            local function POOL_TRY_REMOVE_ID<T>(self: Pool<T>, id: entity)
-                local map = self.map
-                local entities = self.entities
-            
-                local key = ID_KEY(id)
-            
-                if not POOL_CONTAINS(self, key) then return end
-                local idx_ver = BUFFER_GET(map, key)
-            
-                if idx_ver ~= ID_NULL then
-                    local n = self.size - 1; self.size = n
-                    local idx = ID_KEY(idx_ver)
-                    local last_id = BUFFER_GET(entities, n)
-                    local last_key = ID_KEY(last_id)
-            
-                    BUFFER_SET(map, last_key, ID_SWAP_KEY(last_id, idx))
-                    BUFFER_SET(map, key, ID_NULL)
-                    
-                    BUFFER_SET(entities, idx, last_id)
-                    BUFFER_SET(entities, n, ID_NULL)
-                end
-            end
-
             for i, ctype in includes do
                 local function added_or_changed_listener(id)
-                    POOL_TRY_ADD_ID(pool, id)
+                    local key = ID_KEY(id)
+                
+                    POOL_CHECK_MAP_SIZE(pool, key)
+                    local map = pool.map
+                
+                    local idx_ver = BUFFER_GET(map, key)
+                
+                    if idx_ver == ID_NULL then
+                        local n = pool.size
+                        POOL_CHECK_ENTITIES_SIZE(pool, n)
+                        pool.size = n + 1
+                        BUFFER_SET(map, key, ID_SWAP_KEY(id, n))
+                        BUFFER_SET(pool.entities, n, id)
+                    end 
                 end
 
                 local function removed_listener(id: number)
-                    POOL_TRY_REMOVE_ID(pool, id) -- todo: inline
+                    local map = pool.map
+                    local entities = pool.entities
+                
+                    local key = ID_KEY(id)
+                
+                    if POOL_NOT_CONTAINS(pool, key) then return end
+                    local idx_ver = BUFFER_GET(map, key)
+                
+                    if idx_ver ~= ID_NULL then
+                        local n = pool.size - 1; pool.size = n
+                        local idx = ID_KEY(idx_ver)
+                        local last_id = BUFFER_GET(entities, n)
+                        local last_key = ID_KEY(last_id)
+                
+                        BUFFER_SET(map, last_key, ID_SWAP_KEY(last_id, idx))
+                        BUFFER_SET(map, key, ID_NULL)
+                        
+                        BUFFER_SET(entities, idx, last_id)
+                        BUFFER_SET(entities, n, ID_NULL)
+                    end
                 end
                 
                 table.insert(connections, reg:added(ctype):connect(added_or_changed_listener))
@@ -1423,8 +1419,6 @@ local Handle = (function(): HandleMT
     local Handle = {}
     Handle.__index = Handle
 
-    setmetatable(Handle :: any, { __index = strict("Handle") })
-
     function Handle.destroy(self: Handle)
         self.registry:destroy(self.entity)
     end
@@ -1474,13 +1468,9 @@ local function registry_create(): Registry
 
     local registry = {}
 
-    local id_pool = ENTITY_POOL_CREATE()
+    local entity_pool = ENTITY_POOL_CREATE()
 
-    local all_pools: Map<CType, Pool<unknown>> = table.create(ctype_n)
-    all_pools[ctype_entity] = id_pool :: Pool<any>
-
-    -- excludes entity pool, operations not allowed on it
-    local ctype_pools: Map<CType, Pool<unknown>> = table.create(ctype_n)
+    local ctype_pools: Map<CType, Pool<unknown>> = table.create(MAX_CTYPE)
 
     local signals = {
         added = {} :: Map<CType, Signal<entity, unknown>>,
@@ -1489,10 +1479,11 @@ local function registry_create(): Registry
     }
 
     -- lazily create pools on nil index to avoid having to check everywhere
-    setmetatable(all_pools, {
+    setmetatable(ctype_pools, {
         __index = function(self, ctype: CType): Pool<unknown>
             ASSERT(ctype_valid(ctype), "invalid component type")
-            ASSERT(ctype <= MAX_CTYPE, `cannot use {ctype_debug(ctype)}, component must be created before registry creation`)
+            ASSERT(ctype ~= ctype_entity, "cannot use entity type")
+            ASSERT(ctype :: number <= MAX_CTYPE, `cannot use {ctype_debug(ctype)}, component must be created before registry creation`)
             local pool = POOL_CREATE(1)
             self[ctype] = pool
             ctype_pools[ctype] = pool
@@ -1500,18 +1491,7 @@ local function registry_create(): Registry
         end
     })
 
-    setmetatable(ctype_pools, {
-        __index = function(self, ctype: CType): Pool<unknown>
-            ASSERT(ctype ~= ctype_entity, "cannot modify entity pool")
-            return all_pools[ctype]
-        end
-    })
-
-    local function get_any_pool<T>(ctype: T): Pool<T>
-        return all_pools[ctype] :: Pool<any>
-    end
-
-    local function get_ctype_pool<T>(ctype: T): Pool<T>
+    local function GET_POOL<T>(ctype: T): Pool<T>
         return ctype_pools[ctype] :: Pool<any>
     end
 
@@ -1520,7 +1500,7 @@ local function registry_create(): Registry
 
         for i = 1, select("#", ...) do
             local ctype = select(i, ...)
-            local pool = get_ctype_pool(ctype)
+            local pool = GET_POOL(ctype)
             group[i] = pool
             pool.group = group
 
@@ -1533,7 +1513,7 @@ local function registry_create(): Registry
             end))
         end
 
-        local pool = get_ctype_pool((...))
+        local pool = GET_POOL((...))
 
         -- add any entities already in pools to group
         local entities = pool.entities
@@ -1544,48 +1524,37 @@ local function registry_create(): Registry
         return group
     end
 
-    local function ASSERT_VALID_ENTITY(key: number, id: entity)
-        if ENTITY_POOL_HAS(id_pool, id) == false then
-            ASSERT(false, `invalid entity`)
-        end
-    end
-
-    local function ASSERT_NOT_RESERVED(key: number, id: entity)
-        if key == 0 then
-            ASSERT(false, "cannot release id")
-        end
+    local function ASSERT_VALID_ENTITY(id: entity)
+        ASSERT(ENTITY_POOL_HAS(entity_pool, id), "invalid entity")
     end
 
     function registry.create(self: Registry, id: entity?): entity
-        if id_pool.size >= ID_MASK_KEY then ASSERT(false, "cannot create entity; registry is at max entities") end
-        return id and ENTITY_POOL_REUSE(id_pool, id) or ENTITY_POOL_ADD(id_pool)
+        ASSERT(entity_pool.size < ID_MASK_KEY, "cannot create entity; registry is at max entities")
+        return id and ENTITY_POOL_REUSE(entity_pool, id) or ENTITY_POOL_ADD(entity_pool)
     end
 
     function registry.release(self: Registry, id: entity)
-        ASSERT_VALID_ENTITY(ID_KEY(id), id)
-        --ASSERT_NOT_RESERVED(ID_KEY(id), id)
-        ENTITY_POOL_REMOVE(id_pool, id)
+        ASSERT_VALID_ENTITY(id)
+        ENTITY_POOL_REMOVE(entity_pool, id)
     end
 
     function registry.destroy(self: Registry, id: entity)
-        local key = ID_KEY(id)
-        ASSERT_VALID_ENTITY(key, id)
-       -- ASSERT_NOT_RESERVED(ID_KEY(id), id)
+        ASSERT_VALID_ENTITY(id)
         
         for _, pool in next, ctype_pools do
             POOL_TRY_REMOVE(pool, id)
         end
 
-        ENTITY_POOL_REMOVE(id_pool, id)
+        ENTITY_POOL_REMOVE(entity_pool, id)
     end
 
     function registry.contains(self: Registry, id: entity): boolean
-        return ENTITY_POOL_HAS(id_pool, id)
+        return ENTITY_POOL_HAS(entity_pool, id)
     end
 
     function registry.orphaned(self: Registry, id: entity): boolean
+        ASSERT_VALID_ENTITY(id)
         local key = ID_KEY(id)
-        ASSERT_VALID_ENTITY(key, id)
 
         for _, pool in next, ctype_pools do
             if BUFFER_GET(pool.map, key) ~= ID_NULL then return false end
@@ -1593,86 +1562,57 @@ local function registry_create(): Registry
         return true
     end
 
-    -- function registry.add<T...>(self: Registry, id: entity, ...: T...)
-    --     local key = ID_KEY(id)
-    --     ASSERT_VALID_ENTITY(key, id)
-
-    --     for i = 1, select("#", ...) do
-    --         local ctype = select(i, ...)
-    --         local pool = get_ctype_pool(ctype)
-
-    --         POOL_CHECK_MAP_SIZE(pool, key)
-
-    --         -- continue if already added
-    --         if BUFFER_GET(pool.map, key) ~= ID_NULL then continue end
-
-    --         local constructor = ctype_ctors[ctype] or ASSERT(false, `no constructor defined for {ctype_debug(ctype, i)}`)
-    --         local value
-    --         if constructor ~= ctype_TAG then
-    --             value = (constructor :: () -> unknown)()
-    --             if value == nil then ASSERT(false, `{ ctype_debug(ctype, i) } constructor did not return a value`) end   
-    --         end
-            
-    --         POOL_ADD(pool, id, value)
-    --     end
-    -- end
-
     function registry.add<T...>(self: Registry, id: entity, ...: T...)
+        ASSERT_VALID_ENTITY(id)
         local key = ID_KEY(id)
-        ASSERT_VALID_ENTITY(key, id)
 
         for i = 1, select("#", ...) do
             local ctype = select(i, ...)
-            local pool = get_ctype_pool(ctype)
+            local pool = GET_POOL(ctype)
 
             POOL_CHECK_MAP_SIZE(pool, key)
 
-            -- continue if already added
             if BUFFER_GET(pool.map, key) ~= ID_NULL then continue end
 
-            local constructor = ctype_ctors[ctype] or ASSERT(false, `no constructor defined for {ctype_debug(ctype, i)}`)
-            if constructor == true then
-                POOL_ADD_ID(pool, id) -- todo: why does writing nil to an array resize it?
+            local ctor = ctype_ctors[ctype] or ASSERT(false, `no constructor defined for {ctype_debug(ctype, i)}`)
+
+            if ctor == true then
+                POOL_ADD_ID(pool, id)
             else
-                local value = (constructor :: () -> unknown)()
+                local value = (ctor :: () -> unknown)()
                 if value == nil then ASSERT(false, `{ ctype_debug(ctype, i) } constructor did not return a value`) end   
                 POOL_ADD(pool, id, value)
             end
         end
     end
     
-
     function registry.set<T>(self: Registry, id: entity, ctype: T, value: T)        
-        local pool = get_ctype_pool(ctype)
+        local pool = GET_POOL(ctype)
         local key = ID_KEY(id)
 
         POOL_CHECK_MAP_SIZE(pool, key)
 
         local idx_ver = BUFFER_GET(pool.map, key)
 
-        if value == nil then
-            ASSERT_VALID_ENTITY(key, id)
-
-            if ctype_is_tag(ctype) then
-                if BUFFER_GET(pool.map, key) ~= ID_NULL then return end
-                POOL_ADD_ID(pool, id)
-            else
-                ASSERT(false, "cannot set component value to nil")
-            end
+        if value == nil then -- add tag
+            ASSERT_VALID_ENTITY(id)
+            ASSERT(ctype_is_tag(ctype), "cannot set component value to nil")
+            if idx_ver ~= ID_NULL then return end
+            POOL_ADD_ID(pool, id)
         else
             if idx_ver ~= ID_NULL then -- already added, change value
                 ID_ASSERT_VERSIONS_EQUAL(idx_ver, id)
                 if pool.changed then fire(pool.changed, id, value) end
                 ARRAY_SET(pool.values, ID_KEY(idx_ver), value)
             else -- not added, add value
-                ASSERT_VALID_ENTITY(key, id)
+                ASSERT_VALID_ENTITY(id)
                 POOL_ADD(pool, id, value)
             end
         end
     end
     
     function registry.patch<T>(self: Registry, id: entity, ctype: T, fn: (T) -> T)
-        local pool = get_ctype_pool(ctype)
+        local pool = GET_POOL(ctype)
 
         local key = ID_KEY(id)
 
@@ -1681,19 +1621,19 @@ local function registry_create(): Registry
         local idx_ver = BUFFER_GET(pool.map, key)
 
         if idx_ver == ID_NULL then
-            ASSERT_VALID_ENTITY(key, id)
+            ASSERT_VALID_ENTITY(id)
             local ctor = ctype_ctors[ctype]
-            if not ctor or ctor == true then
+            if ctor == false or ctor == true then
                 ASSERT(false, `entity does not have component and no constructor for {ctype_debug(ctype)}`)
             end
             local value = fn((ctor :: () -> T)())
-            if value == nil then ASSERT(false, "patcher cannot return nil") end
+            ASSERT(value ~= nil, "patcher cannot return nil")
             POOL_ADD(pool, id, value)
         else
-            local idx = ID_KEY(idx_ver)
             ID_ASSERT_VERSIONS_EQUAL(idx_ver, id)
+            local idx = ID_KEY(idx_ver)
             local value = fn(ARRAY_GET(pool.values, idx))
-            if value == nil then ASSERT(false, "patcher cannot return nil") end
+            ASSERT(value ~= nil, "patcher cannot return nil")
             if pool.changed then fire(pool.changed, id, value) end
             ARRAY_SET(pool.values, idx, value)
         end
@@ -1702,8 +1642,8 @@ local function registry_create(): Registry
     registry.has = (function(self: Registry, id: entity, ...: unknown): boolean
         local key = ID_KEY(id)
         for i = 1, select("#", ...) do
-            local pool = get_ctype_pool(select(i, ...))
-            if not POOL_CONTAINS(pool, key) then return false end
+            local pool = GET_POOL(select(i, ...))
+            if POOL_NOT_CONTAINS(pool, key) then return false end
             local idx_ver = BUFFER_GET(pool.map, key)
             if idx_ver == ID_NULL or ID_VERSIONS_NOT_EQUAL(idx_ver, id) then return false end
         end
@@ -1711,8 +1651,8 @@ local function registry_create(): Registry
     end :: any) :: <T...>(self: Registry, id: entity, T...) -> boolean
 
     local function pool_get(ctype: CType, key: number, id: number): unknown
-        local pool = get_ctype_pool(ctype)
-        if pool.map_max < key then ASSERT(false, `entity does not have {ctype_debug(ctype)}`) end
+        local pool = GET_POOL(ctype)
+        if POOL_NOT_CONTAINS(pool, key) then ASSERT(false, `entity does not have {ctype_debug(ctype)}`) end
         local idx_ver = BUFFER_GET(pool.map, key)
         if idx_ver == ID_NULL then ASSERT(false, `entity does not have {ctype_debug(ctype)}`) end
         return ARRAY_GET(pool.values, ID_KEY(idx_ver)) 
@@ -1722,13 +1662,13 @@ local function registry_create(): Registry
         local b, c, d, e = ...
         local key = ID_KEY(id)
 
-        local pool = get_ctype_pool(a)
-        if pool.map_max < key then ASSERT(false, `entity does not have {ctype_debug(a, 1)}`) end
+        local pool = GET_POOL(a)
+        if POOL_NOT_CONTAINS(pool, key) then ASSERT(false, `entity does not have {ctype_debug(a, 1)}`) end
 
         local idx_ver = BUFFER_GET(pool.map, key)
         if idx_ver == ID_NULL then ASSERT(false, `entity does not have {ctype_debug(a, 1)}`) end
-        local idx = ID_KEY(idx_ver :: number)
-        ID_ASSERT_VERSIONS_EQUAL(idx_ver :: number, id)
+        local idx = ID_KEY(idx_ver)
+        ID_ASSERT_VERSIONS_EQUAL(idx_ver, id)
         local va = ARRAY_GET(pool.values, idx)
 
         if b == nil then
@@ -1749,23 +1689,17 @@ local function registry_create(): Registry
     end :: any) :: <T...>(self: Registry, id: entity, T...) -> T...
 
     function registry.try_get<T>(self: Registry, id: entity, ctype: T): T?
-        local pool = get_ctype_pool(ctype)
+        local pool = GET_POOL(ctype)
         local key = ID_KEY(id)
-
         if not POOL_CONTAINS(pool, key) then return nil end
-
         local idx_ver = BUFFER_GET(pool.map, key)
-        if idx_ver == ID_NULL then return nil end
-
-        local idx = ID_KEY(idx_ver)
-        if ID_VERSIONS_NOT_EQUAL(idx_ver, id) then return nil end
-        return ARRAY_GET(pool.values, idx)
+        if idx_ver == ID_NULL or ID_VERSIONS_NOT_EQUAL(idx_ver, id) then return nil end
+        return ARRAY_GET(pool.values, ID_KEY(idx_ver))
     end
 
     function registry.remove<T...>(self: Registry, id: entity, ...: T...)
         for i = 1, select("#", ...) do
-            local pool = get_ctype_pool(select(i, ...))
-            
+            local pool = GET_POOL(select(i, ...))
             POOL_TRY_REMOVE(pool, id)
         end
     end
@@ -1773,10 +1707,10 @@ local function registry_create(): Registry
     function registry.clear<T...>(self: Registry, ...: T...)
         local argn = select("#", ...)
         if argn > 0 then
-            for i = 1, argn do POOL_CLEAR(get_ctype_pool(select(i, ...))) end
+            for i = 1, argn do POOL_CLEAR(GET_POOL(select(i, ...))) end
         else
             for _, pool in next, ctype_pools do POOL_CLEAR(pool) end
-            ENTITY_POOL_CLEAR(id_pool)
+            ENTITY_POOL_CLEAR(entity_pool)
         end 
     end
 
@@ -1794,21 +1728,25 @@ local function registry_create(): Registry
     function registry.group<T...>(self: Registry, ...: T...): Group<T...>
         local argn = select("#", ...)
         ASSERT(argn > 1, "groups must contain at least 2 components")
-        local group = get_ctype_pool((select(1, ...))).group :: GroupData<unknown>
+        local group = GET_POOL((select(1, ...))).group :: GroupData<unknown>
 
         for i = 1, argn do
             local ctype = select(i, ...)
             ASSERT(ctype_valid(ctype), `invalid { ctype_debug(nil, i) }`)
-            ASSERT(get_ctype_pool(ctype).group == group,
+            ASSERT(GET_POOL(ctype).group == group,
                 `cannot create group; {ctype_debug(ctype, i)} is not owned by the same group as previous args`)
         end
 
         return Group.new(self, group or group_init(...), ...)
     end
 
+    local function GET_POOL_OR_ENTITY_POOL<T>(ctype: T): Pool<T>
+        return ctype == ctype_entity and entity_pool :: Pool<any> or GET_POOL(ctype)
+    end
+
     function registry.storage<T>(self: Registry, ctype: T?): any
         if ctype then
-            return get_any_pool(ctype)
+            return GET_POOL_OR_ENTITY_POOL(ctype)
         else
             return coroutine.wrap(function()
                 for ctype, pool in next, ctype_pools do
@@ -1822,7 +1760,7 @@ local function registry_create(): Registry
         return (signals.added[ctype] or (function() 
             local signal, listeners = signal_create()
             signals.added[ctype] = signal
-            get_any_pool(ctype).added = listeners
+            GET_POOL_OR_ENTITY_POOL(ctype).added = listeners
             return signal
         end)()) :: Signal<entity, T>
     end
@@ -1831,7 +1769,7 @@ local function registry_create(): Registry
         return (signals.changed[ctype] or (function() 
             local signal, listeners = signal_create()
             signals.changed[ctype] = signal
-            get_any_pool(ctype).changed = listeners
+            GET_POOL_OR_ENTITY_POOL(ctype).changed = listeners
             return signal    
         end)()) :: Signal<entity, T>    
     end
@@ -1840,7 +1778,7 @@ local function registry_create(): Registry
         return signals.removed[ctype] or (function() 
             local signal, listeners = signal_create()
             signals.removed[ctype] = signal
-            get_any_pool(ctype).removed = listeners
+            GET_POOL_OR_ENTITY_POOL(ctype).removed = listeners
             return signal
         end)() :: Signal<entity, nil>
     end

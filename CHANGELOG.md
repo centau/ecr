@@ -27,6 +27,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Signal `Registry:changed()` now fires *before* the component is changed.
   - New value still given as argument, but now can retrive old value with `Registry:get()`.
 
+### Removed
+
+- Method `Registry:version()`.
+
 ### Improved
 
 Large refactor to use the new Luau `buffer` datatype. Up to 2x faster and 2-4x

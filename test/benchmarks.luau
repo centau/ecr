@@ -22,7 +22,7 @@ local function BULK_CREATE_IDS(reg: ecr.Registry, n: number): { ecr.entity }
     return ids
 end
 
-local N = 2^16-2 -- 65,534
+local N = 2^16 - 2 -- 65,534
 
 local function REG_INIT(size: number)
     local reg = ecr.registry()
