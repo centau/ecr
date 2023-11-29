@@ -165,10 +165,10 @@ local RESERVED_BITS = 1
 local ID_SIZE_BITS = ID_SIZE * 8
 local ID_MAX = 2^(ID_SIZE_BITS - RESERVED_BITS) - 1
 
-local ID_RESRVED_MASK = 0xFFFF_FFFF - ID_MAX
-
+local ID_MASK_RES = 0xFFFF_FFFF - ID_MAX
 local ID_MASK_KEY = MAX_ENTITIES
 local ID_MASK_VER = ID_MAX - ID_MASK_KEY
+local ID_MASK_VER_RES = ID_MASK_VER + ID_MASK_RES
 
 local ID_LSHIFT = ID_MASK_KEY + 1
 local ID_RSHIFT = 1/ID_LSHIFT
@@ -204,7 +204,8 @@ end
 
 -- todo: optimize
 local function ID_SWAP_KEY(id: number, new_key: number): number
-    return id - ID_KEY(id) + new_key
+    --return id - ID_KEY(id) + new_key
+    return ID_VER(id) + new_key
 end
 
 local function ID_VERSIONS_NOT_EQUAL(id1: number, id2: number)
@@ -598,15 +599,15 @@ local function ENTITY_POOL_INIT(self: EntityPool, start: number, stop: number)
 end
 
 local function IN_USE(id: number): boolean
-    return bit32.band(id, ID_RESRVED_MASK) > 0
+    return bit32.band(id, ID_MASK_RES) > 0
 end
 
 local function MARK_IN_USE(id: number): number
-    return bit32.bor(id, ID_RESRVED_MASK)
+    return bit32.bor(id, ID_MASK_RES)
 end
 
 local function MARK_UNUSED(id: number): number
-    return bit32.band(id, bit32.bnot(ID_RESRVED_MASK))
+    return bit32.band(id, bit32.bnot(ID_MASK_RES))
 end
 
 local function ENTITY_POOL_RESIZE(self: EntityPool, size: number)
@@ -717,6 +718,7 @@ local function ENTITY_POOL_REUSE(self: EntityPool, id: entity): entity
             prev = next
         until i == ID_MASK_KEY
         ASSERT(i < ID_MASK_KEY, "timeout occured")
+
         BUFFER_SET(self.map, prev, ID_SWAP_KEY(BUFFER_GET(self.map, prev), ID_KEY(BUFFER_GET(self.map, key))))
     end
 
@@ -758,7 +760,10 @@ local function ENTITY_POOL_REMOVE(self: EntityPool, id: entity)
 end
 
 local function ENTITY_POOL_HAS(self: EntityPool, id: number): boolean
-    return self.capacity > ID_KEY(id) and ID_SWAP_KEY(BUFFER_GET(self.map, ID_KEY(id)), ID_KEY(id)) == MARK_IN_USE(id)
+    local key = ID_KEY(id)
+    return
+        self.capacity > key and
+        MARK_IN_USE(bit32.band(id, ID_MASK_VER)) == bit32.band(BUFFER_GET(self.map, key), ID_MASK_VER_RES)
 end
 
 local function ENTITY_POOL_CLEAR(self: EntityPool)
