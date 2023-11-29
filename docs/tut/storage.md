@@ -55,5 +55,10 @@ This can be useful for e.g:
         for i = 1, n do
             positions[i] += velocities[i] * dt
         end
-    end
     ```
+
+If needed you can also get all pools inside the registry via an iterator.
+
+```lua
+for ctype, pool in registry:storage() do
+```

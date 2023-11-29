@@ -282,7 +282,13 @@ Returns the [pool](Pool) for a given component type.
 
     ```lua
     function Registry:storage<T>(component: T): Pool<T>
+    function Registry:storage(): () -> (unknown, Pool<unknown>)
     ```
+
+- **Details**
+
+    If called with no arguments, returns an iterator to get all component types
+    and their corresponding pool in the registry.
 
 --------------------------------------------------------------------------------
 
