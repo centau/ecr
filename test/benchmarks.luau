@@ -1043,7 +1043,8 @@ do TITLE "observer"
         end
     end)
 
-    observer:clear()
+    reg:clear(A)
+    assert(#observer == 0)
 
     BENCH("add", function()
         for i = 1, START(N) do
