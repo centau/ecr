@@ -743,8 +743,14 @@ do TITLE "group"
 end
 
 do TITLE("destroy")
+
     BENCH("0 components", function()
-        local reg = REG_INIT(N/2)
+        local reg = ecr.registry()
+
+        for p in reg:storage() do
+            print"p"
+        end
+
         local ids = table.create(N)
 
         for i = 1, N do
@@ -757,7 +763,7 @@ do TITLE("destroy")
     end)
 
     BENCH("1 component", function()
-        local reg = REG_INIT(N/2)
+        local reg = ecr.registry()
         local ids = table.create(N)
 
         for i = 1, N do
@@ -772,7 +778,7 @@ do TITLE("destroy")
     end)
 
     BENCH("2 components", function()
-        local reg = REG_INIT(N/2)
+        local reg = ecr.registry()
         local ids = table.create(N)
 
         for i = 1, N do
@@ -788,7 +794,7 @@ do TITLE("destroy")
     end)
 
     BENCH("4 components", function()
-        local reg = REG_INIT(N/2)
+        local reg = ecr.registry()
         local ids = table.create(N)
 
         for i = 1, N do
@@ -805,8 +811,30 @@ do TITLE("destroy")
         end
     end)
 
+    BENCH("8 components", function()
+        local reg = ecr.registry()
+        local ids = table.create(N)
+
+        for i = 1, N do
+            local e = reg:create()
+            reg:set(e, A, true)
+            reg:set(e, B, true)
+            reg:set(e, C, true)
+            reg:set(e, D, true)
+            reg:set(e, E, true)
+            reg:set(e, F, true)
+            reg:set(e, G, true)
+            reg:set(e, H, true)
+            ids[i] = e
+        end
+
+        for i = 1, START(N) do
+            reg:destroy(ids[i])
+        end
+    end)
+
     BENCH("0 components (8 registered)", function()
-        local reg = REG_INIT(N/2)
+        local reg = ecr.registry()
         local ids = table.create(N)
 
         for i = 1, N - 1 do
@@ -837,7 +865,7 @@ do TITLE("destroy")
             ctypes[i] = ecr.component()
         end
 
-        local reg = REG_INIT(N/2)
+        local reg = ecr.registry()
 
         do
             local id = reg:create()
@@ -863,7 +891,7 @@ do TITLE("destroy")
             ctypes[i] = ecr.component()
         end
 
-        local reg = REG_INIT(N/2)
+        local reg = ecr.registry()
 
         do
             local id = reg:create()
