@@ -1,13 +1,12 @@
 # Entity Type
 
-Entities are stored in a special kind of pool inside the registry. These
-entities are represented by a special componen type, `ecr.entity`.
+Entities are represented by a special component type, `ecr.entity`.
 
 This can be used in the same way as custom components types, except instead of
-dealing with components, deals with entities themselves.
+representing components, represents entities themselves.
 
 This type cannot be used to modify the registry, methods like `add()`, `set()`,
-`remove()` do not work with this component.
+`remove()` do not work with this type.
 
 ## Get all entities
 

@@ -52,10 +52,10 @@ export default defineConfig({
                     items: [
                         { text: "Crash Course", link: "/tut/crash-course" },
                         { text: "Tags", link: "/tut/tags" },
-                        { text: "Groups", link: "/tut/groups" },
-                        { text: "Pools", link: "/tut/storage" },
                         { text: "Entity Type", link: "/tut/entity-type" },
-                        { text: "Context", link: "/tut/context" }
+                        { text: "Context", link: "/tut/context" },
+                        { text: "Pools", link: "/tut/storage" },
+                        { text: "Groups", link: "/tut/groups" }
                     ]
                 }
             ],

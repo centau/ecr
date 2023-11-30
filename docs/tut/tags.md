@@ -1,6 +1,6 @@
 # Tags
 
-Tags are a special component type that store no value.
+Tags are a special component type that stores no value.
 
 A tag can be created with:
 
@@ -8,10 +8,11 @@ A tag can be created with:
 local Tag = ecr.tag()
 ```
 
-Tags are still components, and can be used in the same way as other components,
-with the exception that tag components will always have a `nil` value.
+Tags types are used in the same way as any other type, except they don't have a
+value. They are useful for marking entities in a certain state, and are more
+efficient than something like `ecr.component() :: true`.
 
-Tags can be used like so:
+Example usage:
 
 ```lua
 local Poisoned = ecr.tag()
