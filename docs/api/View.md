@@ -14,8 +14,8 @@ Excludes entities with the given components from the view.
 
 - **Details**
 
-    Entities with *any* of the excluded components, will not be returned
-    during iteration.
+    Entities with *any* of the excluded components, will not be returned during
+    iteration.
 
 --------------------------------------------------------------------------------
 
@@ -39,32 +39,40 @@ Specifies a component to iterate along.
 
 ## Iteration
 
-Views support generalized iteration.
+Iterates all entities in the view.
 
-```lua
-for id: Entity, ...: T... in View<T...> do
-```
+- **Type**
 
-The entity followed by the component values are returned.
+    ```lua
+    for id: Entity, ...: T... in View<T...> do
+    ```
 
-Components can be added, changed and removed during iteration.
-Components added during iteration are not returned for that iteration.
+- **Details**
 
-::: warning
-During iteration, adding or removing components from entities not currently
-being iterated can invalidate the iterator.
-:::
+    The entity followed by the component values are returned.
+
+    Components can be added, changed and removed during iteration.
+    Components added during iteration are not returned for that iteration.
+
+    ::: warning
+    During iteration, adding or removing components from entities not currently
+    being iterated can invalidate the iterator.
+    :::
 
 ## Length
 
 Returns the amount of entities in the view.
 
-```lua
-#View<T...>: number
-```
+- **Type**
 
-For single component views, this returns the exact amount of entities in the
-view.
+    ```lua
+    #View<T...>: number
+    ```
 
-For multiple component views, this returns an estimated amount of entities.
-This estimate will never be less than the actual amount of entities.
+- **Details**
+
+    For single component views, this returns the exact amount of entities in the
+    view.
+
+    For multiple component views, this returns an estimated amount of entities.
+    This estimate will not be less than the actual amount of entities.

@@ -5,7 +5,7 @@
 
 local ID_SIZE = 4
 local MAX_ENTITIES = 0x0000_FFFF
-local DEFER_ID_REUSE = true
+local DEFER_ID_REUSE = false
 
 --------------------------------------------------------------------------------
 -- typedef
@@ -52,7 +52,7 @@ type EntityPool<T = nil> = Pool<T> & {
 type GroupData<T = unknown> = {
     size: number, -- entity amount in group
     added: boolean, -- flag used to detect iter invalidation
-    connections: Array<Connection>,
+    connections: Array<Connection>, -- listeners to add and remove from group
     [number]: Pool<T> -- all pools in group
 }
 
@@ -139,22 +139,16 @@ export type Queue<T...> = typeof(setmetatable({} :: {
 
 local NIL = nil :: any
 
-local function THROW(msg: string)
+local function throw(msg: string)
     local s = 1
     repeat s += 1 until debug.info(s, "s") ~= debug.info(1, "s") 
-    error(msg, s) -- stack trace begins at first call outside of this file
+    error(msg, s) -- stack trace begins at first call site outside of this file
 end
 
 local ASSERT = function<T>(v: T, msg: string): T
     if v then return v end
-    return THROW(msg)
+    return throw(msg)
 end :: typeof(assert)
-
-local function strict(name: string)
-    return function(_, idx: unknown)
-        ASSERT(false, `{tostring(idx)} is not a valid member of {name}`)
-    end
-end
 
 --------------------------------------------------------------------------------
 -- entity id
@@ -194,30 +188,26 @@ local function ID_KEY(id: number): number
     return bit32.band(id, ID_MASK_KEY)
 end
 
-local function ID_KEY_VER(id: number): (number, number)
-    return bit32.band(id, ID_MASK_KEY), bit32.band(id, ID_MASK_VER)
-end
-
 local function ID_VER(id: number): number
     return bit32.band(id, ID_MASK_VER)
 end
 
-local function ID_SWAP_KEY(id: number, new_key: number): number
+local function ID_REPLACE(id: number, new_key: number): number
     return ID_VER(id) + new_key
 end
 
-local function ID_VERSIONS_NOT_EQUAL(id1: number, id2: number)
+local function ID_VERSION_NOT_EQUAL(id1: number, id2: number)
     return ID_VER(id1) ~= ID_VER(id2)
 end
 
-local function ID_ASSERT_VERSIONS_EQUAL(id1: number, id2: number)
-    if ID_VERSIONS_NOT_EQUAL(id1, id2) then
-        ASSERT(false, `invalid entity`)    
+local function ID_ASSERT_VERSION_EQUAL(id1: number, id2: number)
+    if ID_VERSION_NOT_EQUAL(id1, id2) then
+        throw("invalid entity")
     end
 end
 
-local ID_NULL = ID_CREATE(ID_NULL_KEY, ID_NULL_VER) -- always rejected
-local ID_CTX = ID_CREATE(ID_CTX_KEY, ID_MIN_VER) -- reserved
+local ID_NULL = ID_CREATE(ID_NULL_KEY, ID_NULL_VER)
+local ID_CTX = ID_CREATE(ID_CTX_KEY, ID_MIN_VER)
 
 --------------------------------------------------------------------------------
 -- component type
@@ -225,12 +215,12 @@ local ID_CTX = ID_CREATE(ID_CTX_KEY, ID_MIN_VER) -- reserved
 
 -- a ctor set to `true` indicates the component is a tag
 local ctype_ctors: Map<CType, (boolean | () -> unknown)> = {}
-local ctype_names: Map<CType, string> = {}
+local ctype_names: Map<CType, string?> = {}
 local ctype_n = 0
 
-local function ctype_create<T>(ctor: (() -> T) | true): CType
+local function ctype_create<T>(ctor: boolean | () -> unknown): CType
     ctype_n += 1
-    ctype_ctors[ctype_n] = ctor or false
+    ctype_ctors[ctype_n] = ctor
     return ctype_n
 end
 
@@ -246,11 +236,11 @@ local function ctype_valid(v: unknown): boolean
     return type(v) == "number" and math.floor(v) == v and v > 0 and v <= ctype_n  
 end
 
-local function ctype_name(ctype: CType, name: unknown)
+local function ctype_set_name(ctype: CType, name: unknown)
     ctype_names[ctype] = tostring(name)
 end
 
-local ctype_debug: (ctype: CType?, idx: number?) -> () = (function()
+local ctype_debug: (ctype: CType?, idx: number?) -> string = (function()
     return function(ctype: CType?, idx: number?)
         local name = ctype_names[ctype]
         return
@@ -260,15 +250,16 @@ local ctype_debug: (ctype: CType?, idx: number?) -> () = (function()
     end
 end)()
 
-local ctype_entity = ctype_create_tag()
-ctype_name(ctype_entity, "entity")
+-- built-in entity type
+local ctype_entity = ctype_create(false)
+ctype_set_name(ctype_entity, "entity")
 
 --------------------------------------------------------------------------------
 -- pool
 --------------------------------------------------------------------------------
 
 local function next_pow_of_2(x: number)
-    assert(x >= 1 and x < 2^32)
+    assert(x > 0 and x <= 2^32)
     x -= 1
     x = bit32.bor(x, bit32.rshift(x, 1))
     x = bit32.bor(x, bit32.rshift(x, 2))
@@ -284,7 +275,7 @@ local function fire<T>(listeners: Array<Listener<T>>, id: entity, value: T)
     end 
 end
 
-local function BUFFER_CREATE(size: number): buffer
+local function buffer_create(size: number): buffer
     return buffer.create(size * ID_SIZE)
 end
 
@@ -296,19 +287,14 @@ local function BUFFER_SET(b: buffer, i: number, id: entity)
     buffer.writeu32(b, i * ID_SIZE, id)
 end
 
-local function BUFFER_FILL(b: buffer, first: number, last: number, v: number)
-    -- assert(buffer.len(b) % ID_SIZE == 0)
-    -- for i = 0, buffer.len(b) - 1, ID_SIZE do
-    --     buffer.writeu32(b, i, v)
-    -- end
-
+local function buffer_fill(b: buffer, first: number, last: number, v: number)
     assert(buffer.len(b) >= last * ID_SIZE)
     for i = first * ID_SIZE, last * ID_SIZE, ID_SIZE do
         buffer.writeu32(b, i, v)
     end
 end
 
-local function BUFFER_RESIZE(b: buffer, size: number): buffer
+local function buffer_resize(b: buffer, size: number): buffer
     local b_new = buffer.create(size * ID_SIZE)
     local n_old = buffer.len(b)
     
@@ -321,13 +307,13 @@ local function BUFFER_RESIZE(b: buffer, size: number): buffer
     return b_new
 end
 
-local function BUFFER_CLONE(b: buffer): buffer
+local function buffer_clone(b: buffer): buffer
     local b_new = buffer.create(buffer.len(b))
     buffer.copy(b_new, 0, b)
     return b_new
 end
 
--- wrapper to treat array ops as 0-indexed
+-- wrappers to treat arrays as 0-indexed
 local function ARRAY_SET<T>(t: Array<T>, i: number, v: T)
     t[i + 1] = v
 end
@@ -342,173 +328,183 @@ local function ARRAY_SWAP<T>(t: Array<T>, a: number, b: number)
     t[a], t[b] = t[b], t[a]
 end
 
-local function ARRAY_REMOVE_BY_SWAP<T>(t: Array<T>, remove: number, swap: number)
+local function ARRAY_SWAP_REMOVE<T>(t: Array<T>, remove: number, swap: number)
     swap += 1
     t[remove + 1] = t[swap]
     t[swap] = nil
 end
 
-local function POOL_CONTAINS<T>(p: Pool<T>, key: number): boolean
-    return p.map_max >= key
+local function POOL_CONTAINS<T>(pool: Pool<T>, key: number): boolean
+    return pool.map_max >= key
 end
 
-local function POOL_NOT_CONTAINS<T>(p: Pool<T>, key: number): boolean
-    return p.map_max < key
+local function POOL_NOT_CONTAINS<T>(pool: Pool<T>, key: number): boolean
+    return pool.map_max < key
 end
 
-local function POOL_RESIZE_ENTITIES<T>(self: Pool<T>, size: number)
+local function POOL_HAS<T>(pool: Pool<T>, key: number): boolean
+    return pool.map_max >= key and BUFFER_GET(pool.map, key) ~= ID_NULL
+end
+
+local function POOL_NOT_HAS<T>(pool: Pool<T>, key: number): boolean
+    return pool.map_max < key or BUFFER_GET(pool.map, key) == ID_NULL
+end
+
+local function POOL_FIND(pool: Pool<any>, key: number): number
+    if key > pool.map_max then return ID_NULL end
+    return BUFFER_GET(pool.map, key)
+end
+
+local function pool_resize_entities<T>(self: Pool<T>, size: number)
     if self.capacity >= size then return end
     local new_capacity = next_pow_of_2(size)
-    self.entities = BUFFER_RESIZE(self.entities, new_capacity)
+    self.entities = buffer_resize(self.entities, new_capacity)
     self.capacity = new_capacity
 end
 
-local function POOL_RESIZE_MAP<T>(self: Pool<T>, size: number)
+local function pool_resize_map<T>(self: Pool<T>, size: number)
+    if self.map_max + 1 >= size then return end
     local new_map_capacity = next_pow_of_2(size)
-    self.map = BUFFER_RESIZE(self.map, new_map_capacity)
+    self.map = buffer_resize(self.map, new_map_capacity)
     self.map_max = new_map_capacity - 1
-    assert((self.map_max + 1) * ID_SIZE == buffer.len(self.map))
 end
 
 local function POOL_CHECK_MAP_SIZE<T>(self: Pool<T>, key: number)
     if self.map_max < key then
-        POOL_RESIZE_MAP(self, key + 1)
+        pool_resize_map(self, key + 1)
     end
 end
 
 local function POOL_SWAP<T>(
     self: Pool<T>,
     idx: number,
-    target_idx: number
+    idx_swap: number
 )
     local map = self.map
     local entities = self.entities
     local values = self.values
 
     local id = BUFFER_GET(entities, idx)
-    local key = ID_KEY(id)
+    local id_swap = BUFFER_GET(entities, idx_swap)
 
-    local id_swap = BUFFER_GET(entities, target_idx)
-    local key_swap = ID_KEY(id_swap)
-
-    BUFFER_SET(entities, target_idx, id)
+    BUFFER_SET(entities, idx_swap, id)
     BUFFER_SET(entities, idx, id_swap)
 
-    BUFFER_SET(map, key, ID_SWAP_KEY(id, target_idx))
-    BUFFER_SET(map, key_swap, ID_SWAP_KEY(id_swap, idx))
+    BUFFER_SET(map, ID_KEY(id), ID_REPLACE(id, idx_swap))
+    BUFFER_SET(map, ID_KEY(id_swap), ID_REPLACE(id_swap, idx))
     
-    ARRAY_SWAP(values, target_idx, idx)
+    ARRAY_SWAP(values, idx_swap, idx)
 end
 
-local function POOL_TRY_GROUP<T>(pool: Pool<T>, id: number)
-    local group = pool.group :: GroupData<T>
-
-    local key = ID_KEY(id)
-
-    -- search through all pools in group to check if entity can be added
-    for _, pool in ipairs(group) do
-        if not POOL_CONTAINS(pool, key) or BUFFER_GET(pool.map, key) == ID_NULL then
-            return
-        end
-    end
-
+local function GROUP_ADD<T>(group: GroupData<T>, key: number)
+    group.added = true -- used to test for invalidation
     local n = group.size
     group.size = n + 1
-
-    group.added = true
-
     for _, pool in ipairs(group) do
         POOL_SWAP(pool, ID_KEY(BUFFER_GET(pool.map, key)), n)
     end
 end
 
+local function GROUP_CAN_ADD<T>(group: GroupData<T>, key: number): boolean
+    for _, pool in ipairs(group) do
+        if POOL_NOT_HAS(pool, key) then
+            return false
+        end
+    end
+    return true
+end
+
+local function POOL_TRY_GROUP<T>(pool: Pool<T>, id: number)
+    local group = pool.group :: GroupData<T>
+    local key = ID_KEY(id)
+    if GROUP_CAN_ADD(group, key) then
+        GROUP_ADD(group, key)  
+    end
+end
+
+local function GROUP_REMOVE<T>(group: GroupData<T>, idx: number)
+    local n = group.size - 1
+    group.size = n
+    for _, pool in ipairs(group) do        
+        POOL_SWAP(pool, idx, n)
+    end
+end
+
 local function POOL_TRY_UNGROUP<T>(pool: Pool<T>, id: entity)
     local group = pool.group :: GroupData<T>
-
     local idx = ID_KEY(BUFFER_GET(pool.map, ID_KEY(id)))
-    local n = group.size
-    if idx < n then -- is in group, swap needed
-        group.size = n - 1
-        for _, pool in ipairs(group) do        
-            POOL_SWAP(pool, idx, n - 1)
-        end
+    if idx < group.size then
+        GROUP_REMOVE(group, idx)
     end
 end
 
 local function POOL_CHECK_ENTITIES_SIZE<T>(self: Pool<T>, size: number)
     if size == self.capacity then
-        POOL_RESIZE_ENTITIES(self, self.capacity * 2)
+        pool_resize_entities(self, self.capacity * 2)
     end
 end
 
-local function _POOL_ADD_1(self, id, n, v)
-    BUFFER_SET(self.map, ID_KEY(id), ID_SWAP_KEY(id, n))
-    BUFFER_SET(self.entities, n, id)
-    ARRAY_SET(self.values, n, v)
+local function _POOL_ADD(self, i, id, v)
+    BUFFER_SET(self.map, ID_KEY(id), ID_REPLACE(id, i))
+    BUFFER_SET(self.entities, i, id)
+    ARRAY_SET(self.values, i, v)
 end
-
 local function POOL_ADD<T>(self: Pool<T>, id: entity, v: T)
     local n = self.size
     POOL_CHECK_ENTITIES_SIZE(self, n)
     self.size = n + 1
-
-    -- separated to encourage inline
-    _POOL_ADD_1(self, id, n, v)
-
+    _POOL_ADD(self, n, id, v)
     if self.added then fire(self.added, id, v) end
 end
 
-local function _POOL_ADD_ID_1(self, id, n)
-    BUFFER_SET(self.map, ID_KEY(id), ID_SWAP_KEY(id, n))
-    BUFFER_SET(self.entities, n, id)
+local function _POOL_ADD_ID(self, i, id)
+    BUFFER_SET(self.map, ID_KEY(id), ID_REPLACE(id, i))
+    BUFFER_SET(self.entities, i, id)
 end
-
 local function POOL_ADD_ID<T>(self: Pool<T>, id: entity)
     local n = self.size
     POOL_CHECK_ENTITIES_SIZE(self, n)
     self.size = n + 1
-
-    _POOL_ADD_ID_1(self, id, n)
-
+    _POOL_ADD_ID(self, n, id)
     if self.added then fire(self.added, id, NIL) end
 end
 
-local function _POOL_TRY_REMOVE_1<T>(self: Pool<T>, map, key, id)
+local function POOL_REMOVE<T>(self: Pool<T>, key, id)
+    local map = self.map
+
     if self.removed then fire(self.removed, id) end
 
-    local idx_ver = BUFFER_GET(map, key) -- read map again in case of swap
+    local idx_ver = BUFFER_GET(map, key)
     local idx = ID_KEY(idx_ver)
 
-    if ID_VERSIONS_NOT_EQUAL(idx_ver, id) then return end
+    if ID_VERSION_NOT_EQUAL(idx_ver, id) then return end
 
-    local n = self.size - 1; self.size = n
+    local n = self.size - 1
+    self.size = n
     local entities = self.entities
     local values = self.values
 
-    local last_id = BUFFER_GET(entities, n)
-    local last_key = ID_KEY(last_id)
+    local id_last = BUFFER_GET(entities, n)
 
-    BUFFER_SET(map, last_key, ID_SWAP_KEY(last_id, idx))
+    BUFFER_SET(map, ID_KEY(id_last), ID_REPLACE(id_last, idx))
     BUFFER_SET(map, key, ID_NULL)
 
-    BUFFER_SET(entities, idx, last_id)
-    BUFFER_SET(entities, n, ID_NULL)
+    BUFFER_SET(entities, idx, id_last)
+    --BUFFER_SET(entities, n, ID_NULL)
 
-    ARRAY_REMOVE_BY_SWAP(values, idx, n)
+    ARRAY_SWAP_REMOVE(values, idx, n)
 end
-
 local function POOL_TRY_REMOVE<T>(self: Pool<T>, id: entity)
     local key = ID_KEY(id)
-    local map = self.map
-
-    if POOL_CONTAINS(self, key) and BUFFER_GET(map, key) ~= ID_NULL then
-        _POOL_TRY_REMOVE_1(self, map, key, id)
+    if POOL_HAS(self, key) then
+        POOL_REMOVE(self, key, id)
     end
 end
 
-local function POOL_CLEAR<T>(self: Pool<T>)
+local function pool_clear<T>(self: Pool<T>)
     local signal = self.removed :: Array<Listener<nil>>
 
+    -- disconnect group listeners to avoid needless swapping
     if self.group then
         for _, connection in self.group.connections do
             connection:disconnect()
@@ -530,22 +526,22 @@ local function POOL_CLEAR<T>(self: Pool<T>)
     end
 
     self.size = 0
-    BUFFER_FILL(self.map, 0, self.map_max, ID_NULL)
+    buffer_fill(self.map, 0, self.map_max, ID_NULL)
     table.clear(self.values)
 end
 
-local function POOL_CREATE<T>(size: number?): Pool<T>
+local function pool_create<T>(size: number?): Pool<T>
     local n = size or 1
 
-    local map = BUFFER_CREATE(n)
-    BUFFER_FILL(map, 0, n - 1, ID_NULL)
+    local map = buffer_create(n)
+    buffer_fill(map, 0, n - 1, ID_NULL)
 
     return {
         map_max = n - 1,
         capacity = n,
         size = 0,
         map = map,
-        entities = BUFFER_CREATE(n),
+        entities = buffer_create(n),
         values = table.create(n),
 
         added = false,
@@ -554,38 +550,32 @@ local function POOL_CREATE<T>(size: number?): Pool<T>
         group = false,
 
         reserve = function(self: Pool<T>, size: number)
-            POOL_RESIZE_MAP(self, size)
-            POOL_RESIZE_ENTITIES(self, size)
-        
-            -- todo
-            -- local values = self.values
-            -- for i = self.size, size - 1 do
-            --     values[i] = true :: any
-            -- end
-            -- for i = self.size, size - 1 do
-            --     values[i] = nil
-            -- end
+            pool_resize_map(self, size)
+            pool_resize_entities(self, size)
 
             -- todo: why does this cause innacurate buffer alloc readings?
             local values = self.values
-            size = next_pow_of_2(size)
-            for i = self.size, size - 1 do
+            local n = next_pow_of_2(size)
+
+            -- force array reallocation
+            for i = self.size + 1, n do
                 values[i] = true :: any
             end
-            for i = self.size, size - 1 do
+
+            for i = n, self.size + 1, -1 do
                 values[i] = nil
             end
         end
     }
 end
 
-local function POOL_CLONE<T>(self: Pool<T>): Pool<T>
+local function pool_clone<T>(self: Pool<T>): Pool<T>
     return {
         map_max = self.map_max,
         capacity = self.capacity,
         size = self.size,
-        map = BUFFER_CLONE(self.map),
-        entities = BUFFER_CLONE(self.entities),
+        map = buffer_clone(self.map),
+        entities = buffer_clone(self.entities),
         values = table.clone(self.values),
 
         added = false,
@@ -597,7 +587,7 @@ local function POOL_CLONE<T>(self: Pool<T>): Pool<T>
     }
 end
 
-local function ENTITY_POOL_INIT(self: EntityPool, start: number, stop: number)
+local function entity_pool_init(self: EntityPool, start: number, stop: number)
     for i = start, stop - 1 do
         BUFFER_SET(self.map, i, ID_CREATE(i + 1, ID_MIN_VER))
     end
@@ -613,11 +603,7 @@ local function MARK_IN_USE(id: number): number
     return bit32.bor(id, ID_MASK_RES)
 end
 
-local function MARK_UNUSED(id: number): number
-    return bit32.band(id, bit32.bnot(ID_MASK_RES))
-end
-
-local function ENTITY_POOL_RESIZE(self: EntityPool, size: number)
+local function entity_pool_resize(self: EntityPool, size: number)
     if self.capacity >= size then return end
     local new_capacity = next_pow_of_2(size)
 
@@ -625,45 +611,44 @@ local function ENTITY_POOL_RESIZE(self: EntityPool, size: number)
 
     local last = self.capacity - 1
 
-    if self.free ~= ID_NULL_KEY then -- find end of list
+    -- find end of list to append new free keys to tail
+    if self.free ~= ID_NULL_KEY then
         local prev = self.free
-        local i = 0; repeat i += 1 -- find id before desired id
+        local i = 0; repeat i += 1 -- find key before desired key
             local next = ID_KEY(BUFFER_GET(self.map, prev))
             if next == ID_NULL_KEY then break end
             prev = next
         until i == ID_MASK_KEY
         ASSERT(i < ID_MASK_KEY, "timeout occured")
-        BUFFER_SET(self.map, prev, ID_SWAP_KEY(BUFFER_GET(self.map, prev), last + 1))
+        BUFFER_SET(self.map, prev, ID_REPLACE(BUFFER_GET(self.map, prev), last + 1))
     else
         self.free = last + 1
     end
 
-    self.map = BUFFER_RESIZE(self.map, new_capacity)
-    self.entities = BUFFER_RESIZE(self.entities, new_capacity)
+    self.map = buffer_resize(self.map, new_capacity)
+    self.entities = buffer_resize(self.entities, new_capacity)
+    entity_pool_init(self, last + 1, new_capacity - 1)
     self.map_max = new_capacity - 1
-
-    local new_last = new_capacity - 1
-
-    ENTITY_POOL_INIT(self, last + 1, new_last)
-
     self.capacity = new_capacity
 end
 
-local function ENTITY_POOL_CREATE(): EntityPool
-    local pool = POOL_CREATE(2) :: EntityPool
-    ENTITY_POOL_INIT(pool, 1, 1)
+local function entity_pool_create(): EntityPool
+    local pool = pool_create(2) :: EntityPool
+    -- leave key 0 unused - reserved for context entity
+    entity_pool_init(pool, 1, 1)
     pool.free = 1
 
     pool.reserve = function(self: Pool<nil>, size: number)
-        ENTITY_POOL_RESIZE(self :: EntityPool, size)
+        entity_pool_resize(self :: EntityPool, size)
     end
 
     return pool
 end
 
-local function ENTITY_POOL_ADD(self: EntityPool): entity
+local function entity_pool_add(self: EntityPool): entity
     if self.free == ID_NULL_KEY then
         if DEFER_ID_REUSE and self.capacity == ID_MAX_CAPACITY then
+            -- search for a deprecated key
             for i = ID_CTX_KEY + 1, ID_MAX_VALID_KEY do
                 if BUFFER_GET(self.map, i) == ID_NULL then
                     BUFFER_SET(self.map, i, ID_CREATE(ID_NULL_KEY, ID_MIN_VER))
@@ -673,97 +658,106 @@ local function ENTITY_POOL_ADD(self: EntityPool): entity
                 ASSERT(self.free ~= ID_NULL_KEY, "entity limit reached")
             end
         else
-            ENTITY_POOL_RESIZE(self, self.capacity*2)
+            entity_pool_resize(self, self.capacity*2)
         end
     end
     
     assert(self.free ~= ID_NULL_KEY)
-    local next_key_ver = BUFFER_GET(self.map, self.free)
-    local next_key = ID_KEY(next_key_ver)
     local new_key = self.free
+    local next_key_cur_ver = BUFFER_GET(self.map, new_key)
+    local next_key = ID_KEY(next_key_cur_ver)
+    local cur_ver = ID_VER(next_key_cur_ver)
     self.free = next_key
-    local id = ID_SWAP_KEY(next_key_ver, new_key)
-    BUFFER_SET(self.entities, self.size, id)
-    BUFFER_SET(self.map, new_key, MARK_IN_USE(ID_SWAP_KEY(id, self.size)))
-    self.size += 1
+
+    local id = ID_CREATE(new_key, cur_ver)
+    local n = self.size
+    BUFFER_SET(self.entities, n, id)
+    BUFFER_SET(self.map, new_key, MARK_IN_USE(ID_CREATE(n, cur_ver)))
+    self.size = n + 1
+
     if self.added then fire(self.added, id) end
+
     return id
 end
 
-local function ENTITY_POOL_REUSE(self: EntityPool, id: entity): entity
-    local key, ver = ID_KEY_VER(id)
+local function entity_pool_use(self: EntityPool, id: entity): entity
+    local key, ver = ID_KEY(id), ID_VER(id)
 
-    if id ~= ID_CTX then
-        ASSERT(key ~= ID_NULL_KEY and ver ~= ID_NULL_VER, "malformed id")
-    end
+    ASSERT(id == ID_CTX or key ~= ID_NULL_KEY and ver ~= ID_NULL_VER, "malformed id")
 
     local capacity = self.capacity
-
     local last = capacity - 1
 
-    if key > last then -- key has not been created yet
-        ENTITY_POOL_RESIZE(self, key + 1)
-    else
-        ASSERT(
-            not IN_USE(BUFFER_GET(self.map, key)), -- key is not in use
-            "key already in use"
-        )
+    if key > last then -- if key has not been created yet
+        entity_pool_resize(self, key + 1)
     end
 
-    if id == ID_CTX then
+    ASSERT(not IN_USE(BUFFER_GET(self.map, key)), "key already in use")
 
-    elseif self.free == key then -- desired id is at head
-        local next_free = ID_KEY(BUFFER_GET(self.map, self.free))
-        self.free = next_free
-    elseif BUFFER_GET(self.map, key) == ID_NULL then -- key is deprecated
+    if id ~= ID_CTX then
+        if self.free == key then -- if at head
+            local next_free = ID_KEY(BUFFER_GET(self.map, self.free))
+            self.free = next_free
+        elseif BUFFER_GET(self.map, key) ~= ID_NULL then -- if not deprecated
+            -- key is somewhere along list
+            local prev = self.free
+            local i = 0; repeat i += 1 -- find key before desired key
+                local next = ID_KEY(BUFFER_GET(self.map, prev))
+                if next == key then break end
+                prev = next
+            until i == ID_MAX_VALID_KEY
+            ASSERT(i < ID_MAX_VALID_KEY, "key not found")
 
-    else -- desired id is somewhere along list
-        local prev = self.free
-        local i = 0; repeat i += 1 -- find id before desired id
-            local next = ID_KEY(BUFFER_GET(self.map, prev))
-            if next == key then break end
-            prev = next
-        until i == ID_MASK_KEY
-        ASSERT(i < ID_MASK_KEY, "timeout occured")
-
-        BUFFER_SET(self.map, prev, ID_SWAP_KEY(BUFFER_GET(self.map, prev), ID_KEY(BUFFER_GET(self.map, key))))
+            BUFFER_SET( -- a -> b -> c, remove b, link a -> c
+                self.map, prev,
+                ID_REPLACE(
+                    BUFFER_GET(self.map, prev),
+                    ID_KEY(BUFFER_GET(self.map, key))
+                )
+            )
+        end
     end
 
-    local n = self.size; self.size = n + 1
-    BUFFER_SET(self.map, key, MARK_IN_USE(ID_SWAP_KEY(id, n)))
+    local n = self.size
+    self.size = n + 1
+    BUFFER_SET(self.map, key, MARK_IN_USE(ID_REPLACE(id, n)))
     BUFFER_SET(self.entities, n, id)
+
     if self.added then fire(self.added, id) end
+
     return id
 end
 
-local function ENTITY_POOL_REMOVE(self: EntityPool, id: entity)
-    local key, ver = ID_KEY_VER(id)
+local function entity_pool_remove(self: EntityPool, id: entity)
+    local key, ver = ID_KEY(id), ID_VER(id)
 
     if self.removed then fire(self.removed, id) end
 
-    local last = self.size - 1; self.size = last
+    local last = self.size - 1
+    self.size = last
 
     local map = self.map
     local entities = self.entities
 
-    local idx = ID_KEY(BUFFER_GET(map, key))
-    local last_id = BUFFER_GET(entities, last)
-    local last_key = ID_KEY(last_id)
+    local idx_ver_res = BUFFER_GET(map, key)
+    assert(IN_USE(idx_ver_res))
+    local idx = ID_KEY(idx_ver_res)
+    local id_last = BUFFER_GET(entities, last)
 
-    BUFFER_SET(entities, idx, last_id)
-    BUFFER_SET(map, last_key, MARK_IN_USE(ID_SWAP_KEY(last_id, idx)))
+    BUFFER_SET(entities, idx, id_last)
+    BUFFER_SET(map, ID_KEY(id_last), MARK_IN_USE(ID_REPLACE(id_last, idx)))
 
     if id == ID_CTX then
         BUFFER_SET(map, key, ID_NULL)
     elseif ver < ID_MASK_VER then
-        BUFFER_SET(map, key, ID_CREATE(self.free, ver + ID_MIN_VER)) -- recycle key
+        BUFFER_SET(map, key, ID_CREATE(self.free, ver + 1 * ID_LSHIFT)) -- inc version
         self.free = key
     elseif DEFER_ID_REUSE then
         BUFFER_SET(map, key, ID_NULL) -- deprecate key
     else
-        BUFFER_SET(map, key, ID_CREATE(self.free, ID_MIN_VER)) -- reset version and recycle key
+        BUFFER_SET(map, key, ID_CREATE(self.free, ID_MIN_VER)) -- reset version
         self.free = key
-    end 
+    end
 end
 
 local function ENTITY_POOL_HAS(self: EntityPool, id: number): boolean
@@ -773,18 +767,18 @@ local function ENTITY_POOL_HAS(self: EntityPool, id: number): boolean
         MARK_IN_USE(ID_VER(id)) == bit32.band(BUFFER_GET(self.map, key), ID_MASK_VER_RES)
 end
 
-local function ENTITY_POOL_CLEAR(self: EntityPool)
+local function entity_pool_clear(self: EntityPool)
     local entities = self.entities
 
     if self.removed then
-        for i = self.size, 1, -1 do
-            fire(self.removed, BUFFER_GET(entities, i - 1))
+        for i = 0, self.size - 1 do
+            fire(self.removed, BUFFER_GET(entities, i))
         end
     end
 
     -- todo: optimize
-    for i = self.size, 1, -1 do
-        ENTITY_POOL_REMOVE(self, BUFFER_GET(entities, i - 1))
+    for i = self.size - 1, 0, -1 do
+        entity_pool_remove(self, BUFFER_GET(entities, i))
     end
 end
 
@@ -801,14 +795,9 @@ type IRegistry = {
     removed: <T>(self: IRegistry, ctype: T) -> Signal<entity, nil>,
 }
 
-local function has_any(pools: Array<Pool<unknown>>, key: number): boolean
+local function HAS_ANY(pools: Array<Pool<unknown>>, key: number): boolean
     for _, pool in next, pools do
-        if
-            POOL_CONTAINS(pool, key) and
-            BUFFER_GET(pool.map, key) ~= ID_NULL
-        then
-            return true
-        end
+        if POOL_HAS(pool, key) then return true end
     end
     return false
 end
@@ -841,8 +830,7 @@ end
 
 local function ASSERT_INVALIDATION<T>(pool: Pool<T>): ...any
     if pool.group and pool.group.added then
-        pool.group.added = false
-        ASSERT(false, "group reordered during iteration, iterator invalidaton occurred")
+        throw("group reordered during iteration")
     end
 end
 
@@ -856,10 +844,12 @@ local function single<A>(pool: Pool<A>): () -> (entity, A)
 
     return function()
         local i = n - 1; n = i
+
         if i < 0 then
             ASSERT_INVALIDATION(pool)
             return NIL, NIL
         end
+
         return BUFFER_GET(entities, i), ARRAY_GET(values, i)
     end
 end
@@ -878,14 +868,12 @@ local function double<A, B>(a: Pool<A>, b: Pool<B>): () -> (entity, A, B)
         return function()
             for i = n - 1, 0, -1 do
                 local id = BUFFER_GET(entities, i)
-                local key = ID_KEY(id)
-                if POOL_NOT_CONTAINS(b, key) then continue end
-                local idx_ver = BUFFER_GET(b.map, key)
+                local idx_ver = POOL_FIND(b, ID_KEY(id))
                 if idx_ver == ID_NULL then continue end
-                local vb = ARRAY_GET(b.values, key)
                 n = i
-                return id, ARRAY_GET(values, i), vb
+                return id, ARRAY_GET(values, i), ARRAY_GET(b.values, ID_KEY(idx_ver))
             end
+    
             return ASSERT_INVALIDATION(a)
         end
     else
@@ -898,14 +886,12 @@ local function double<A, B>(a: Pool<A>, b: Pool<B>): () -> (entity, A, B)
         return function()
             for i = n - 1, 0, -1 do
                 local id = BUFFER_GET(entities, i)
-                local key = ID_KEY(id)
-                if POOL_NOT_CONTAINS(a, key) then continue end
-                local idx_ver = BUFFER_GET(a.map, key)
+                local idx_ver = POOL_FIND(a, ID_KEY(id))
                 if idx_ver == ID_NULL then continue end
-                local va = ARRAY_GET(a.values, key)
                 n = i
-                return id, va, ARRAY_GET(values, i)   
+                return id, ARRAY_GET(a.values, ID_KEY(idx_ver)), ARRAY_GET(values, i)   
             end
+    
             return ASSERT_INVALIDATION(b)
         end
     end
@@ -918,10 +904,21 @@ local function multi(
     lead: Pool<unknown>?
 ): () -> (entity, ...any)
     local source = lead or smallest(includes)
+    local source_pos: number?
+    for i, pool in next, includes do
+        if pool == source then
+            source_pos = i
+            break
+        end
+    end
+    assert(source_pos)
 
     local n = source.size
     local entities = source.entities
-    local tuple = table.create(#includes)
+    local values = source.values
+
+    local last_pos = #includes
+    local tuple = table.create(last_pos)
 
     clear_invalidation_flag(source)
 
@@ -930,20 +927,33 @@ local function multi(
             local id = BUFFER_GET(entities, i)
             local key = ID_KEY(id)
             
-            if excludes and has_any(excludes, key) then continue end
+            if excludes and HAS_ANY(excludes, key) then continue end
 
             local has_all = true
-            for ii, pool in next, includes do
-                if POOL_NOT_CONTAINS(pool, key) then has_all = false; break end
-                local idx_ver = BUFFER_GET(pool.map, key)
+
+            for pos = 1, source_pos - 1 do
+                local pool = includes[pos]
+                local idx_ver = POOL_FIND(pool, key)
                 if idx_ver == ID_NULL then has_all = false; break end
-                tuple[ii] = ARRAY_GET(pool.values, ID_KEY(idx_ver))
+                tuple[pos] = ARRAY_GET(pool.values, ID_KEY(idx_ver))
             end
+
             if has_all == false then continue end
             
+            for pos = source_pos + 1, last_pos do
+                local pool = includes[pos]
+                local idx_ver = POOL_FIND(pool, key)
+                if idx_ver == ID_NULL then has_all = false; break end
+                tuple[pos] = ARRAY_GET(pool.values, ID_KEY(idx_ver))
+            end
+
+            if has_all == false then continue end
+
+            tuple[source_pos] = ARRAY_GET(values, i)
             n = i
             return id, unpack(tuple)
         end
+
         return ASSERT_INVALIDATION(source)
     end
 end
@@ -965,11 +975,17 @@ View = {}
 View.__index = View
 
 function View.new<T...>(reg: IRegistry, ...: T...): View<T...>
-    assert(select("#", ...) > 0, "no components given")
+    local includes = {}
+
+    for i = 1, select("#", ...) do
+        local ctype = select(i, ...)
+        ASSERT(ctype_valid(ctype), `invalid {ctype_debug(ctype, i)}`)
+        table.insert(includes, ctype)
+    end
 
     local self: _View<T...> = setmetatable({
         registry = reg,
-        includes = {},
+        includes = includes,
         excludes = nil,
         lead = nil,
 
@@ -983,7 +999,7 @@ function View.new<T...>(reg: IRegistry, ...: T...): View<T...>
 
             for i = 1, select("#", ...) do
                 local ctype = select(i, ...)
-                ASSERT(ctype_valid(ctype), `invalid {ctype_debug(nil, i)}`)
+                ASSERT(ctype_valid(ctype), `invalid {ctype_debug(ctype, i)}`)
                 ASSERT(not table.find(includes, ctype), `cannot exclude {ctype_debug(ctype, i)}, component is a part of the view`)
                 if table.find(excludes, ctype) then continue end
                 table.insert(excludes, ctype)
@@ -993,7 +1009,7 @@ function View.new<T...>(reg: IRegistry, ...: T...): View<T...>
         end,
 
         use = function<T>(self: _View<T...>, ctype: T): _View<T...>
-            ASSERT(ctype_valid(ctype), `invalid component type`)
+            ASSERT(ctype_valid(ctype), "invalid component type")
             ASSERT(table.find(self.includes, ctype), "cannot lead with component; component is not a part of the view")
             self.lead = ctype
             return self
@@ -1014,26 +1030,8 @@ function View.new<T...>(reg: IRegistry, ...: T...): View<T...>
 
         __len = function(self: _View<T...>): number
             return smallest(get_pools(self.registry, self.includes)).size
-        end,
-
-        --__index = strict("View")
+        end
     })
-
-    local includes = self.includes
-
-    for i = 1, select("#", ...) do
-        local ctype = select(i, ...)
-
-        if not ctype_valid(ctype) then
-            ASSERT(false, `invalid { ctype_debug(nil, i) }`)
-        end
-
-        if table.find(includes, ctype) then
-            ASSERT(false, `duplicate { ctype_debug(ctype, i) } included`)
-        end
-
-        table.insert(includes, ctype)
-    end
 
     return self
 end
@@ -1061,10 +1059,18 @@ Observer = {}
 Observer.__index = Observer
 
 function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
+    local includes = {}
+
+    for i = 1, select("#", ...) do
+        local ctype = select(i, ...)
+        ASSERT(ctype_valid(ctype), `invalid {ctype_debug(nil, i)}`)
+        table.insert(includes, ctype)
+    end
+
     local self: _Observer<T...> = setmetatable({
         registry = reg,
-        pool = POOL_CREATE(), -- treat all initial ids as changed
-        includes = {},
+        pool = pool_create(), -- treat all initial ids as changed
+        includes = includes,
         excludes = nil,
         connections = nil,
         persistent = false,
@@ -1078,15 +1084,8 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
         
             for i = 1, select("#", ...) do
                 local ctype = select(i, ...)
-
-                if not ctype_valid(ctype) then
-                    ASSERT(false, `invalid { ctype_debug(nil, i) }`)
-                end
-
-                if table.find(self.includes, ctype) then
-                    ASSERT(false, `cannot exclude { ctype_debug(ctype, i) }, component is being tracked`)
-                end
-
+                ASSERT(ctype_valid(ctype), `invalid {ctype_debug(ctype, i)}`)
+                ASSERT(not table.find(self.includes, ctype), `cannot exclude { ctype_debug(ctype, i) }, component is being tracked`)
                 if table.find(excludes, ctype) then continue end
                 table.insert(excludes, ctype)
             end
@@ -1114,17 +1113,14 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
             for i, ctype in includes do
                 local function added_or_changed_listener(id)
                     local key = ID_KEY(id)
-                
                     POOL_CHECK_MAP_SIZE(pool, key)
-                    local map = pool.map
-                
-                    local idx_ver = BUFFER_GET(map, key)
-                
+                    local idx_ver = BUFFER_GET(pool.map, key)
+
                     if idx_ver == ID_NULL then
                         local n = pool.size
                         POOL_CHECK_ENTITIES_SIZE(pool, n)
                         pool.size = n + 1
-                        BUFFER_SET(map, key, ID_SWAP_KEY(id, n))
+                        BUFFER_SET(pool.map, key, ID_REPLACE(id, n))
                         BUFFER_SET(pool.entities, n, id)
                     end 
                 end
@@ -1132,23 +1128,21 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
                 local function removed_listener(id: number)
                     local map = pool.map
                     local entities = pool.entities
-                
+
                     local key = ID_KEY(id)
-                
-                    if POOL_NOT_CONTAINS(pool, key) then return end
-                    local idx_ver = BUFFER_GET(map, key)
-                
+                    local idx_ver = POOL_FIND(pool, key)
+
                     if idx_ver ~= ID_NULL then
-                        local n = pool.size - 1; pool.size = n
+                        local n = pool.size - 1
+                        pool.size = n
                         local idx = ID_KEY(idx_ver)
-                        local last_id = BUFFER_GET(entities, n)
-                        local last_key = ID_KEY(last_id)
+                        local id_last = BUFFER_GET(entities, n)
                 
-                        BUFFER_SET(map, last_key, ID_SWAP_KEY(last_id, idx))
+                        BUFFER_SET(map, ID_KEY(id_last), ID_REPLACE(id_last, idx))
                         BUFFER_SET(map, key, ID_NULL)
                         
-                        BUFFER_SET(entities, idx, last_id)
-                        BUFFER_SET(entities, n, ID_NULL)
+                        BUFFER_SET(entities, idx, id_last)
+                        --BUFFER_SET(entities, n, ID_NULL)
                     end
                 end
                 
@@ -1168,7 +1162,7 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
         end,
 
         clear = function(self: _Observer<T...>): _Observer<T...>
-            POOL_CLEAR(self.pool)
+            pool_clear(self.pool)
             return self
         end
     }, {
@@ -1178,7 +1172,6 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
             local includes = get_pools(reg, self.includes)
             local excludes = self.excludes and get_pools(reg, self.excludes)
             local persist = self.persistent
-        
         
             local n = pool.size
             local entities = pool.entities
@@ -1191,11 +1184,14 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
         
             return if #includes == 1 and not excludes then 
                     function()
-                        local i = n - 1; n = i
-                        if i == -1 then
+                        local i = n - 1
+                        n = i
+
+                        if i < 0 then
                             if not persist then self:clear() end
-                            return nil :: any
+                            return NIL
                         end
+
                         local id = BUFFER_GET(entities, i)
                         local key = ID_KEY(id)
    
@@ -1210,19 +1206,21 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
                             local id = BUFFER_GET(entities, i)
                             local key = ID_KEY(id)
         
-                            if excludes and has_any(excludes, key) then continue end
+                            if excludes and HAS_ANY(excludes, key) then continue end
         
                             local has_all = true
-                            for ii, pool in next, includes do
-                                local idx_ver = BUFFER_GET(pool.map, key)
+                            for pos, pool in next, includes do
+                                local idx_ver = POOL_FIND(pool, key) -- todo: guarantee
                                 if idx_ver == ID_NULL then has_all = false; break end
-                                tuple[ii] = ARRAY_GET(pool.values, ID_KEY(idx_ver))
+                                tuple[pos] = ARRAY_GET(pool.values, ID_KEY(idx_ver))
                             end
+
                             if has_all == false then continue end
         
                             n = i
                             return id, unpack(tuple)
                         end
+
                         if not persist then self:clear() end
                     return nil :: any, nil :: any
                 end
@@ -1230,19 +1228,8 @@ function Observer.new<T...>(reg: IRegistry, ...: T...): Observer<T...>
 
         __len = function(self: _Observer<T...>): number
             return self.pool.size
-        end,
-
-        --__index = strict("Observer")
+        end
     })
-
-    local includes = self.includes
-
-    for i = 1, select("#", ...) do
-        local ctype = select(i, ...)
-        ASSERT(ctype_valid(ctype), `invalid { ctype_debug(nil, i) }`)
-        ASSERT(not table.find(includes, ctype), `duplicate { ctype_debug(ctype, i) } included`)
-        table.insert(includes, ctype)
-    end
 
     return self:reconnect()
 end
@@ -1259,9 +1246,18 @@ Group = {}
 Group.__index = Group
 
 function Group.new<T...>(reg: Registry, data: GroupData, ...: T...): Group<T...>
+    local pools = {}
+
+    for i = 1, select("#", ...) do
+        local ctype = select(i, ...)
+        local pool = reg:storage(ctype)
+        assert(table.find(data, pool), "component type is not in group")
+        pools[i] = pool 
+    end
+
     local self: _Group<T...> = setmetatable({
         data = data,
-        pools = {}
+        pools = pools
     }, {
         __iter = function(self: _Group<T...>): () -> (entity, T...)
             local pools = self.pools
@@ -1278,7 +1274,8 @@ function Group.new<T...>(reg: Registry, data: GroupData, ...: T...): Group<T...>
                 return function()
                     local ari = n
                     if ari == 0 then return NIL end
-                    local i = ari - 1; n = i
+                    local i = ari - 1
+                    n = i
                     return BUFFER_GET(entities, i), a[ari]  
                 end
             elseif #pools == 2 then
@@ -1286,7 +1283,8 @@ function Group.new<T...>(reg: Registry, data: GroupData, ...: T...): Group<T...>
                 return function()
                     local ari = n
                     if ari == 0 then return NIL end
-                    local i = ari - 1; n = i
+                    local i = ari - 1
+                    n = i
                     return BUFFER_GET(entities, i), a[ari], b[ari] 
                 end
             elseif #pools == 3 then
@@ -1294,7 +1292,8 @@ function Group.new<T...>(reg: Registry, data: GroupData, ...: T...): Group<T...>
                 return function()
                     local ari = n
                     if ari == 0 then return NIL end
-                    local i = ari - 1; n = i
+                    local i = ari - 1
+                    n = i
                     return BUFFER_GET(entities, i), a[ari], b[ari], c[ari]
                 end
             elseif #pools == 4 then
@@ -1302,7 +1301,8 @@ function Group.new<T...>(reg: Registry, data: GroupData, ...: T...): Group<T...>
                 return function()
                     local ari = n
                     if ari == 0 then return NIL end
-                    local i = ari - 1; n = i
+                    local i = ari - 1
+                    n = i
                     return BUFFER_GET(entities, i), a[ari], b[ari], c[ari], d[ari]
                 end
             else
@@ -1310,9 +1310,10 @@ function Group.new<T...>(reg: Registry, data: GroupData, ...: T...): Group<T...>
                 return function()
                     local ari = n
                     if ari == 0 then return NIL end
-                    local i = ari - 1; n = i
-                    for ii, v in next, values do
-                        tuple[ii] = v[ari]
+                    local i = ari - 1
+                    n = i
+                    for pos, v in next, values do
+                        tuple[pos] = v[ari]
                     end
                     return BUFFER_GET(entities, i), unpack(tuple)
                 end
@@ -1321,17 +1322,8 @@ function Group.new<T...>(reg: Registry, data: GroupData, ...: T...): Group<T...>
 
         __len = function(self: _Group<T...>): number
             return self.data.size
-        end,
-
-        --__index = strict("Group")
+        end
     })
-
-    for i = 1, select("#", ...) do
-        local ctype = select(i, ...)
-        local pool = reg:storage(ctype)
-        assert(table.find(data, pool), "component type is not in group")
-        self.pools[i] = pool 
-    end
 
     return self
 end
@@ -1368,7 +1360,7 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
             signal = signal,
             fn = fn,
             id = id,
-            connected = true, -- track in case of id reuse
+            connected = true,
 
             disconnect = function(self: _Connection<T...>)
                 if self.connected then
@@ -1391,7 +1383,7 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
 
     function Signal.new<T...>(): _Signal<T...>
         local self: _Signal<T...> = {
-            pool = POOL_CREATE(),
+            pool = pool_create(),
             count = 0,
 
             connect = function(self: _Signal<T...>, listener: (T...) -> ()): _Connection<T...>
@@ -1468,25 +1460,25 @@ local function registry_create(): Registry
 
     local registry = {}
 
-    local entity_pool = ENTITY_POOL_CREATE()
-
-    local ctype_pools: Map<CType, Pool<unknown>> = table.create(MAX_CTYPE)
-
+    local entity_pool = entity_pool_create()
+    
     local signals = {
         added = {} :: Map<CType, Signal<entity, unknown>>,
         changed = {} :: Map<CType, Signal<entity, unknown>>,
         removed = {} :: Map<CType, Signal<entity, nil>>
     }
-
-    -- lazily create pools on nil index to avoid having to check everywhere
+    
+    local handle_cache = {} :: Map<entity?, Handle?>
+    setmetatable(handle_cache :: any, { __mode = "v" })
+    
+    local ctype_pools: Map<CType, Pool<unknown>> = table.create(MAX_CTYPE)
     setmetatable(ctype_pools, {
         __index = function(self, ctype: CType): Pool<unknown>
             ASSERT(ctype_valid(ctype), "invalid component type")
-            ASSERT(ctype ~= ctype_entity, "cannot use entity type")
+            ASSERT(ctype ~= ctype_entity, "attempt to use entity type")
             ASSERT(ctype :: number <= MAX_CTYPE, `cannot use {ctype_debug(ctype)}, component must be created before registry creation`)
-            local pool = POOL_CREATE(1)
+            local pool = pool_create(1)
             self[ctype] = pool
-            ctype_pools[ctype] = pool
             return pool
         end
     })
@@ -1514,11 +1506,8 @@ local function registry_create(): Registry
         end
 
         local pool = GET_POOL((...))
-
-        -- add any entities already in pools to group
-        local entities = pool.entities
         for i = 0, pool.size - 1 do
-            POOL_TRY_GROUP(pool, BUFFER_GET(entities, i))
+            POOL_TRY_GROUP(pool, BUFFER_GET(pool.entities, i))
         end
 
         return group
@@ -1529,23 +1518,26 @@ local function registry_create(): Registry
     end
 
     function registry.create(self: Registry, id: entity?): entity
-        ASSERT(entity_pool.size < ID_MASK_KEY, "cannot create entity; registry is at max entities")
-        return id and ENTITY_POOL_REUSE(entity_pool, id) or ENTITY_POOL_ADD(entity_pool)
+        ASSERT(entity_pool.size < ID_MAX_CAPACITY, "cannot create entity; registry is at max entities")
+        return id and entity_pool_use(entity_pool, id) or entity_pool_add(entity_pool)
     end
 
     function registry.release(self: Registry, id: entity)
         ASSERT_VALID_ENTITY(id)
-        ENTITY_POOL_REMOVE(entity_pool, id)
+        entity_pool_remove(entity_pool, id)
     end
 
     function registry.destroy(self: Registry, id: entity)
         ASSERT_VALID_ENTITY(id)
-        
+        local key = ID_KEY(id)
+
         for _, pool in next, ctype_pools do
-            POOL_TRY_REMOVE(pool, id)
+            if POOL_HAS(pool, key) then
+                POOL_REMOVE(pool, key, id)
+            end
         end
 
-        ENTITY_POOL_REMOVE(entity_pool, id)
+        entity_pool_remove(entity_pool, id)
     end
 
     function registry.contains(self: Registry, id: entity): boolean
@@ -1557,8 +1549,9 @@ local function registry_create(): Registry
         local key = ID_KEY(id)
 
         for _, pool in next, ctype_pools do
-            if BUFFER_GET(pool.map, key) ~= ID_NULL then return false end
+            if POOL_HAS(pool, key) then return false end
         end
+
         return true
     end
 
@@ -1571,16 +1564,17 @@ local function registry_create(): Registry
             local pool = GET_POOL(ctype)
 
             POOL_CHECK_MAP_SIZE(pool, key)
-
             if BUFFER_GET(pool.map, key) ~= ID_NULL then continue end
 
-            local ctor = ctype_ctors[ctype] or ASSERT(false, `no constructor defined for {ctype_debug(ctype, i)}`)
+            local ctor = ctype_ctors[ctype]
 
             if ctor == true then
                 POOL_ADD_ID(pool, id)
+            elseif ctor == false then
+                throw(`no constructor defined for {ctype_debug(ctype, i)}`)
             else
                 local value = (ctor :: () -> unknown)()
-                if value == nil then ASSERT(false, `{ ctype_debug(ctype, i) } constructor did not return a value`) end   
+                if value == nil then throw(`{ ctype_debug(ctype, i) } constructor did not return a value`) end   
                 POOL_ADD(pool, id, value)
             end
         end
@@ -1588,26 +1582,25 @@ local function registry_create(): Registry
     
     function registry.set<T>(self: Registry, id: entity, ctype: T, value: T)        
         local pool = GET_POOL(ctype)
+
         local key = ID_KEY(id)
-
         POOL_CHECK_MAP_SIZE(pool, key)
-
         local idx_ver = BUFFER_GET(pool.map, key)
 
-        if value == nil then -- add tag
-            ASSERT_VALID_ENTITY(id)
-            ASSERT(ctype_is_tag(ctype), "cannot set component value to nil")
-            if idx_ver ~= ID_NULL then return end
-            POOL_ADD_ID(pool, id)
-        else
+        if value ~= nil then -- add tag
             if idx_ver ~= ID_NULL then -- already added, change value
-                ID_ASSERT_VERSIONS_EQUAL(idx_ver, id)
+                ID_ASSERT_VERSION_EQUAL(idx_ver, id)
                 if pool.changed then fire(pool.changed, id, value) end
                 ARRAY_SET(pool.values, ID_KEY(idx_ver), value)
             else -- not added, add value
                 ASSERT_VALID_ENTITY(id)
                 POOL_ADD(pool, id, value)
             end
+        else
+            ASSERT_VALID_ENTITY(id)
+            ASSERT(ctype_is_tag(ctype), "cannot set component value to nil")
+            if idx_ver ~= ID_NULL then return end
+            POOL_ADD_ID(pool, id)
         end
     end
     
@@ -1615,85 +1608,69 @@ local function registry_create(): Registry
         local pool = GET_POOL(ctype)
 
         local key = ID_KEY(id)
-
         POOL_CHECK_MAP_SIZE(pool, key)
-
         local idx_ver = BUFFER_GET(pool.map, key)
 
-        if idx_ver == ID_NULL then
-            ASSERT_VALID_ENTITY(id)
-            local ctor = ctype_ctors[ctype]
-            if ctor == false or ctor == true then
-                ASSERT(false, `entity does not have component and no constructor for {ctype_debug(ctype)}`)
-            end
-            local value = fn((ctor :: () -> T)())
-            ASSERT(value ~= nil, "patcher cannot return nil")
-            POOL_ADD(pool, id, value)
-        else
-            ID_ASSERT_VERSIONS_EQUAL(idx_ver, id)
+        if idx_ver ~= ID_NULL then
+            ID_ASSERT_VERSION_EQUAL(idx_ver, id)
             local idx = ID_KEY(idx_ver)
             local value = fn(ARRAY_GET(pool.values, idx))
             ASSERT(value ~= nil, "patcher cannot return nil")
             if pool.changed then fire(pool.changed, id, value) end
             ARRAY_SET(pool.values, idx, value)
+        else
+            ASSERT_VALID_ENTITY(id)
+            local ctor = ctype_ctors[ctype]
+            if ctor == false or ctor == true then throw(`entity does not have component and no constructor for {ctype_debug(ctype)}`) end
+            local value = fn((ctor :: () -> T)())
+            ASSERT(value ~= nil, "patcher cannot return nil")
+            POOL_ADD(pool, id, value)
         end
     end
 
-    registry.has = (function(self: Registry, id: entity, ...: unknown): boolean
+    registry.has = (function(self: Registry, id: entity, a, b, c, d, e): boolean
         local key = ID_KEY(id)
-        for i = 1, select("#", ...) do
-            local pool = GET_POOL(select(i, ...))
-            if POOL_NOT_CONTAINS(pool, key) then return false end
-            local idx_ver = BUFFER_GET(pool.map, key)
-            if idx_ver == ID_NULL or ID_VERSIONS_NOT_EQUAL(idx_ver, id) then return false end
-        end
-        return true
+        local idx_ver = POOL_FIND(GET_POOL(a), key)
+        return
+            idx_ver ~= ID_NULL and ID_VER(idx_ver) == ID_VER(id) and
+            (b == nil or POOL_FIND(GET_POOL(b), key) ~= ID_NULL) and
+            (c == nil or POOL_FIND(GET_POOL(c), key) ~= ID_NULL) and
+            (d == nil or POOL_FIND(GET_POOL(d), key) ~= ID_NULL) and
+            (e == nil or throw("args exceeded") :: never)
     end :: any) :: <T...>(self: Registry, id: entity, T...) -> boolean
 
-    local function pool_get(ctype: CType, key: number, id: number): unknown
+    local function POOL_GET(ctype: CType, key: number): unknown
         local pool = GET_POOL(ctype)
-        if POOL_NOT_CONTAINS(pool, key) then ASSERT(false, `entity does not have {ctype_debug(ctype)}`) end
-        local idx_ver = BUFFER_GET(pool.map, key)
-        if idx_ver == ID_NULL then ASSERT(false, `entity does not have {ctype_debug(ctype)}`) end
+        local idx_ver = POOL_FIND(pool, key)
+        if idx_ver == ID_NULL then throw("entity does not have " .. ctype_debug(ctype)) end
         return ARRAY_GET(pool.values, ID_KEY(idx_ver)) 
     end
 
-    registry.get = (function(self: Registry, id: entity, a: unknown, ...: unknown): ...unknown
-        local b, c, d, e = ...
-        local key = ID_KEY(id)
-
+    registry.get = (function(self: Registry, id: entity, a, b, c, d, e): ...unknown
         local pool = GET_POOL(a)
-        if POOL_NOT_CONTAINS(pool, key) then ASSERT(false, `entity does not have {ctype_debug(a, 1)}`) end
+    
+        local key = ID_KEY(id)
+        local idx_ver = POOL_FIND(pool, key)
+        if idx_ver == ID_NULL then throw(`entity does not have {ctype_debug(a, 1)}`) end
 
-        local idx_ver = BUFFER_GET(pool.map, key)
-        if idx_ver == ID_NULL then ASSERT(false, `entity does not have {ctype_debug(a, 1)}`) end
-        local idx = ID_KEY(idx_ver)
-        ID_ASSERT_VERSIONS_EQUAL(idx_ver, id)
-        local va = ARRAY_GET(pool.values, idx)
+        ID_ASSERT_VERSION_EQUAL(idx_ver, id)
+        local va = ARRAY_GET(pool.values, ID_KEY(idx_ver))
 
         if b == nil then
             return va
         elseif c == nil then
-            return va, pool_get(b, key, id)
+            return va, POOL_GET(b, key)
         elseif d == nil then
-            return va, pool_get(b, key, id), pool_get(c, key, id)
+            return va, POOL_GET(b, key), POOL_GET(c, key)
         elseif e == nil then
-            return va, pool_get(b, key, id), pool_get(c, key, id), pool_get(d, key, id)
-        else
-            local tuple: Array<any> = { ... }
-            for i, v in next, tuple do
-                tuple[i] = pool_get(v, key, id)
-            end
-            return va, unpack(tuple)
-        end
+            return va, POOL_GET(b, key), POOL_GET(c, key), POOL_GET(d, key)
+        else throw("args exceeded") end
     end :: any) :: <T...>(self: Registry, id: entity, T...) -> T...
 
     function registry.try_get<T>(self: Registry, id: entity, ctype: T): T?
         local pool = GET_POOL(ctype)
-        local key = ID_KEY(id)
-        if not POOL_CONTAINS(pool, key) then return nil end
-        local idx_ver = BUFFER_GET(pool.map, key)
-        if idx_ver == ID_NULL or ID_VERSIONS_NOT_EQUAL(idx_ver, id) then return nil end
+        local idx_ver = POOL_FIND(pool, ID_KEY(id))
+        if idx_ver == ID_NULL or ID_VERSION_NOT_EQUAL(idx_ver, id) then return nil end
         return ARRAY_GET(pool.values, ID_KEY(idx_ver))
     end
 
@@ -1707,10 +1684,10 @@ local function registry_create(): Registry
     function registry.clear<T...>(self: Registry, ...: T...)
         local argn = select("#", ...)
         if argn > 0 then
-            for i = 1, argn do POOL_CLEAR(GET_POOL(select(i, ...))) end
+            for i = 1, argn do pool_clear(GET_POOL(select(i, ...))) end
         else
-            for _, pool in next, ctype_pools do POOL_CLEAR(pool) end
-            ENTITY_POOL_CLEAR(entity_pool)
+            for _, pool in next, ctype_pools do pool_clear(pool) end
+            entity_pool_clear(entity_pool)
         end 
     end
 
@@ -1727,14 +1704,13 @@ local function registry_create(): Registry
     registry.group = nil :: any -- todo: why?
     function registry.group<T...>(self: Registry, ...: T...): Group<T...>
         local argn = select("#", ...)
-        ASSERT(argn > 1, "groups must contain at least 2 components")
+        ASSERT(argn > 1, "group must contain at least 2 components")
         local group = GET_POOL((select(1, ...))).group :: GroupData<unknown>
 
         for i = 1, argn do
             local ctype = select(i, ...)
-            ASSERT(ctype_valid(ctype), `invalid { ctype_debug(nil, i) }`)
-            ASSERT(GET_POOL(ctype).group == group,
-                `cannot create group; {ctype_debug(ctype, i)} is not owned by the same group as previous args`)
+            ASSERT(ctype_valid(ctype), `invalid {ctype_debug(nil, i)}`)
+            ASSERT(GET_POOL(ctype).group == group, `cannot create group; {ctype_debug(ctype, i)} is not owned by the same group as previous args`)
         end
 
         return Group.new(self, group or group_init(...), ...)
@@ -1783,15 +1759,12 @@ local function registry_create(): Registry
         end)() :: Signal<entity, nil>
     end
 
-    local handle_cache = {} :: Map<entity?, Handle?>
-    setmetatable(handle_cache :: any, { __mode = "v" })
-
     function registry.handle(self: Registry, id: entity?): Handle
         id = id or self:create()
 
         local handle = handle_cache[id]
 
-        if handle == nil then
+        if not handle then
             handle = table.freeze(setmetatable({
                 registry = self,
                 entity = id :: entity
@@ -1800,13 +1773,11 @@ local function registry_create(): Registry
             handle_cache[id] = handle
         end
 
-        return handle :: Handle
+        return assert(handle)
     end
 
     function registry.context(self: Registry): Handle
-        if not self:contains(ID_CTX) then
-            self:create(ID_CTX)
-        end
+        if not self:contains(ID_CTX) then self:create(ID_CTX) end
         return self:handle(ID_CTX)  
     end
 
@@ -1831,29 +1802,26 @@ local Queue = {} do
             columns = {}
         }, Queue) :: any
 
-        -- create new column lazily on nil index to avoid
-        -- having to check when adding every time
         setmetatable(self.columns, {
             __index = function(columns: Array<Array<unknown>>, idx: number)
-                local new = {}
-                columns[idx] = new
-                return new
+                columns[idx] = {}
+                return columns[idx]
             end
         })
 
-        return (self :: any) :: Queue<T...>
+        return self :: Queue<T...>
     end
 
     function Queue.add(self: _Queue, ...: unknown)
         -- iteration will stop if first value is `nil`
-        if ... == nil then ASSERT(false, "first value cannot be nil") end
+        ASSERT((...) ~= nil, "first argument cannot be nil")
 
         local columns = self.columns
-        local n = self.size + 1; self.size = n
+        local n = self.size + 1
+        self.size = n
 
         for i = 1, select("#", ...) do
-            local arg = select(i, ...)
-            columns[i][n] = arg
+            columns[i][n] = select(i, ...)
         end
     end
 
@@ -1864,19 +1832,12 @@ local Queue = {} do
         end
     end
 
-    function Queue.__len(self: _Queue)
-        return self.size
-    end
-
     function Queue.__iter(self: _Queue)
+        local columns = self.columns
         local n = self.size
         local i = 0
-        local columns = self.columns
 
-        if #columns == 0 then
-            return function() end
-
-        elseif #columns == 1 then
+        if #columns <= 1 then
             local column = columns[1]
             return function()
                 i += 1
@@ -1884,8 +1845,7 @@ local Queue = {} do
                 if i == n then self:clear() end
                 return value
             end
-
-        else--if #columns > 1 then
+        else
             local tuple = table.create(#columns)
             return function()
                 i += 1
@@ -1897,27 +1857,35 @@ local Queue = {} do
             end
         end
     end
+
+    function Queue.__len(self: _Queue)
+        return self.size
+    end
 end
 
-type SignalInterface<T...> = {
+type ISignal<T...> = {
     connect: (self: any, listener: (T...) -> ()) -> ()
 } | {
     Connect: (self: any, listener: (T...) -> ()) -> ()
 }
 
-local queue_create = function<T...>(signal: SignalInterface<T...>?): Queue<T...>
+local queue_create = function<T...>(signal: ISignal<T...>?): Queue<T...>
     local queue = Queue.new()
 
     if signal then
         local connector = (signal :: any).connect or (signal :: any).Connect
-        ASSERT(connector, "signal has no connector")
+        ASSERT(connector, "signal has no member `connect()`")
         connector(signal, function(...: T...)
             queue:add(...)
         end)
     end
 
     return queue
-end :: ( <T...>() -> Queue<T...> ) & ( <T...>(signal: SignalInterface<T...>) -> Queue<T...> )
+end :: ( <T...>() -> Queue<T...> ) & ( <T...>(signal: ISignal<T...>) -> Queue<T...> )
+
+--------------------------------------------------------------------------------
+-- buffer util
+--------------------------------------------------------------------------------
 
 local function buffer_to_array(buf: buffer, size: number, arr: Array<entity>?): Array<entity>
     ASSERT(size * ID_SIZE <= buffer.len(buf), "buffer is smaller than given size")
@@ -1950,41 +1918,42 @@ end
 local ecr = {
     registry = registry_create,
 
-    component = function(constructor)
-        ASSERT(
-            constructor == nil or type(constructor) == "function",
-            "constructor must be a function"
-        )
-        return ctype_create(constructor)
+    component = function(constructor: () -> ()?)
+        ASSERT(constructor == nil or type(constructor) == "function", "constructor must be a function")
+        return ctype_create(constructor or false)
     end :: (() -> unknown) & (<T>(constructor: () -> T) -> T),
 
     tag = ctype_create_tag :: () -> nil,
-
-    entity = ctype_entity,
 
     is_tag = function<T>(ctype: T): boolean
         ASSERT(ctype_valid(ctype), "invalid component")
         return ctype_is_tag(ctype)
     end,
-
+    
     name = function<T>(names: T & {}): T
         for name, ctype in next, names do
             ASSERT(ctype_valid(ctype), `{name} refers to an invalid component`)
-            ctype_name(ctype, name)
+            ctype_set_name(ctype, name)
         end
-        table.freeze(names)
+
         return names
     end,
-
+    
     queue = queue_create,
-
-    null = ID_NULL,
-    context = ID_CTX,
-
+    
     array_to_buffer = array_to_buffer,
     buffer_to_array = buffer_to_array,
+
+    entity = ctype_entity,
+    null = ID_NULL,
+    context = ID_CTX,
     id_size = ID_SIZE,
 
+    extract = function(id: entity): (number, number)
+        local key, ver = ID_KEY(id), ID_VER(id)
+        return key, ver * ID_RSHIFT
+    end,
+    
     _test = table.freeze {
         defer_id_reuse = DEFER_ID_REUSE,
         ver_shift = ID_LSHIFT,
@@ -1997,11 +1966,6 @@ local ecr = {
 
         create_id = function(key: number, ver: number)
             return ID_CREATE(key, ver * ID_LSHIFT)
-        end,
-
-        extract = function(id: entity): (number, number)
-            local key, ver = ID_KEY_VER(id)
-            return key, ver * ID_RSHIFT
         end,
 
         set_key_version = function(pool: EntityPool, key: number, ver: number)

@@ -1,7 +1,7 @@
 # Pool
 
-The core datastructure used by the registry internally to store entities
-and component values for each component type.
+The container used by the registry internally to store entities and component
+values for each component type.
 
 ## Properties
 

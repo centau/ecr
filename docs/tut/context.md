@@ -23,5 +23,5 @@ registry:set(ecr.context, Round, 1)
 ```
 
 This entity is treated the same as any other entity, it will appear in views and
-run listeners when it is created or components changed, so your systems treat it
+fire signals when it is created or components changed, so your systems treat it
 the same as other entities.

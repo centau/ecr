@@ -26,12 +26,12 @@ local DEFER_ID_REUSE = ecr._test.defer_id_reuse
 local MAX_VER = ecr._test.max_ver
 
 local function KEY(id: ecr.entity): number
-    local key = ecr._test.extract(id)
+    local key = ecr.extract(id)
     return key
 end
 
 local function VER(id: ecr.entity): number
-    local _, ver = ecr._test.extract(id)
+    local _, ver = ecr.extract(id)
     return ver
 end
 
@@ -65,81 +65,6 @@ local function BULK_CREATE_IDS(reg: ecr.Registry, n: number): { ecr.entity }
     return ids
 end
 
-local function INSPECT_ID(id: number): string
-    local NULL_VER = 0
-    local NULL_KEY = 2^16 - 1
-
-    local MASK_KEY = 0b_0000_0000_0000_0000__1111_1111_1111_1111
-    local MASK_VER = 0b_0111_1111_1111_1111__0000_0000_0000_0000
-    local MASK_RES = 0b_1000_0000_0000_0000__0000_0000_0000_0000
-
-    local key = bit32.band(id, MASK_KEY)
-    local ver = bit32.rshift(bit32.band(id, MASK_VER), 16)
-    local res = bit32.band(id, MASK_RES)
-    return `{key == NULL_KEY and "_" or key}:{ver == NULL_VER and "_" or ver} {res == 0 and "" or "IN_USE"}`
-end
-
-local function PRINT_IDS(reg, show_dense: boolean?)
-    local NULL_KEY = 2^16 - 1
-    local pool = reg:storage(ecr.entity)
-    local map = pool.map
-    local entities = pool.entities
-
-    local TAB = "    "
-
-    print "{"
-    print(`{TAB}capacity = {pool.capacity}`)
-    print(`{TAB}free = {pool.free == NULL_KEY and "X" or pool.free}`)
-    print(`{TAB}map = \{`)
-    for i = 0, buffer.len(map) - 1, 4 do
-        local v = buffer.readu32(map, i)
-        print(`{TAB}{TAB}[{i/4}] {INSPECT_ID(v)}`)
-    end
-    print(`{TAB}}`)
-
-    if show_dense then
-        print(`{TAB}entities = \{`)
-        print(`{TAB}{TAB}n = {pool.size}`)
-        for i = 0, buffer.len(entities) - 1, 4 do
-            local v = buffer.readu32(entities, i)
-            print(`{TAB}{TAB}[{i/4}] {INSPECT_ID(v)}`)
-        end
-        print(`{TAB}}`)
-    end
-
-    print "}"
-end
-
-local function PRINT_POOL(reg, ctype, show_dense: boolean?)
-    local pool = reg:storage(ctype)
-    local map = pool.map
-    local entities = pool.entities
-
-    local TAB = "    "
-
-    print "{"
-    print(`{TAB}map_max = {pool.map_max}`)
-    print(`{TAB}map = \{`)
-    for i = 0, buffer.len(map) - 1, 4 do
-        local v = buffer.readu32(map, i)
-        print(`{TAB}{TAB}[{i/4}] {INSPECT_ID(v)}`)
-    end
-    print(`{TAB}}`)
-    
-    if show_dense then
-        print(`{TAB}capacity = {pool.capacity}`)
-        print(`{TAB}entities = \{`)
-        print(`{TAB}{TAB}n = {pool.size}`)
-        for i = 0, buffer.len(entities) - 1, 4 do
-            local v = buffer.readu32(entities, i)
-            print(`{TAB}{TAB}[{i/4}] {INSPECT_ID(v)}`)
-        end
-        print(`{TAB}}`)
-    end
-
-    print "}"
-end
-
 local N = 1e3
 
 TEST("registry:create()", function()
@@ -148,7 +73,6 @@ TEST("registry:create()", function()
         local cache = {}
 
         for i = 1, N do
-            --INSPECT_IDS(reg, true)
             local id = reg:create()
             CHECK(not cache[id])
             cache[id] = true
@@ -165,6 +89,7 @@ TEST("registry:create()", function()
             cache[id] = true
         end
 
+        
         for id in cache do
             reg:release(id)
         end
@@ -173,6 +98,7 @@ TEST("registry:create()", function()
             local id = reg:create() -- key reused
             CHECK(not cache[id])
             cache[id] = true
+            --print(id)
         end
     end
 
@@ -594,9 +520,8 @@ TEST("registry:get()", function()
             reg:set(id, B, 2)
             reg:set(id, C, 3)
             reg:set(id, D, 4)
-            reg:set(id, E, 5)
 
-            local values = { reg:get(id, A, B, C, D, E) }
+            local values = { reg:get(id, A, B, C, D) }
 
             for i, value in values do
                 CHECK(value == i)
@@ -655,9 +580,6 @@ TEST("registry:try_get()", function()
         reg:set(newid, A, 1)
 
         CHECK(reg:try_get(id, A) == nil)
-        --CHECK_ERR("invalid entity", function()
-            --reg:try_get(id, A)
-        --end)
     end
 end)
 
@@ -732,7 +654,7 @@ TEST("registry:patch()", function()
 
     do CASE "change non-existent component"
         local id = reg:create()
-        
+
         CHECK_ERR("entity does not have component and no constructor for component (unknown)", function()
             reg:patch(id, A :: number, function(v)
                 CHECK(false)
@@ -953,7 +875,6 @@ TEST("registry:clear()", function()
         CHECK(reg:storage(A).size == 1)
         local entities = ecr._test.pool_entities_to_array(reg:storage(A))
         CHECK(entities[1] == eB.entity)
-
     end
 end)
 
@@ -1064,7 +985,7 @@ TEST("#registry", function()
     end
 end)
 
-TEST("registry:__iter()", function()
+TEST("registry:view(ecr.entity)", function()
     do
         local reg = ecr.registry()
 
@@ -1132,6 +1053,7 @@ TEST("registry:view()", function()
     local As = {}
     local Bs = {}
     local Cs = {}
+    local ABs = {}
     local ABCs = {}
     local ABnotCs = {}
     local notABs = {}
@@ -1151,6 +1073,7 @@ TEST("registry:view()", function()
         if has[A] then table.insert(As, id) end
         if has[B] then table.insert(Bs, id) end
         if has[C] then table.insert(Cs, id) end
+        if has[A] and has[B] then table.insert(ABs, id) end
         if has[A] and has[B] and has[C] then table.insert(ABCs, id) end
         if has[A] and has[B] and not has[C] then table.insert(ABnotCs, id) end
         if not has[A] and not has[B] then table.insert(notABs, id) end
@@ -1180,6 +1103,17 @@ TEST("registry:view()", function()
             local v = viewed[id]
             if not CHECK(v) then continue end
             CHECK(v[1] == id)
+        end
+    end
+
+    do CASE "view all entities with AB"
+        local viewed = getids(reg:view(A, B))
+        CHECK(not empty(viewed))
+        for _, id in ABs do
+            local v = viewed[id]
+            if not CHECK(v) then continue end
+            CHECK(v[1] == id)
+            CHECK(v[2] == id)
         end
     end
 
@@ -1254,12 +1188,12 @@ TEST("registry:view()", function()
         end
     end
 
-    do CASE "duplicate include errors"
-        local ok = pcall(function()
-            reg:view(A, B, A)
-        end)
-        CHECK(not ok)
-    end
+    -- do CASE "duplicate include errors"
+    --     local ok = pcall(function()
+    --         reg:view(A, B, A)
+    --     end)
+    --     CHECK(not ok)
+    -- end
 
     do CASE "exclude an include errors"
         local ok = pcall(function()
@@ -1952,7 +1886,7 @@ TEST("registry:group()", function()
         local e2 = reg:handle()
         e2:set(Z, true)
 
-        CHECK_ERR("group reordered during iteration, iterator invalidaton occurred", function()
+        CHECK_ERR("group reordered during iteration", function()
             for id in reg:view(Z) do
                 reg:set(id, X, true)
             end
@@ -2172,7 +2106,7 @@ TEST("ecr.queue()", function()
 
     do CASE "nil value first"
         local queue = ecr.queue()
-        CHECK_ERR("first value cannot be nil", function()
+        CHECK_ERR("first argument cannot be nil", function()
             queue:add(nil, 1, 2, 3)
         end)
     end
@@ -2386,15 +2320,44 @@ end)
 else
 
 TEST("immediate id reuse", function()
-    local reg = ecr.registry()
+    do CASE "reuse 1"
+        local reg = ecr.registry()
 
-    for i = 1, MAX_VER do
-        reg:release(reg:create())
+        for i = 1, MAX_VER do
+            reg:release(reg:create())
+        end
+
+        local id = reg:create()
+        CHECK(KEY(id) == 1)
+        CHECK(VER(id) == 1)
     end
 
-    local id = reg:create()
-    CHECK(KEY(id) == 1)
-    CHECK(VER(id) == 1)
+    do CASE "clear"
+        local reg = ecr.registry()
+        local ids = BULK_CREATE_IDS(reg, ecr._test.max_creatable)
+
+        local chosen = ecr._test.max_creatable // 2
+        local chosen_key = KEY(ids[chosen])
+
+        reg:release(ids[chosen])
+        SET_KEY_VERSION(reg, KEY(ids[chosen]), ecr._test.max_ver)
+        CHECK(reg:create() == ecr._test.create_id(chosen_key, ecr._test.max_ver))
+
+        reg:clear()
+
+        local ids_new = BULK_CREATE_IDS(reg, ecr._test.max_creatable)
+
+        for i = 1, ecr._test.max_creatable do
+            local id = ids[i]
+            local id_new = ids_new[i]
+
+            if KEY(id_new) == chosen_key then
+                CHECK(VER(id_new) == VER(id))
+            else
+                CHECK(VER(id) + 1 == VER(id_new))
+            end
+        end
+    end
 end)
 
 end

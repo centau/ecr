@@ -1,6 +1,6 @@
 # Tags
 
-Tags are a special component type that stores no value.
+Tags are special component types that store no value.
 
 A tag can be created with:
 
@@ -8,9 +8,9 @@ A tag can be created with:
 local Tag = ecr.tag()
 ```
 
-Tags types are used in the same way as any other type, except they don't have a
-value. They are useful for marking entities in a certain state, and are more
-efficient than something like `ecr.component() :: true`.
+Tags types are used in the same way as any other component type. They are useful
+for marking entities in some state, and are more efficient than something like
+`ecr.component() :: true`.
 
 Example usage:
 

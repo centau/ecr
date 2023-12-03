@@ -76,7 +76,7 @@ to worry about it until it happens.
 While views are fast, in certain situations like where a view contains many
 components, iteration of a view may be the bottleneck of a system.
 In such cases, by grouping components together, iteration becomes as fast as
-possible at the cost of the above limitations.
+possible, removing the bottleneck.
 
 You should only use grouping when you have profiled and identified that the
-iteration of a view is the bottleneck of a system.
+iteration of a view is a system bottleneck.

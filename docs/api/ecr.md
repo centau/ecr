@@ -29,7 +29,7 @@ Creates a new component type.
 
     Returns a unique id representing a new component type.
 
-    Component types can be given a constructor which can be invoked when
+    Can be given a constructor which can be invoked when
     [`registry:add()`](Registry#add.md) or
     [`registry:patch()`](Registry#patch.md) is used.
 
@@ -104,9 +104,9 @@ Creates a new queue.
 
 - **Details**
 
-    Accepts any signal object that matches the given interface. Will
+    Can accept any signal object that matches the interface to
     automatically connect a callback where any arguments it is called with are
-    queued.
+    added to the queue.
 
 --------------------------------------------------------------------------------
 
@@ -117,15 +117,13 @@ Associates names with components for debugging.
 - **Type**
 
     ```lua
-    function ecr.name<T>(names: T & Map<string, Component>) -> T
+    function ecr.name<T>(names: T & Map<string, unknown>) -> T
     ```
 
 - **Details**
 
     Allows for errors raised to display the component name instead of its
     argument position.
-
-    The table returned is the same table object given and is also frozen.
 
 --------------------------------------------------------------------------------
 
@@ -141,7 +139,7 @@ Converts a buffer of entities into an array of entities.
 
 - **Details**
 
-    Copies the first `size` ids into a target array.
+    Copies the first `size` ids from the buffer to a target array.
 
     If no target array is given, one will be created.
 
@@ -159,7 +157,7 @@ Converts an array of entities into a buffer of entities.
 
 - **Details**
 
-    Copies the first `size` ids into a target buffer.
+    Copies the first `size` ids from an array to a target buffer.
 
     If no target buffer is given, one will be created.
 
@@ -167,7 +165,7 @@ Converts an array of entities into a buffer of entities.
 
 ### entity
 
-A special component type that represents entities themselves.
+Special component type that represents entitiesg.
 
 - **Type**
   

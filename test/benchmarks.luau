@@ -373,12 +373,6 @@ do TITLE("get")
         end
     end)
 
-    BENCH("8 components", function()
-        for i = 1, START(N) do
-            reg:get(ids[i], A, B, C, D, E, F, G, H)
-        end
-    end)
-
     BENCH("try 1 component", function()
         for i = 1, START(N) do
             reg:try_get(ids[i], A)
@@ -536,8 +530,8 @@ do TITLE("create view")
 end
 
 do
-    local function viewBench(reg: ecr.Registry)
-        local function getExactSize(view: ecr.View<...any>): number
+    local function view_bench(reg: ecr.Registry)
+        local function exact_size(view: ecr.View<...any>): number
             local i = 0
             for _ in view do
                 i += 1
@@ -548,28 +542,28 @@ do
         BENCH("1 component", function()
             local view = reg:view(A)
 
-            START(getExactSize(view))
+            START(exact_size(view))
             for entity, a in view do end
         end)
 
         BENCH("2 components", function()
             local view = reg:view(A, B)
 
-            START(getExactSize(view))
+            START(exact_size(view))
             for entity, a, b in view do end
         end)
 
         BENCH("4 components", function()
             local view = reg:view(A, B, C, D)
 
-            START(getExactSize(view))
+            START(exact_size(view))
             for entity, a, b, c, d in view do end
         end)
 
         BENCH("8 components", function()
             local view = reg:view(A, B, C, D, E, F, G, H)
 
-            START(getExactSize(view))
+            START(exact_size(view))
             for entity, a, b, c, d, e, f, g, h in view do end
         end)
     end
@@ -589,7 +583,7 @@ do
             reg:set(entity, H, true)
         end
 
-        viewBench(reg)
+        view_bench(reg)
     end
 
     do TITLE("iter view (random)")
@@ -609,7 +603,7 @@ do
             if flip() then reg:set(entity, H, true) end
         end
 
-        viewBench(reg)
+        view_bench(reg)
     end
 
     do TITLE("iter view (random + common)")
@@ -635,7 +629,7 @@ do
             if b and c and d and e and f and g and h then reg:set(entity, A, true) end
         end
 
-        viewBench(reg)
+        view_bench(reg)
     end
 
     do TITLE("iter view (tags)")
@@ -939,44 +933,6 @@ do TITLE("destroy")
     end)
 end
 
--- do TITLE("Direct storage")
---     local reg = REG_INIT(N)
---     local a = reg:storage(A)
---     a:reserve(N)
-
---     local ids = BULK_CREATE_IDS(reg, N)
-
---     BENCH("Add component", function()
---         for i = 1, START(N) do
---             a:set(ids[i], i)
---         end
---     end)
-
---     BENCH("Change component", function()
---         for i = 1, START(N) do
---             a:set(ids[i], i)
---         end
---     end)
-
---     BENCH("Get component", function()
---         for i = 1, START(N) do
---             a:get(ids[i])
---         end
---     end)
-
---     BENCH("Has component", function()
---         for i = 1, START(N) do
---             a:has(ids[i])
---         end
---     end)
-
---     BENCH("Remove component", function()
---         for i = 1, START(N) do
---             a:remove(ids[i])
---         end
---     end)
--- end
-
 do TITLE("contains")
     BENCH("", function()
         local reg = REG_INIT(N)
@@ -1180,7 +1136,7 @@ do TITLE(`practical test ECS ({PN} entities)`)
     BENCH("add tags", function()
         for id, health in world:view(Health) do
             if health <= 0 then
-                world:add(id, Dead)
+                world:set(id, Dead)
             end
         end
     end)

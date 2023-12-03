@@ -20,16 +20,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - All components must be defined before the registry using them is created.
 - Renamed `ecr.Entity` type alias to `ecr.entity`.
 - Property `Pool.entities` is now a `buffer`.
+- Method `Registry:set()` can now also add tags.
 - The context entity does not exist until `Registry:context()` is first called.
 - Renamed `Registry:removing()` to `Registry:removed()`.
-- Observers are now empty when first created.
-- Method `Observer:disconnect()` can only be called on empty observers.
 - Signal `Registry:changed()` now fires *before* the component is changed.
   - New value still given as argument, but now can retrive old value with `Registry:get()`.
+- Observers are now empty when first created.
+- Method `Observer:disconnect()` can only be called on empty observers.
+- Entity id size reduced from 8 bytes to 4 bytes.
+  - Max entities that can exist at once is now `2^16-1` (`65,535`).
 
 ### Removed
 
 - Method `Registry:version()`.
+- Method `Registry:current()`.
 
 ### Improved
 

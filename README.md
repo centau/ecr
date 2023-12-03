@@ -12,15 +12,13 @@
 
 ### ⚠️ This library is in early stages of development with breaking changes being made often.
 
-ECR is a pure Luau ECS library.
+ECR is a Luau ECS library.
 
-- Uses Luau typechecking
 - A library and not a framework
-- Cache friendly sparse-set based storage that can support perfect SoA.
+- Uses typechecking.
+- Sparse-set based storage that can support perfect SoA.
 - Carefully optimized memory usage and performance.
-- Signals and observers for detecting changes to components.
-- Utilities for common practices such as queuing events.
-- ⚡ Blazingly fast
+- Signals for detecting changes to components.
 
 ## Getting started
 

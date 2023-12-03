@@ -8,9 +8,9 @@ are documented here and at the relevant API references.
 ## Signals
 
 - Listeners cannot disconnect other listeners. Listeners can disconnect
-- themselves.
+  themselves.
 
-- The registry cannot be modified by a listener, you cannot add or remove
+- The registry cannot be modified within a listener, you cannot add or remove
   components, and create or destroy entities.
 
 ## Modifing During Iteration
@@ -31,7 +31,7 @@ direct access than views and also modify the values of `Pool.values` directly.
 ## Releasing Ids
 
 - Destroying an entity that still has components with
-[`release()`](Registry#release.md) is undefined behavior.
+[`release()`](Registry#release.md) is *undefined behavior*.
 
 ## Multithreading
 

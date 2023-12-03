@@ -1,8 +1,9 @@
 # Storage
 
 Each component type in the registry has its own [pool](../api/Pool.md). A pool
-stores every entity and their corresponding value for that component type. Pools
-are the underlying containers the registry directly modifies.
+stores every entity that has that component type, and their corresponding value
+for that component type. Pools are the underlying containers the registry
+directly modifies.
 
 ECR was designed with transparent access to data in mind, and so, you can access
 these pools directly if needed.

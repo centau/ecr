@@ -30,7 +30,7 @@ registry:contains(id) -- false
 
 ## Components
 
-A component is data that can be linked to entities.
+A component is data that can be added to entities.
 
 There is the *component type*, which represents a type of data, and there is
 the *component value*, which is a particular value of that type associated with
@@ -111,8 +111,8 @@ All three listeners are called with:
 
 `added` is fired *after* the component is set.
 
-`changed` and `removed` is fired *before* the component is removed, so you can
-still retrieve the old value if needed.
+`changed` and `removed` is fired *before* the component is changed or removed,
+so you can still retrieve the old value if needed.
 
 You cannot modify the registry within a listener, they should only be used to
 help track entities or clean up values.
@@ -120,7 +120,7 @@ help track entities or clean up values.
 ## Observers
 
 An observer is similar to a view, except it only returns entities whose
-components have been changed or added and still have those components at the
+components have been added or changed and still have those components at the
 time of iteration.
 
 An observer can be created using the `Registry:track()` method.
@@ -150,7 +150,7 @@ All components are defined in a single file to keep things organised.
 ```lua [cts.luau]
 local ecr = require(ecr)
 
-return {
+return ecr.name {
     Position = ecr.component() :: Vector3,
     Velocity = ecr.component() :: Vector3,
     Health = ecr.component() :: number
@@ -158,6 +158,9 @@ return {
 ```
 
 :::
+
+`ecr.name` can be used to associate names with components, for clearer error
+messages when debugging.
 
 The library doesn't have any bult-in support for systems, the user is free to
 do this however they please.

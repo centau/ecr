@@ -1,6 +1,6 @@
 # Queue
 
-A class for queuing values to be processed together later.
+Queues values to be processed later.
 
 ## Methods
 
@@ -41,20 +41,22 @@ Clears the queue.
 
 ## Iteration
 
-Queues support generalized iteration.
+Iterates all values added to the queue.
 
-```lua
-for ...: T... in Queue<T...> do
-```
+- **Type**
 
-The queue returns in sets of values passed to `Queue:add()` in the same
-order it was called in.
+    ```lua
+    for ...: T... in Queue<T...> do
+    ```
 
-Values added during iteration are not returned.
+- **Details**
 
-The queue automatically clears itself after iteration.
+    The queue returns in sets of values passed to `Queue:add()` in the same
+    order it was called in.
 
-::: warning
-Adding values during iteration will cause them to be cleared when iteration
-completes and they will never be iterated.
-:::
+    The queue automatically clears itself after iteration.
+
+    ::: warning
+    Adding values during iteration will cause them to be cleared when iteration
+    completes and they will never be iterated.
+    :::

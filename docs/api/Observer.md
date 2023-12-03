@@ -1,9 +1,6 @@
 # Observer
 
-Observers are used to track component changes.
-
-The observer records changed components that can be iterated over and cleared at
-will.
+Observers are used to track component changes, and can be cleared at will.
 
 ## Methods
 
@@ -19,8 +16,8 @@ Excludes entities with the given components from the observer.
 
 - **Details**
 
-    Any entities encountered with *any* of the excluded components, will not be
-    returned during iteration.
+    Entities with *any* of the excluded components, will not be returned during
+    iteration.
 
 --------------------------------------------------------------------------------
 
@@ -56,15 +53,13 @@ Reconnects the Observer and allows it to track changes again.
 
 ### persist()
 
-Stops automatic clearing of its entities when it is iterated.
+Stops automatic clearing of its entities after it is iterated.
 
 - **Type**
 
     ```lua
     function Observer:persist<T...>(): Observer<T...>
     ```
-
-- **Details**
 
 --------------------------------------------------------------------------------
 
@@ -80,37 +75,44 @@ Clears all stored entities.
 
 ## Iteration
 
-Observers support generalized iteration.
+Iterates all entities in the observer.
 
-```lua
-for id: Entity, ...: T... in Observer<T...> do
-```
+- **Type**
 
-The observer will return entities that have had any components given added or
-changed since the last iteration and still have all components given at the time
-of iteration.
+    ```lua
+    for id: Entity, ...: T... in Observer<T...> do
+    ```
 
-The entity followed by the latest component values are returned.
+- **Details**
 
-Components can be added, changed and removed during iteration.
-Components added during iteration are not returned for that iteration.
+    The observer will return entities that had any of the given components added
+    or changed since it was last cleared and still have all given components at
+    the time of iteration.
 
-Will automatically clear the observer unless `Observer:persist()` was called.
+    The entity followed by the latest component values are returned.
 
-::: warning
-Adding values during iteration can cause them to be cleared when iteration
-completes and they will never be iterated.
-:::
+    Components can be added, changed and removed during iteration.
+    Components added during iteration are not returned for that iteration.
 
-::: warning
-During iteration, adding or removing components from entities not currently
-being iterated can invalidate the iterator.
-:::
+    Will automatically clear the observer unless `Observer:persist()` was called
+    when iteration ends.
+
+    ::: warning
+    Adding values during iteration can cause them to be cleared when iteration
+    ends and they will never be iterated.
+    :::
+
+    ::: warning
+    During iteration, adding or removing components from entities not currently
+    being iterated can invalidate the iterator.
+    :::
 
 ## Length
 
 Returns the amount of entities in the observer.
 
-```lua
-#Observer<T...>: number
-```
+- **Type**
+
+    ```lua
+    #Observer<T...>: number
+    ```

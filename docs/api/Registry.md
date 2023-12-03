@@ -3,7 +3,7 @@
 ## Methods
 
 ::: info
-There are certain [*restrictions*](restrictions) with what you can do with the
+There are certain [restrictions](restrictions) with what you can do with the
 registry that you should be aware of.
 :::
 
@@ -196,7 +196,7 @@ Removes the given components from an entity.
 - **Type**
 
     ```lua
-    function Registry:remove<T...>(id: entity, components: T...): ()
+    function Registry:remove<T...>(id: entity, components: T...)
     ```
 
 - **Details**
@@ -212,15 +212,15 @@ Removes all entities and components from the registry.
 - **Type**
 
     ```lua
-    function Registry:clear<T...>(components: T...): ()
+    function Registry:clear<T...>(components: T...)
     ```
 
 - **Details**
 
-    If components are specified, removes all components given from all entities
-    that have that component without destroying the entities.
+    If components are given, removes all given components from all entities
+    without destroying the entities.
 
-    If no components are specified, then all entities in the registry will be
+    If no components are given, then all entities in the registry will be
     destroyed.
 
 --------------------------------------------------------------------------------
@@ -268,8 +268,8 @@ Creates a [`group`](Group.md) with the given component types.
     to a single group.
 
     ::: warning
-    This method introduces restrictions on adding components during views.
-    Read them [here](../tuts/groups.md#limitations).
+    This method introduces [restrictions](../tuts/groups.md#limitations) on
+    adding components during views.
     :::
 
 --------------------------------------------------------------------------------
@@ -315,7 +315,7 @@ added to an entity.
 
 ### changed()
 
-Returns a [signal](Signal) which is fired whenever the given component value is
+Returns a [signal](Signal) which is fired whenever the given component type is
 changed for an entity.
 
 - **Type**
@@ -388,7 +388,7 @@ Returns a [handle](Handle) to the context entity.
 
 - **Details**
 
-    Will automatically created the context entity if it does not already exist.
+    Will automatically create the context entity if it does not already exist.
 
 --------------------------------------------------------------------------------
 
