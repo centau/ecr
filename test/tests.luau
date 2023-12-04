@@ -26,12 +26,12 @@ local DEFER_ID_REUSE = ecr._test.defer_id_reuse
 local MAX_VER = ecr._test.max_ver
 
 local function KEY(id: ecr.entity): number
-    local key = ecr.extract(id)
+    local key = ecr.inspect(id)
     return key
 end
 
 local function VER(id: ecr.entity): number
-    local _, ver = ecr.extract(id)
+    local _, ver = ecr.inspect(id)
     return ver
 end
 
@@ -629,7 +629,7 @@ TEST("registry:patch()", function()
         reg:set(id, A, 0)
 
         local ran = false
-        reg:changed(A):connect(function()
+        reg:on_change(A):connect(function()
             ran = true
         end)
 
@@ -667,7 +667,7 @@ TEST("registry:patch()", function()
         local id = reg:create()
         
         local ran = false
-        reg:added(H):connect(function()
+        reg:on_add(H):connect(function()
             ran = true
         end)
         
@@ -854,7 +854,7 @@ TEST("registry:clear()", function()
 
         local listener = { count = 0 } :: { id: number?, count: number }
 
-        reg:removed(A):connect(function(id)
+        reg:on_remove(A):connect(function(id)
             listener.id = id
             listener.count += 1
         end)
@@ -878,31 +878,31 @@ TEST("registry:clear()", function()
     end
 end)
 
-TEST("registry:orphaned()", function()
+TEST("registry:has_none()", function()
     local reg = ecr.registry()
     local id = reg:create()
 
-    do CASE "new entity is orphaned"
-        CHECK(reg:orphaned(id))
+    do CASE "new entity is has none"
+        CHECK(reg:has_none(id))
     end
 
     reg:set(id, B, 1)
 
-    do CASE "no longer orphaned after assigning component"
-        CHECK(not reg:orphaned(id))
+    do CASE "no longer has none after assigning component"
+        CHECK(not reg:has_none(id))
     end
 
     reg:remove(id, B)
 
-    do CASE "orphan after removing last component"
-        CHECK(reg:orphaned(id))
+    do CASE "has none after removing last component"
+        CHECK(reg:has_none(id))
     end
 
     reg:release(id) -- UB
 
     do CASE "rejects invalid entity"
         CHECK_ERR("invalid entity", function()
-            reg:orphaned(id)
+            reg:has_none(id)
         end)
     end
 end)
@@ -1203,7 +1203,7 @@ TEST("registry:view()", function()
     end
 end)
 
-TEST("registry:added()", function()
+TEST("registry:on_add()", function()
     local reg = ecr.registry()
 
     -- runcount, reg, entity, value
@@ -1215,7 +1215,7 @@ TEST("registry:added()", function()
     end
 
     do 
-        local con = reg:added(H):connect(fn)
+        local con = reg:on_add(H):connect(fn)
         local id = reg:create()
 
         CASE "adding triggers"
@@ -1242,7 +1242,7 @@ TEST("registry:added()", function()
     end
 
     do CASE "entity creation"
-        reg:added(ecr.entity):connect(fn)
+        reg:on_add(ecr.entity):connect(fn)
 
         local id = reg:create()
 
@@ -1257,7 +1257,7 @@ TEST("registry:added()", function()
     end
 end)
 
-TEST("registry:changed()", function()
+TEST("registry:on_change()", function()
     local reg = ecr.registry()
     local id = reg:create()
 
@@ -1269,7 +1269,7 @@ TEST("registry:changed()", function()
         ov = reg:get(..., A)
     end
 
-    local con = reg:changed(A):connect(fn)
+    local con = reg:on_change(A):connect(fn)
 
     CASE "adding does not trigger"
     reg:set(id, A, true)
@@ -1307,7 +1307,7 @@ TEST("registry:changed()", function()
     CHECK(cc == 3)
 end)
 
-TEST("registry:removed()", function()
+TEST("registry:on_remove()", function()
     do
         local reg = ecr.registry()
         local id = reg:create()
@@ -1320,7 +1320,7 @@ TEST("registry:removed()", function()
             ce, cv = ...
         end
 
-        local con = reg:removed(A):connect(fn)
+        local con = reg:on_remove(A):connect(fn)
 
         do CASE "removing triggers"
             reg:set(id, A, true)
@@ -1370,7 +1370,7 @@ TEST("registry:removed()", function()
 
         local cache = {}
 
-        reg:removed(A):connect(function(entity)
+        reg:on_remove(A):connect(function(entity)
             cache[entity] = true
         end)
 
@@ -1385,7 +1385,7 @@ TEST("registry:removed()", function()
         local reg = ecr.registry()
 
         local cid
-        reg:removed(ecr.entity):connect(function(id_)
+        reg:on_remove(ecr.entity):connect(function(id_)
             cid = id_
         end)
 
@@ -2164,7 +2164,7 @@ TEST("ecr.tag()", function()
 
     do CASE "add"
         local ran = false
-        reg:added(TA):connect(function(id, v)
+        reg:on_add(TA):connect(function(id, v)
             ran = true
             CHECK(id == e.entity)
             CHECK(v == nil)

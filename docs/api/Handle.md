@@ -31,7 +31,7 @@ The entity the handle refers to.
 The `Handle` class wraps the following registry methods:
 
 - destroy()
-- orphaned()
+- has_none()
 - add()
 - set()
 - patch()

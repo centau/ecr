@@ -99,9 +99,9 @@ The registry contains three different signals for when a component type for a
 given entity is added, changed or removed.
 
 ```lua
-registry:added(type):connect(listener)
-registry:changed(type):connect(listener)
-registry:removed(type):connect(listener)
+registry:on_add(type):connect(listener)
+registry:on_change(type):connect(listener)
+registry:on_remove(type):connect(listener)
 ```
 
 All three listeners are called with:

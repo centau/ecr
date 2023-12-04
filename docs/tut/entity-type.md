@@ -35,11 +35,11 @@ for entity in registry:view(ecr.entity):exclude(...) do end
 You can listen to when an entity is created with:
 
 ```lua
-registry:added(ecr.entity):connect(function)
+registry:on_add(ecr.entity):connect(function)
 ```
 
 And when an entity is destroyed with:
 
 ```lua
-registry:removed(ecr.entity):connect(function)
+registry:on_remove(ecr.entity):connect(function)
 ```

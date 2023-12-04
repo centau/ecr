@@ -60,14 +60,14 @@ Checks if the given entity exists in the registry.
 
 --------------------------------------------------------------------------------
 
-### orphaned()
+### has_none()
 
 Checks if the given entity has no components.
 
 - **Type**
 
     ```lua
-    function Registry:orphaned(id: entity): boolean
+    function Registry:has_none(id: entity): boolean
     ```
 
 --------------------------------------------------------------------------------

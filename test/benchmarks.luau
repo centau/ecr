@@ -958,7 +958,7 @@ do TITLE "signal"
     end
 
     BENCH("added", function()
-        reg:added(A):connect(function() end)
+        reg:on_add(A):connect(function() end)
 
         for i = 1, START(N) do
             reg:set(ids[i], A, true)
@@ -966,7 +966,7 @@ do TITLE "signal"
     end)
 
     BENCH("changed", function()
-        reg:changed(A):connect(function() end)
+        reg:on_change(A):connect(function() end)
 
         for i = 1, START(N) do
             reg:set(ids[i], A, false)
@@ -974,7 +974,7 @@ do TITLE "signal"
     end)
 
     BENCH("removed", function()
-        reg:removed(A):connect(function() end)
+        reg:on_remove(A):connect(function() end)
 
         for i = 1, START(N) do
             reg:remove(ids[i], A)

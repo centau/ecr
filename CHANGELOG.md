@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - Constant `ecr.context`.
+- Constant `id_size`.
 - Function `ecr.array_to_buffer()`.
 - Function `ecr.buffer_to_array()`.
 - Overload for `Registry:storage()` to get an iterator for all storages.
@@ -18,17 +19,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 - All components must be defined before the registry using them is created.
-- Renamed `ecr.Entity` type alias to `ecr.entity`.
-- Property `Pool.entities` is now a `buffer`.
-- Method `Registry:set()` can now also add tags.
 - The context entity does not exist until `Registry:context()` is first called.
-- Renamed `Registry:removing()` to `Registry:removed()`.
-- Signal `Registry:changed()` now fires *before* the component is changed.
-  - New value still given as argument, but now can retrive old value with `Registry:get()`.
+- The context entity can now be destroyed.
 - Observers are now empty when first created.
-- Method `Observer:disconnect()` can only be called on empty observers.
 - Entity id size reduced from 8 bytes to 4 bytes.
   - Max entities that can exist at once is now `2^16-1` (`65,535`).
+
+- Renamed `ecr.Entity` type alias to `ecr.entity`.
+- Renamed `Registry:added()` to `Registry:on_add()`.
+- Renamed `Registry:changed()` to `Registry:on_change()`
+- Renamed `Registry:removing()` to `Registry:on_remove()`.
+- Renamed `Registry:orphaned()` to `Registry:has_none()`.
+
+- Property `Pool.entities` type is now a `buffer`.
+
+- Method `Registry:set()` can now also add tags.
+- Method `Observer:disconnect()` can only be called on empty observers.
+
+- Signal `Registry:on_change()` now fires *before* the component is changed.
+  - New value still given as argument, but now can retrieve old value with `Registry:get()`.
 
 ### Removed
 
@@ -50,7 +59,7 @@ less memory usage across the board.
 - `ecr.entity` which is a built-in component that can be used to access a
   dedicated entity pool:
   - Exclude-only views `registry:view(ecr.entity):exclude(...)`.
-  - Signals for creation and destruction of entities `registry:added(ecr.entity):connect()`.
+  - Signals for creation and destruction of entities `registry:on_add(ecr.entity):connect()`.
   - Direct access to array of all entities in the registry `registry:storage(ecr.entity)`.
 - `ecr.is_tag()` to check if a given component is a tag type.
 - `Registry:context()` to store components not specific to an entity.
@@ -154,7 +163,7 @@ less memory usage across the board.
 
 ### Fixed
 
-- `Registry:add()` not firing `Registry:added()` signals.
+- `Registry:add()` not firing `Registry:on_add()` signals.
 - Mismatch between argument list and values returned in multi-typed observers.
 - Observers not garbage collecting after calling `Observer:disconnect()`.
 
