@@ -1940,14 +1940,18 @@ local ecr = {
         return ctype_is_tag(ctype)
     end,
     
-    name = function<T>(names: T & {}): T
-        for name, ctype in next, names do
-            ASSERT(ctype_is_valid(ctype), `{name} refers to an invalid component`)
-            ctype_set_name(ctype, name)
+    name = function<T>(v: T): T | string?
+        if type(v) == "table" then
+            for name, ctype in next, v do
+                ASSERT(ctype_is_valid(ctype), `{name} refers to an invalid component`)
+                ctype_set_name(ctype, name)
+            end
+            return v
+        else
+            ASSERT_VALID_CTYPE(v)
+            return ctype_names[v]
         end
-
-        return names
-    end,
+    end :: (<T>(names: T & {}) -> T) & (<T>(ctype: T) -> string?),
     
     queue = queue_create,
     
@@ -1970,10 +1974,6 @@ local ecr = {
         max_ver = ID_MASK_VER * ID_RSHIFT,
         max_creatable = ID_MASK_KEY - 1,
 
-        get_names = function()
-            return table.freeze(table.clone(ctype_names))
-        end,
-
         create_id = function(key: number, ver: number)
             return ID_CREATE(key, ver * ID_LSHIFT)
         end,
@@ -1987,15 +1987,6 @@ local ecr = {
         get_key_version = function(pool: EntityPool, key: number): number
             ASSERT(POOL_CONTAINS(pool, key), "not contained")
             return ID_VER(BUFFER_GET(pool.map, key)) * ID_RSHIFT
-        end,
-
-        pool_entities_to_array = function<T>(pool: Pool<T>): Array<entity>
-            local array = table.create(pool.size)
-            local entities = pool.entities
-            for i = 0, pool.size - 1 do
-                array[i + 1] = BUFFER_GET(entities, i)
-            end
-            return array
         end
     }
 }

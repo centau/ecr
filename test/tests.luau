@@ -873,7 +873,8 @@ TEST("registry:clear()", function()
         eAB:remove(A)
 
         CHECK(reg:storage(A).size == 1)
-        local entities = ecr._test.pool_entities_to_array(reg:storage(A))
+        local pool = reg:storage(A)
+        local entities = ecr.buffer_to_array(pool.entities, pool.size)
         CHECK(entities[1] == eB.entity)
     end
 end)
@@ -2131,10 +2132,10 @@ TEST("ecr.queue()", function()
 end)
 
 TEST("ecr.name()", function()
-    local cts = ecr.name ({
+    local cts = ecr.name {
         A = ecr.component() :: number,
         B = ecr.component() :: string
-    })
+    }
 
     local reg = ecr.registry()
 
@@ -2148,6 +2149,7 @@ TEST("ecr.name()", function()
         reg:add(id, cts.B)
     end)
 
+    CHECK(ecr.name(cts.A) == "A")
 end)
 
 TEST("ecr.tag()", function()
