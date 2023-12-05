@@ -15,20 +15,22 @@ for marking entities in some state, and are more efficient than something like
 Example usage:
 
 ```lua
-local Poisoned = ecr.tag()
+local Selected = ecr.tag()
 
-registry:add(id, Poisoned)
-registry:has(id, Poisoned) -- true
+registry:add(id, Selected)
+registry:has(id, Selected) -- true
 
-registry:remove(id, Poisoned)
-registry:has(id, Poisoned) -- false
+registry:remove(id, Selected)
+registry:has(id, Selected) -- false
 ```
 
 ```lua
-local Health = ecr.component() :: number
+local TargetPosition = ecr.component() :: Vector3
 
-for id, health in world:view(Health, Poisoned) do
-    world:set(id, health - 1)
+local function move_selected(position: Vector3)
+    for id in world:view(Selected) do
+        world:set(id, TargetPosition, position)
+    end
 end
 ```
 

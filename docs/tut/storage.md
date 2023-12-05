@@ -32,7 +32,7 @@ of writing to values of `Pool.values`. The registry maintains the size and
 values of `Pool.entities`, so those should not be changed.
 
 Buffers aren't nice to work with, so you can use
-[ecr.buffer_to_array()](../api/ecr#buffer_to_array) to access entities easier.
+[`ecr.buffer_to_array()`](../api/ecr#buffer_to_array) to access entities easier.
 
 ```lua
 local entities = ecr.buffer_to_array(pool.entities, pool.size)
