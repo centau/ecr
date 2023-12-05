@@ -17,8 +17,7 @@ local registry = ecr.registry()
 
 ## Entities
 
-An entity represents an object in the world. Entities are created and destroyed,
-and are referenced using unique ids.
+An entity represents an object in the world is referenced using a unique id.
 
 ```lua
 local id: ecr.entity = registry:create()
@@ -28,16 +27,18 @@ registry:destroy(id)
 registry:contains(id) -- false
 ```
 
+Entities can be freely created and destroyed.
+
 ## Components
 
 A component is data that can be added to entities.
 
 There is the *component type*, which represents a type of data, and there is
-the *component value*, which is a particular value of that type associated with
-an entity.
+the *component value*, which is a value for a type added to an entity.
 
-Component types are referenced using unique ids returned by `ecr.component()`.
-You can typecast this to the type of value it represents for typechecking.
+Component types are created by `ecr.component()`, which returns an id
+representing that type. This can be typecasted to the type of value it
+represents.
 
 ```lua
 local Name = ecr.component() :: string
@@ -45,9 +46,10 @@ local Health = ecr.component() :: number
 ```
 
 Entities can have any amount of components added to or removed from them,
-whenever. They are like tables, where they can have any amount of key-value
+whenever. They behave like tables, where they can have any amount of key-value
 pairs, where the component type is the key, and the component value is the
-value.
+value. Entities initially have no components when created, and will have all its
+components removed when destroyed.
 
 ```lua
 registry:set(id, Health, 100) -- adds a new component with a value of 100
@@ -58,8 +60,6 @@ registry:has(id, Health) -- false
 ```
 
 Component values cannot be `nil`, components should be removed instead.
-
-Using `registry:destroy(id)` on an entity will remove all its components.
 
 ## Views
 
@@ -72,13 +72,6 @@ registry:view(Health)
 registry:view(Position, Velocity)
 ```
 
-You can also exclude components from views. Any entities that have an excluded
-component will not be included in the view.
-
-```lua
-local view = registry:view(A, B):exclude(C)
-```
-
 To get all entities in a view you iterate over it.
 
 ```lua
@@ -87,16 +80,26 @@ for id, position, velocity in registry:view(Position, Velocity) do
 end
 ```
 
-You can add, change, remove components and create or destroy entities during
+You can add or remove components and create or destroy entities during
 iteration.
 
 Components added or entities created during iteration will not be returned
 during that iteration.
 
+You can also exclude component types from views. Any entities that have an
+excluded type will not be included in the view.
+
+```lua
+local view = registry:view(A, B):exclude(C)
+```
+
+Views are cheap to create and do not store their own state, so they do not need
+to be stored aside, and can be created on the fly as needed.
+
 ## Signals
 
-The registry contains three different signals for when a component type for a
-given entity is added, changed or removed.
+The registry contains three different signals for when a component type is
+added, changed or removed for any entity.
 
 ```lua
 registry:on_add(type):connect(listener)
@@ -107,12 +110,12 @@ registry:on_remove(type):connect(listener)
 All three listeners are called with:
 
 1. The entity whose component is being changed.
-2. The new component value (always `nil` in the case of `removed`).
+2. The new component value (always `nil` in the case of `on_remove`).
 
-`added` is fired *after* the component is set.
+`on_add` is fired *after* the component is added.
 
-`changed` and `removed` is fired *before* the component is changed or removed,
-so you can still retrieve the old value if needed.
+`on_change` and `on_remove` is fired *before* the component is changed or
+removed, so you can still retrieve the old value if needed.
 
 You cannot modify the registry within a listener, they should only be used to
 help track entities or clean up values.
@@ -123,7 +126,7 @@ An observer is similar to a view, except it only returns entities whose
 components have been added or changed and still have those components at the
 time of iteration.
 
-An observer can be created using the `Registry:track()` method.
+An observer can be created using `Registry:track()`.
 
 ```lua
 local observer = registry:track(Position, Model)
@@ -141,9 +144,13 @@ are iterated.
 Observers provide a concise way to track and act on only specific entities
 that have changed since the last time a system ran.
 
+Unlike a view, observers do store their own state, and must be stored aside to
+keep track over time.
+
 ## Example Usage
 
-All components are defined in a single file to keep things organised.
+All component types are defined in a single file to keep things organised. All
+component types must also be defined before the registry using them is created.
 
 ::: code-group
 
@@ -151,9 +158,8 @@ All components are defined in a single file to keep things organised.
 local ecr = require(ecr)
 
 return ecr.name {
-    Position = ecr.component() :: Vector3,
-    Velocity = ecr.component() :: Vector3,
-    Health = ecr.component() :: number
+    Health = ecr.component() :: number,
+    Poisoned = ecr.component() :: number
 }
 ```
 
@@ -169,26 +175,74 @@ Examples using plain functions:
 
 ::: code-group
 
-```lua [updatePositions.luau]
+```lua [deal_poison_damage.luau]
 local cts = require(cts)
 
 return function(world: ecr.Registry, dt: number)
-    for id, pos, vel in world:view(cts.Position, cts.Velocity) do
-        local newpos = pos + vel*dt
-        world:set(id, cts.Position, newpos)
+    for id, health in world:view(cts.Health, cts.Poisoned) do
+        world:set(id, health, health - 10 * dt)
     end
 end
 ```
 
-```lua [destroyDead.luau]
+```lua [reduce_poison_timer.luau]
+local cts = require(cts)
+
+return function(world: ecr.Registry, dt: number)
+    for id, time in world:view(cts.Poisoned) do
+        local new_time = time - dt
+
+        if new_time <= 0 then
+            world:remove(id, cts.Poisoned)
+        else
+            world:set(id, cts.Poisoned, new_time)
+        end
+    end
+end
+```
+
+```lua [destroy_dead.luau]
 local cts = require(cts)
 
 return function(world: ecr.Registry)
     for id, health in world:view(cts.Health) do
-        if health < 0 then
+        if health <= 0 then
             world:destroy(id)
         end
     end
+end
+```
+
+:::
+
+::: code-group
+
+```lua [main.luau]
+local ecr = require(ecr)
+local cts = require(cts)
+
+local function loop(systems: {(ecr.Registry, number) -> ()}, world: ecr.Registry, dt: number)
+    for _, system in systems do
+        system(world, dt)
+    end
+end
+
+local systems = {
+    require(deal_poison_damage),
+    require(reduce_poison_timer),
+    require(destroy_dead)
+}
+
+local world = ecr.registry()
+
+for i = 1, 10 do
+    local id = world:create()
+    world:set(id, cts.Health, 100)
+    world:set(id, cts.Poisoned, math.random(3, 5)) -- poison randomly for 3-5 seconds
+end
+
+while true do
+    loop(systems, world, 1/60)
 end
 ```
 
