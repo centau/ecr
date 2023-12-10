@@ -1,5 +1,11 @@
 # View
 
+Iterator for viewing entities and components in a registry.
+
+```lua
+type ecr.View<T...>
+```
+
 ## Methods
 
 ### exclude()
@@ -34,8 +40,6 @@ Specifies a component to iterate along.
     Views, by default, iterate along the smallest pool within the given set of
     components. This function allows a specific pool to be iterated along
     instead.
-
---------------------------------------------------------------------------------
 
 ## Iteration
 

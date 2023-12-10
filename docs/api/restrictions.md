@@ -13,7 +13,7 @@ are documented here and at the relevant API references.
 - The registry cannot be modified within a listener, you cannot add or remove
   components, and create or destroy entities.
 
-## Modifing During Iteration
+## Modifying During Iteration
 
 This applies to the iteration of views, observers and groups.
 

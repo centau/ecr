@@ -1,8 +1,14 @@
 # Registry
 
+Container for entities and components.
+
+```lua
+type ecr.Registry
+```
+
 ## Methods
 
-::: info
+::: warning
 There are certain [restrictions](restrictions) with what you can do with the
 registry that you should be aware of.
 :::
@@ -16,6 +22,8 @@ Creates a new entity and returns the entity id.
     ```lua
     function Registry:create(): entity
     function Registry:create(id: entity): entity
+
+    type entity = ecr.entity
     ```
 
 - **Details**
@@ -23,10 +31,11 @@ Creates a new entity and returns the entity id.
     An entity can be created using a specific id that was created by another
     registry or previously by the same registry.
 
+    A previously used but now unused id may be reused every `32,000` creations.
+
     ::: warning
-    An unused id can be reused every `32,000` times an entity is created then
-    destroyed. Be wary of storing ids of destroyed entities for long periods of
-    time or else they may eventually refer to a newly created entity.
+    Be wary of storing ids of destroyed entities for long periods of time or
+    they may eventually refer to a newly created entity.
     :::
 
     ::: warning
@@ -56,18 +65,6 @@ Checks if the given entity exists in the registry.
 
     ```lua
     function Registry:contains(id: entity): boolean
-    ```
-
---------------------------------------------------------------------------------
-
-### has_none()
-
-Checks if the given entity has no components.
-
-- **Type**
-
-    ```lua
-    function Registry:has_none(id: entity): boolean
     ```
 
 --------------------------------------------------------------------------------
@@ -274,25 +271,7 @@ Creates a [`group`](Group.md) with the given component types.
 
 --------------------------------------------------------------------------------
 
-### storage()
-
-Returns the [pool](Pool) for a given component type.
-
-- **Type**
-
-    ```lua
-    function Registry:storage<T>(component: T): Pool<T>
-    function Registry:storage(): () -> (unknown, Pool<unknown>)
-    ```
-
-- **Details**
-
-    If called with no arguments, returns an iterator to get all component types
-    and their corresponding pool in the registry.
-
---------------------------------------------------------------------------------
-
-### added()
+### on_add()
 
 Returns a [signal](Signal) which is fired whenever the given component type is
 added to an entity.
@@ -300,7 +279,7 @@ added to an entity.
 - **Type**
 
     ```lua
-    function Registry:added<T>(component: T): Signal<entity, T>
+    function Registry:on_add<T>(component: T): Signal<entity, T>
     ```
 
     The signal is fired *after* the component is changed.
@@ -308,12 +287,12 @@ added to an entity.
     The listener is called with the entity and new component value.
 
     ::: warning
-    Components cannot be added or removed within a listener.
+    The registry cannot be modified within a listener.
     :::
 
 --------------------------------------------------------------------------------
 
-### changed()
+### on_change()
 
 Returns a [signal](Signal) which is fired whenever the given component type is
 changed for an entity.
@@ -321,7 +300,7 @@ changed for an entity.
 - **Type**
 
     ```lua
-    function Registry:changed<T>(component: T): Signal<entity, T>
+    function Registry:on_change<T>(component: T): Signal<entity, T>
     ```
 
     The signal is fired *before* the component is changed.
@@ -329,12 +308,12 @@ changed for an entity.
     The listener is called with the entity and new component value.
 
     ::: warning
-    Components cannot be added or removed within a listener.
+    The registry cannot be modified within a listener.
     :::
 
 --------------------------------------------------------------------------------
 
-### removing()
+### on_remove()
 
 Returns a [signal](Signal) which is fired whenever the given component is
 removed from an entity.
@@ -342,7 +321,7 @@ removed from an entity.
 - **Type**
 
     ```lua
-    function Registry:removing<T>(component: T): Signal<entity, nil>
+    function Registry:on_remove<T>(component: T): Signal<entity, nil>
     ```
 
 - **Details**
@@ -352,7 +331,7 @@ removed from an entity.
     The listener is called with the entity.
 
     ::: warning
-    Components cannot be added or removed within a listener.
+    The registry cannot be modified within a listener.
     :::
 
 --------------------------------------------------------------------------------
@@ -389,6 +368,36 @@ Returns a [handle](Handle) to the context entity.
 - **Details**
 
     Will automatically create the context entity if it does not already exist.
+
+--------------------------------------------------------------------------------
+
+### storage()
+
+Returns the [pool](Pool) for a given component type.
+
+- **Type**
+
+    ```lua
+    function Registry:storage<T>(component: T): Pool<T>
+    function Registry:storage(): () -> (unknown, Pool<unknown>)
+    ```
+
+- **Details**
+
+    If called with no arguments, returns an iterator to get all component types
+    and their corresponding pool in the registry.
+
+--------------------------------------------------------------------------------
+
+### has_none()
+
+Checks if the given entity has no components.
+
+- **Type**
+
+    ```lua
+    function Registry:has_none(id: entity): boolean
+    ```
 
 --------------------------------------------------------------------------------
 

@@ -2,6 +2,10 @@
 
 Queues values to be processed later.
 
+```lua
+type ecr.Queue<T...>
+```
+
 ## Methods
 
 ### add()

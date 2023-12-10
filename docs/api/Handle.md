@@ -2,6 +2,10 @@
 
 Thin wrapper around an entity and its registry.
 
+```lua
+type ecr.Handle
+```
+
 ## Properties
 
 ### registry

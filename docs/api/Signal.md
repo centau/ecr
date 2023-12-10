@@ -1,5 +1,11 @@
 # Signal
 
+Manage listeners to an event.
+
+```lua
+type ecr.Signal<T...>
+```
+
 ## Methods
 
 ### connect()
@@ -19,6 +25,10 @@ fired.
     the signal is fired.
 
 ## Connection
+
+```lua
+type ecr.Connection<T...>
+```
 
 ### disconnect()
 

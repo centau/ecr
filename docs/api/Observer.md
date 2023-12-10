@@ -1,6 +1,10 @@
 # Observer
 
-Observers are used to track component changes, and can be cleared at will.
+Tracks component changes, and can be cleared at will.
+
+```lua
+type ecr.Observer<T...>
+```
 
 ## Methods
 

@@ -1,6 +1,10 @@
 # Group
 
-Groups are used to quickly iterate over a set of components.
+Fast iterator for viewing entities and components in a registry.
+
+```lua
+type ecr.Group<T...>
+```
 
 ## Iteration
 

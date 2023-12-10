@@ -165,7 +165,7 @@ Converts an array of entities into a buffer of entities.
 
 ### entity
 
-Special component type that represents entitiesg.
+Special component type that represents entities in a registry.
 
 - **Type**
   
