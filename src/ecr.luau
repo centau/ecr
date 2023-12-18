@@ -1914,8 +1914,8 @@ local function array_to_buffer(arr: Array<entity>, size: number, buf: buffer?): 
 
     ASSERT(size * ID_SIZE <= buffer.len(buf), "size is larger than buffer size")
 
-    for i, id in ipairs(arr) do
-        BUFFER_SET(buf, (i - 1), id)
+    for i = 1, size do
+        BUFFER_SET(buf, (i - 1), arr[i])
     end
 
     return buf
