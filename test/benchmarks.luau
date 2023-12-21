@@ -447,6 +447,28 @@ do TITLE("remove")
     end)
 end
 
+do TITLE "find"
+    local reg = REG_INIT(N)
+    for i = 1, N do
+        local id = reg:create()
+        reg:set(id, A, i)
+    end
+
+    BENCH("search through 10", function()
+        for i = 1, START(N) do
+            reg:find(A, 10)
+        end
+    end)
+
+    assert(N > 1000)
+
+    BENCH("search through 1000", function()
+        for i = 1, START(100) do
+            reg:find(A, 1000)
+        end
+    end)
+end
+
 do TITLE "clear"
     local function setup()
         local reg = REG_INIT(N)

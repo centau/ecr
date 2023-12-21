@@ -767,6 +767,22 @@ TEST("registry:remove()", function()
     end
 end)
 
+TEST("registry:find()", function()
+    local reg = ecr.registry()
+
+    local ids = BULK_CREATE_IDS(reg, 5)
+
+    for i, id in ids do
+        reg:set(id, A, i)
+    end
+
+    CHECK(reg:find(A, 1) == ids[1])
+    CHECK(reg:find(A, 3) == ids[3])
+    CHECK(reg:find(A, 5) == ids[5])
+
+    CHECK(reg:find(A, 6) == nil)
+end)
+
 TEST("registry:clear()", function()
     do
         local reg = ecr.registry()
