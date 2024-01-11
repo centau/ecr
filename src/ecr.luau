@@ -1701,8 +1701,14 @@ local function registry_create(): Registry
 
     function registry.find<T>(self: Registry, ctype: T, value: T): entity?
         local pool = GET_POOL(ctype)
-        local arr_idx = table.find(pool.values, value)
-        return arr_idx and BUFFER_GET(pool.entities, arr_idx - 1)
+
+        if value == nil then
+            if pool.size == 0 then return nil end
+            return BUFFER_GET(pool.entities, 0)
+        else
+            local arr_idx = table.find(pool.values, value)
+            return arr_idx and BUFFER_GET(pool.entities, arr_idx - 1)
+        end
     end
 
     function registry.view<T...>(self: Registry, ...: T...): View<T...>

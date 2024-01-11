@@ -774,6 +774,7 @@ TEST("registry:find()", function()
 
     for i, id in ids do
         reg:set(id, A, i)
+        reg:set(id, TA)
     end
 
     CHECK(reg:find(A, 1) == ids[1])
@@ -781,6 +782,12 @@ TEST("registry:find()", function()
     CHECK(reg:find(A, 5) == ids[5])
 
     CHECK(reg:find(A, 6) == nil)
+    reg:clear(A) 
+    CHECK(reg:find(A, 1) == nil)
+
+    CHECK(reg:find(TA) == ids[1])
+    reg:clear(TA)
+    CHECK(reg:find(TA) == nil)
 end)
 
 TEST("registry:clear()", function()
