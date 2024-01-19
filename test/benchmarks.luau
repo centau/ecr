@@ -1006,7 +1006,7 @@ end
 
 do TITLE "observer"
     local reg = REG_INIT(N)
-    local observer = reg:track(A)
+    local observer = reg:observe(A)
 
     local ids = table.create(N)
     for i = 1, N do

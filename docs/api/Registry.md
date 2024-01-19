@@ -234,7 +234,7 @@ Creates a [`view`](View) with the given component types.
 
 --------------------------------------------------------------------------------
 
-### track()
+### observe()
 
 Creates an [`observer`](Observer) with the given component types.
 

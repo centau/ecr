@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## Unreleased
+
+### Added
+
+- Method `Registry:find()`.
+- Method `View:iter()`.
+- Method `Queue:iter()`.
+
+### Changed
+
+### Removed
+
+- Method `Observer:persist()`.
+
+---
+
 ## [0.8.0] - 2023-12-05
 
 ### Added
@@ -133,7 +149,7 @@ less memory usage across the board.
 - Method `Registry:valid()` renamed to `Registry:contains()`.
 - Method `Registry:create()` is now guaranteed to always return unique identifiers.
 - Using invalid entities no longer causes undefined behavior in any method and instead errors.
-- `Registry:track()` will now track all components passed, not just the first one.
+- `Registry:observe()` will now track all components passed, not just the first one.
 
 ### Removed
 

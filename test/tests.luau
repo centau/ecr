@@ -1419,7 +1419,7 @@ TEST("registry:on_remove()", function()
     end
 end)
 
-TEST("registry:track()", function()
+TEST("registry:observe()", function()
     local function flip()
         return math.random() > 0.3
     end
@@ -1439,10 +1439,10 @@ TEST("registry:track()", function()
     end
 
     local reg = ecr.registry()
-    local observerA = reg:track(A)
-    local observerB = reg:track(B):persist()
-    local observerABC = reg:track(A, B, C)
-    local observerAnotC = reg:track(A):exclude(C):persist()
+    local observerA = reg:observe(A)
+    local observerB = reg:observe(B):persist()
+    local observerABC = reg:observe(A, B, C)
+    local observerAnotC = reg:observe(A):exclude(C):persist()
 
     local ids = {}
     local As = {}
@@ -1477,7 +1477,7 @@ TEST("registry:track()", function()
 
     -- do CASE "initial components treated as changed"
     --     do
-    --         local observer = reg:track(A)
+    --         local observer = reg:observe(A)
 
     --         local cache = cache_ids(observer)
     --         CHECK(not empty(cache))
@@ -1489,7 +1489,7 @@ TEST("registry:track()", function()
     --         end
     --     end
     --     do
-    --         local observer = reg:track(A, B, C)
+    --         local observer = reg:observe(A, B, C)
     --         local cache = cache_ids(observer)
     --         CHECK(not empty(cache))
 
@@ -1615,7 +1615,7 @@ TEST("registry:track()", function()
     table.clear(As)
 
     -- do CASE "observer returns up-to-date values despite being changed while disconnected"
-    --     local observer = reg:track(A):clear():persist()
+    --     local observer = reg:observe(A):clear():persist()
     --     local id1 = reg:create()
     --     local id2 = reg:create()
     --     local id3 = reg:create()
@@ -1642,7 +1642,7 @@ TEST("registry:track()", function()
     -- end
 
     do CASE "disconnect non-empty observer"
-        local observer = reg:track(A)
+        local observer = reg:observe(A)
 
         reg:handle():set(A, true)
 
@@ -1678,7 +1678,7 @@ TEST("registry:track()", function()
     end
 
     do CASE "track multiple"
-        local observer = reg:track(A, B, C)
+        local observer = reg:observe(A, B, C)
         observer:clear()
 
         local id1 = reg:create()
@@ -2176,7 +2176,7 @@ TEST("ecr.tag()", function()
 
     local reg = ecr.registry()
 
-    local observer = reg:track(TA, TB, TC, TD, A)
+    local observer = reg:observe(TA, TB, TC, TD, A)
 
     local e = reg:handle()
 

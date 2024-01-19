@@ -126,10 +126,10 @@ An observer is similar to a view, except it only returns entities whose
 components have been added or changed and still have those components at the
 time of iteration.
 
-An observer can be created using `Registry:track()`.
+An observer can be created using `Registry:observe()`.
 
 ```lua
-local observer = registry:track(Position, Model)
+local observer = registry:observe(Position, Model)
 
 return function()
     for entity, position, model in observer do
