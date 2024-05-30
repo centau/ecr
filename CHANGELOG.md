@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## Unreleased
+
+# Added
+
+- Method `View:patch()`.
+- Method `Registry:find()`.
+- Overload `ecr.queue()` to accept a function connector.
+
+# Changed
+
+- Method `Registry:patch()` will return the new value.
+- Methods `Observer:iter()` and `Queue:iter()` will no longer clear on
+  completion. Iteration by `__iter` will still clear.
+
+# Removed
+
+- Method `Observer:persist()`.
+- Method `View:use()`.
+
 ## [0.8.0] - 2023-12-05
 
 ### Added

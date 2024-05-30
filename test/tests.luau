@@ -645,7 +645,7 @@ TEST("registry:patch()", function()
         local id = reg:create()
         reg:set(id, A, true)
         
-        CHECK_ERR("patcher cannot return nil", function()
+        CHECK_ERR("function cannot return nil", function()
             reg:patch(id, A :: number, function(v)
                 return nil :: any
             end)
@@ -661,6 +661,20 @@ TEST("registry:patch()", function()
                 return v + 1
             end)
         end)
+    end
+
+    do CASE "add non-existent component without constructor"
+        local id = reg:create()
+        
+        local ran = false
+        reg:on_add(H):connect(function()
+            ran = true
+        end)
+        
+        reg:patch(id, H)
+
+        CHECK(ran)
+        CHECK(reg:get(id, H) == true)
     end
 
     do CASE "change non-existent component with constructor"
@@ -679,7 +693,7 @@ TEST("registry:patch()", function()
         CHECK(ran)
         CHECK(reg:get(id, H) == false)
 
-        CHECK_ERR("patcher cannot return nil", function()
+        CHECK_ERR("function cannot return nil", function()
             reg:patch(id, H, function(v)
                 return nil :: any
             end)
@@ -1153,17 +1167,17 @@ TEST("registry:view()", function()
         end
     end
 
-    do CASE "view all entities with ABC using C"
-        local viewed = getids(reg:view(A, B, C):use(C))
-        CHECK(not empty(viewed))
-        for _, id in ABCs do
-            local v = viewed[id]
-            if not CHECK(v) then continue end
-            CHECK(v[1] == id)
-            CHECK(v[2] == id)
-            CHECK(v[3] == id)
-        end
-    end
+    -- do CASE "view all entities with ABC using C"
+    --     local viewed = getids(reg:view(A, B, C):use(C))
+    --     CHECK(not empty(viewed))
+    --     for _, id in ABCs do
+    --         local v = viewed[id]
+    --         if not CHECK(v) then continue end
+    --         CHECK(v[1] == id)
+    --         CHECK(v[2] == id)
+    --         CHECK(v[3] == id)
+    --     end
+    -- end
 
     do CASE "view all entities with AB and not C"
         local viewed = getids(reg:view(A, B):exclude(C))
@@ -1200,14 +1214,15 @@ TEST("registry:view()", function()
 
     do CASE "component removal during view iteration"
         local viewed = {}
-        for entity in reg:view(A) do
+        for id in reg:view(A) do
             if flip() then
-                reg:remove(entity, A)
+                reg:remove(id, A)
+                table.remove(As, table.find(As, id))
             end
-            viewed[entity] = true
+            viewed[id] = true
         end
         CHECK(not empty(viewed))
-        for _, entity in As do -- check that an entity isn't skipped
+        for _, entity in As do -- check that an entity isn't skipped due to reordering interally
             CHECK(viewed[entity])
         end
     end
@@ -1224,6 +1239,38 @@ TEST("registry:view()", function()
             reg:view(A, B):exclude(C, A)
         end)
         CHECK(not ok)
+    end
+
+    do CASE "view patch single"
+        local expected_values = {}
+
+        for id, v in reg:view(A) do
+            expected_values[id] = v + 1
+        end
+
+        reg:view(A :: number):patch(function(v) return v + 1 end)
+
+        for id, v in reg:view(A) do
+            CHECK(v == expected_values[id])
+        end
+    end
+
+    do CASE "view patch multi"
+        local expected_values = {}
+
+        for id, a, b, c in reg:view(A, B, C) do
+            expected_values[id] = { a + 1, b + 2, c + 3 }
+        end
+
+        reg:view(A :: number, B :: number, C :: number):patch(function(a, b, c)
+            return a + 1, b + 2, c + 3
+        end)
+
+        for id, a, b, c in reg:view(A, B, C) do
+            CHECK(a == expected_values[id][1])
+            CHECK(b == expected_values[id][2])
+            CHECK(c == expected_values[id][3])
+        end
     end
 end)
 
@@ -1437,19 +1484,25 @@ TEST("registry:track()", function()
 
     local function cache_ids(observer: ecr.Observer<unknown>): { [ecr.entity]: { unknown } }
         local cache = {}
-    
         for id, a, b, c in observer do
             cache[id] = { a, b, c }
         end
+        return cache
+    end
 
+    local function persist_cache_ids(observer: ecr.Observer<unknown>): { [ecr.entity]: { unknown } }
+        local cache = {}
+        for id, a, b, c in observer:iter() do
+            cache[id] = { a, b, c }
+        end
         return cache
     end
 
     local reg = ecr.registry()
     local observerA = reg:track(A)
-    local observerB = reg:track(B):persist()
+    local observerB = reg:track(B)
     local observerABC = reg:track(A, B, C)
-    local observerAnotC = reg:track(A):exclude(C):persist()
+    local observerAnotC = reg:track(A):exclude(C)
 
     local ids = {}
     local As = {}
@@ -1510,7 +1563,7 @@ TEST("registry:track()", function()
     --     end
     -- end
 
-    do CASE "a tracked"
+    do CASE "A tracked"
         local cache = cache_ids(observerA)
         CHECK(not empty(cache))
         for _, id in As do
@@ -1521,8 +1574,8 @@ TEST("registry:track()", function()
         CHECK(#observerA == 0)
     end
 
-    do CASE "anotCs tracked"
-        local cache = cache_ids(observerAnotC)
+    do CASE "AnotC tracked"
+        local cache = persist_cache_ids(observerAnotC)
         CHECK(not empty(cache))
         for _, id in AnotCs do
             local v = cache[id]
@@ -1532,7 +1585,7 @@ TEST("registry:track()", function()
         CHECK(#observerAnotC > 0)
     end
 
-    do CASE "aBCs tracked"
+    do CASE "ABC tracked"
         local cache = cache_ids(observerABC)
         CHECK(not empty(cache))
         for _, id in ABCs do
@@ -1542,10 +1595,10 @@ TEST("registry:track()", function()
             CHECK(v[2] == id)
             CHECK(v[3] == id)
         end
-        CHECK(#observerA == 0)
+        CHECK(#observerABC == 0)
     end
 
-    --observerA:clear()
+    observerA:clear()
 
     do CASE "changed components tracked after clear"
         CHECK(#observerA == 0)
@@ -1568,7 +1621,7 @@ TEST("registry:track()", function()
             end)
         end
 
-        for id, v in observerB do
+        for id, v in observerB:iter() do
             CHECK(v == id + 1)
         end
 
@@ -1622,7 +1675,7 @@ TEST("registry:track()", function()
     table.clear(As)
 
     -- do CASE "observer returns up-to-date values despite being changed while disconnected"
-    --     local observer = reg:track(A):clear():persist()
+    --     local observer = reg:track(A):clear()
     --     local id1 = reg:create()
     --     local id2 = reg:create()
     --     local id3 = reg:create()
