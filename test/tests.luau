@@ -1093,6 +1093,7 @@ TEST("registry:view()", function()
     local Cs = {}
     local ABs = {}
     local ABCs = {}
+    local AnotCs = {}
     local ABnotCs = {}
     local notABs = {}
 
@@ -1111,6 +1112,7 @@ TEST("registry:view()", function()
         if has[A] then table.insert(As, id) end
         if has[B] then table.insert(Bs, id) end
         if has[C] then table.insert(Cs, id) end
+        if has[A] and not has[C] then table.insert(AnotCs, id) end
         if has[A] and has[B] then table.insert(ABs, id) end
         if has[A] and has[B] and has[C] then table.insert(ABCs, id) end
         if has[A] and has[B] and not has[C] then table.insert(ABnotCs, id) end
@@ -1178,6 +1180,16 @@ TEST("registry:view()", function()
     --         CHECK(v[3] == id)
     --     end
     -- end
+
+    do CASE "view all entities with A and not C"
+        local viewed = getids(reg:view(A):exclude(C))
+        CHECK(not empty(viewed))
+        for _, id in AnotCs do 
+            local v = viewed[id]
+            if not CHECK(v) then continue end
+            CHECK(v[1] == id)
+        end
+    end
 
     do CASE "view all entities with AB and not C"
         local viewed = getids(reg:view(A, B):exclude(C))

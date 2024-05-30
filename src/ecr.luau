@@ -841,6 +841,28 @@ local function view_iter_1<A>(a: Pool<A>): () -> (entity, A)
     end
 end
 
+local function view_iter_1_exclude_1<A>(a: Pool<A>, b: Pool<unknown>): () -> (entity, A)
+    local n = a.size
+    local entities = a.entities
+    local values = a.values
+
+    clear_invalidation_flag(a)
+
+    return function()
+        for i = n - 1, 0, -1 do
+            local id = BUFFER_GET(entities, i)
+
+            if POOL_FIND(b, ID_KEY(id)) ~= ID_NULL then continue end
+            n = i
+
+            return id, ARRAY_GET(values, i)
+        end
+
+        ASSERT_INVALIDATION(a)
+        return NIL, NIL
+    end
+end
+
 local function view_patch_1<A>(a: Pool<A>, fn: (A) -> A)
     local entities = a.entities
     local values = a.values
@@ -1033,8 +1055,7 @@ local function view_patch_general(
     local values = source.values
 
     local last_pos = #includes
-    local tuple_arg = table.create(last_pos)
-    local tuple_ret = table.create(last_pos)
+    local tuple = table.create(last_pos)
     local idxs = table.create(last_pos)
 
     for i = 0, n - 1 do
@@ -1050,7 +1071,7 @@ local function view_patch_general(
             local idx_ver = POOL_FIND(pool, key)
             if idx_ver == ID_NULL then has_all = false; break end
             local idx = ID_KEY(idx_ver)
-            tuple_arg[pos] = ARRAY_GET(pool.values, idx)
+            tuple[pos] = ARRAY_GET(pool.values, idx)
             idxs[pos] = idx
         end
 
@@ -1061,22 +1082,22 @@ local function view_patch_general(
             local idx_ver = POOL_FIND(pool, key)
             if idx_ver == ID_NULL then has_all = false; break end
             local idx = ID_KEY(idx_ver)
-            tuple_arg[pos] = ARRAY_GET(pool.values, idx)
+            tuple[pos] = ARRAY_GET(pool.values, idx)
             idxs[pos] = idx
         end
 
         if has_all == false then continue end
 
-        tuple_arg[source_pos] = ARRAY_GET(values, i)
+        tuple[source_pos] = ARRAY_GET(values, i)
         idxs[source_pos] = i
 
-        tuple_ret[1], tuple_ret[2], tuple_ret[3], tuple_ret[4] =
-            fn(tuple_arg[1], tuple_arg[2], tuple_arg[3], tuple_arg[4])
+        tuple[1], tuple[2], tuple[3], tuple[4] =
+            fn(tuple[1], tuple[2], tuple[3], tuple[4])
 
         for pos, pool in includes do
             local on_change = pool.on_change :: Array<Listener<unknown>>
-            if on_change then fire(on_change, id, tuple_ret[pos]) end
-            ARRAY_SET(pool.values, idxs[pos], tuple_ret[pos])
+            if on_change then fire(on_change, id, tuple[pos]) end
+            ARRAY_SET(pool.values, idxs[pos], tuple[pos])
         end
     end
 
@@ -1111,6 +1132,8 @@ function view_create<T...>(reg: IRegistry, ...: T...): View<T...>
 
         return if #includes == 1 and not excludes then
                 view_iter_1(includes[1])
+            elseif #includes == 1 and excludes then
+                view_iter_1_exclude_1(includes[1], excludes[1])
             elseif #includes == 2  and not excludes then 
                 view_iter_2(includes[1], includes[2])
             else
