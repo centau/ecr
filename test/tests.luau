@@ -1654,6 +1654,7 @@ TEST("registry:track()", function()
             CHECK(v == id)
         end
         CHECK(ran)
+        CHECK(#observerA == 0)
     end
 
     do CASE "changed components updated"
@@ -2188,6 +2189,13 @@ TEST("ecr.queue()", function()
             CHECK(#queue == 0)
             CHECK(i == 10)
         end
+    end
+    
+    do CASE "new iter does not clear"
+        local queue = ecr.queue()
+        queue:add(1)
+        for _ in queue:iter() do end
+        CHECK(#queue == 1)
     end
 
     do CASE "manual clear"
