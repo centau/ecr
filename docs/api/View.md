@@ -25,21 +25,21 @@ Excludes entities with the given components from the view.
 
 --------------------------------------------------------------------------------
 
-### use()
+### patch()
 
-Specifies a component to iterate along.
+Updates all entity components in the view using a given function.
 
 - **Type**
 
     ```lua
-    function View:use<T...>(component: unknown): View<T...>
+    function View:patch<T...>(fn: (T...) -> T...)
     ```
 
 - **Details**
 
-    Views, by default, iterate along the smallest pool within the given set of
-    components. This function allows a specific pool to be iterated along
-    instead.
+    ::: warning
+    Returning `nil` will result in undefined behavior.
+    :::
 
 ## Iteration
 

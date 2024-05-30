@@ -58,7 +58,8 @@ Iterates all values added to the queue.
     The queue returns in sets of values passed to `Queue:add()` in the same
     order it was called in.
 
-    The queue automatically clears itself after iteration.
+    The queue automatically clears itself after iteration. `Queue:iter()`
+    returns an iterator that will not automatically clear on completion.
 
     ::: warning
     Adding values during iteration will cause them to be cleared when iteration

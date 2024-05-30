@@ -24,16 +24,6 @@ registry:remove(id, Selected)
 registry:has(id, Selected) -- false
 ```
 
-```lua
-local TargetPosition = ecr.component() :: Vector3
-
-local function move_selected(position: Vector3)
-    for id in world:view(Selected) do
-        world:set(id, TargetPosition, position)
-    end
-end
-```
-
 To check if an entity has a tag, favor `Registry:has()` over `Registry:get()`,
 since tags have no value and will return `nil`.
 

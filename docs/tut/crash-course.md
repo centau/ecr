@@ -76,7 +76,7 @@ To get all entities in a view you iterate over it.
 
 ```lua
 for id, position, velocity in registry:view(Position, Velocity) do
-    print(id, position, velocity)
+    world:set(id, Position, position + velocity * 1/60)
 end
 ```
 
@@ -85,6 +85,15 @@ iteration.
 
 Components added or entities created during iteration will not be returned
 during that iteration.
+
+For simpler view operations, the following can be done which is equivalent to
+the above:
+
+```lua
+registry:view(Position, Velocity):patch(function(position, velocity)
+    return position, position + velocity * 1/60
+end)
+```
 
 You can also exclude component types from views. Any entities that have an
 excluded type will not be included in the view.
@@ -157,15 +166,19 @@ component types must also be defined before the registry using them is created.
 ```lua [cts.luau]
 local ecr = require(ecr)
 
-return ecr.name {
+local cts = {
     Health = ecr.component() :: number,
     Poisoned = ecr.component() :: number
 }
+
+ecr.name(cts)
+
+return cts
 ```
 
 :::
 
-`ecr.name` can be used to associate names with components, for clearer error
+`ecr.name()` can be used to associate names with components, for clearer error
 messages when debugging.
 
 The library doesn't have any bult-in support for systems, the user is free to

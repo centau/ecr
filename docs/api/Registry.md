@@ -116,7 +116,7 @@ Updates an entity's component.
 - **Type**
 
     ```lua
-    function Registry:patch<T>(id: entity, component: T, patcher: (T) -> T)
+    function Registry:patch<T>(id: entity, component: T, patcher: (T) -> T): T
     ```
 
 - **Details**
@@ -219,6 +219,22 @@ Removes all entities and components from the registry.
 
     If no components are given, then all entities in the registry will be
     destroyed.
+
+--------------------------------------------------------------------------------
+
+### find()
+
+Returns the first entity found that has a component matching the given value.
+
+- **Type**
+
+    ```lua
+    function Registry:find<T>(component: T, value: T): entity?
+    ```
+
+- **Details**
+
+    This is a linear search.
 
 --------------------------------------------------------------------------------
 

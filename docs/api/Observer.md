@@ -55,18 +55,6 @@ Reconnects the Observer and allows it to track changes again.
 
 --------------------------------------------------------------------------------
 
-### persist()
-
-Stops automatic clearing of its entities after it is iterated.
-
-- **Type**
-
-    ```lua
-    function Observer:persist<T...>(): Observer<T...>
-    ```
-
---------------------------------------------------------------------------------
-
 ### clear()
 
 Clears all stored entities.
@@ -98,8 +86,8 @@ Iterates all entities in the observer.
     Components can be added, changed and removed during iteration.
     Components added during iteration are not returned for that iteration.
 
-    Will automatically clear the observer unless `Observer:persist()` was called
-    when iteration ends.
+    Will automatically clear the observer on completion. `Observer:iter()`
+    returns an iterator that will not automatically clear on completion.
 
     ::: warning
     Adding values during iteration can cause them to be cleared when iteration

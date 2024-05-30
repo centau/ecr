@@ -99,7 +99,8 @@ Creates a new queue.
 
     type ISignal<T...> = 
         { connect: (ISignal, (T...) -> ()) -> () } |
-        { Connect: (ISignal, (T...) -> ()) -> () }
+        { Connect: (ISignal, (T...) -> ()) -> () } |
+        ((T...) -> ()) -> ()
     ```
 
 - **Details**

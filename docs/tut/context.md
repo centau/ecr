@@ -22,5 +22,6 @@ registry:context():set(Round, 1)
 registry:set(ecr.context, Round, 1)
 ```
 
-This entity can still be destroyed (and later recreated), and is affected by
+This entity is still like any other, can show up in views, can still be
+destroyed (and later recreated), and is affected by
 [`Registry:clear()`](../api/Registry#clear).
