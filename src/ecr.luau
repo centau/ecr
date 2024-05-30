@@ -822,7 +822,7 @@ local function ASSERT_INVALIDATION<T>(pool: Pool<T>): ...any
     end
 end
 
-local function create_iter_1<A>(a: Pool<A>): () -> (entity, A)
+local function view_iter_1<A>(a: Pool<A>): () -> (entity, A)
     local n = a.size
     local entities = a.entities
     local values = a.values
@@ -841,23 +841,25 @@ local function create_iter_1<A>(a: Pool<A>): () -> (entity, A)
     end
 end
 
-local function patch_1<A>(a: Pool<A>, fn: (A) -> A)
+local function view_patch_1<A>(a: Pool<A>, fn: (A) -> A)
     local entities = a.entities
     local values = a.values
 
     local on_change = a.on_change :: Array<Listener<A>>
     if on_change then
         for i, v in values do
-            fire(on_change, BUFFER_GET(entities, i - 1), v)
+            local v_new = fn(v)
+            fire(on_change, BUFFER_GET(entities, i - 1), v_new)
+            values[i] = v_new
         end
-    end
-
-    for i, v in values do
-        values[i] = fn(v)
+    else
+        for i, v in values do
+            values[i] = fn(v)
+        end
     end
 end
 
-local function create_iter_2<A, B>(a: Pool<A>, b: Pool<B>): () -> (entity, A, B)
+local function view_iter_2<A, B>(a: Pool<A>, b: Pool<B>): () -> (entity, A, B)
     local na, nb = a.size, b.size
 
     if na <= nb then
@@ -901,7 +903,55 @@ local function create_iter_2<A, B>(a: Pool<A>, b: Pool<B>): () -> (entity, A, B)
     end
 end
 
-local function create_iter_general(
+local function view_patch_2<A, B>(a: Pool<A>, b: Pool<B>, fn: (A, B) -> (A, B))
+    local na, nb = a.size, b.size
+
+    local a_on_change = a.on_change :: Array<Listener<A>>
+    local b_on_change = b.on_change :: Array<Listener<B>>
+
+    if na <= nb then
+        local n = na
+        local entities = a.entities
+        local values = a.values
+
+        for i = 0, n - 1 do
+            local id = BUFFER_GET(entities, i)
+            local idx_ver = POOL_FIND(b, ID_KEY(id))
+            if idx_ver == ID_NULL then continue end
+            local idx = ID_KEY(idx_ver)
+
+            local va_new, vb_new = fn(ARRAY_GET(values, i), ARRAY_GET(b.values, idx))
+
+            if a_on_change then fire(a_on_change, id, va_new) end
+            if b_on_change then fire(b_on_change, id, vb_new) end
+
+            ARRAY_SET(values, i, va_new)
+            ARRAY_SET(b.values, idx, vb_new)
+        end
+
+    else
+        local n = nb
+        local entities = b.entities
+        local values = b.values
+
+        for i = 0, n - 1 do
+            local id = BUFFER_GET(entities, i)
+            local idx_ver = POOL_FIND(a, ID_KEY(id))
+            if idx_ver == ID_NULL then continue end
+            local idx = ID_KEY(idx_ver)
+
+            local va_new, vb_new = fn(ARRAY_GET(a.values, idx), ARRAY_GET(values, i))
+
+            if a_on_change then fire(a_on_change, id, va_new) end
+            if b_on_change then fire(b_on_change, id, vb_new) end
+
+            ARRAY_SET(a.values, idx, va_new)
+            ARRAY_SET(values, i, vb_new)
+        end
+    end
+end
+
+local function view_iter_general(
     includes: Array<Pool<unknown>>,
     excludes: Array<Pool<unknown>>?,
     lead: Pool<unknown>?
@@ -962,7 +1012,7 @@ local function create_iter_general(
     end
 end
 
-local function patch_general(
+local function view_patch_general(
     includes: Array<Pool<unknown>>,
     excludes: Array<Pool<unknown>>?,
     fn: (...unknown) -> ...unknown
@@ -983,8 +1033,8 @@ local function patch_general(
     local values = source.values
 
     local last_pos = #includes
-    local tuple = table.create(last_pos)
-    local tuple2 = table.create(last_pos)
+    local tuple_arg = table.create(last_pos)
+    local tuple_ret = table.create(last_pos)
     local idxs = table.create(last_pos)
 
     for i = 0, n - 1 do
@@ -1000,7 +1050,7 @@ local function patch_general(
             local idx_ver = POOL_FIND(pool, key)
             if idx_ver == ID_NULL then has_all = false; break end
             local idx = ID_KEY(idx_ver)
-            tuple[pos] = ARRAY_GET(pool.values, idx)
+            tuple_arg[pos] = ARRAY_GET(pool.values, idx)
             idxs[pos] = idx
         end
 
@@ -1011,21 +1061,22 @@ local function patch_general(
             local idx_ver = POOL_FIND(pool, key)
             if idx_ver == ID_NULL then has_all = false; break end
             local idx = ID_KEY(idx_ver)
-            tuple[pos] = ARRAY_GET(pool.values, idx)
+            tuple_arg[pos] = ARRAY_GET(pool.values, idx)
             idxs[pos] = idx
         end
 
         if has_all == false then continue end
 
-        tuple[source_pos] = ARRAY_GET(values, i)
+        tuple_arg[source_pos] = ARRAY_GET(values, i)
         idxs[source_pos] = i
 
-        tuple2[1], tuple2[2], tuple2[3], tuple2[4] = fn(tuple[1], tuple[2], tuple[3], tuple[4])
+        tuple_ret[1], tuple_ret[2], tuple_ret[3], tuple_ret[4] =
+            fn(tuple_arg[1], tuple_arg[2], tuple_arg[3], tuple_arg[4])
 
         for pos, pool in includes do
             local on_change = pool.on_change :: Array<Listener<unknown>>
-            if on_change then fire(on_change, id, tuple[pos]) end
-            ARRAY_SET(pool.values, idxs[pos], tuple2[pos])
+            if on_change then fire(on_change, id, tuple_ret[pos]) end
+            ARRAY_SET(pool.values, idxs[pos], tuple_ret[pos])
         end
     end
 
@@ -1059,11 +1110,11 @@ function view_create<T...>(reg: IRegistry, ...: T...): View<T...>
         local excludes = self.excludes and get_pools(self.registry, self.excludes)
 
         return if #includes == 1 and not excludes then
-                create_iter_1(includes[1])
+                view_iter_1(includes[1])
             elseif #includes == 2  and not excludes then 
-                create_iter_2(includes[1], includes[2])
+                view_iter_2(includes[1], includes[2])
             else
-                create_iter_general(includes, excludes)   
+                view_iter_general(includes, excludes)   
     end
 
     local self: _View<T...> = setmetatable({
@@ -1095,9 +1146,11 @@ function view_create<T...>(reg: IRegistry, ...: T...): View<T...>
             local excludes = self.excludes and get_pools(self.registry, self.excludes)
 
             if #includes == 1 and not excludes then
-                patch_1(includes[1], fn :: any)
+                view_patch_1(includes[1], fn :: any)
+            elseif #includes == 2 and not excludes then
+                view_patch_2(includes[1], includes[2], fn :: any)
             else
-                patch_general(includes, excludes, fn :: any)
+                view_patch_general(includes, excludes, fn :: any)
             end
         end,
 

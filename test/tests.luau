@@ -89,26 +89,24 @@ TEST("registry:create()", function()
             cache[id] = true
         end
 
-        
         for id in cache do
             reg:release(id)
         end
 
         for i = 1, N do
-            local id = reg:create() -- key reused
+            local id = reg:create()
             CHECK(not cache[id])
             cache[id] = true
-            --print(id)
         end
     end
 
     do CASE "use specific id"
-        do
+        do -- copy ids from a server registry to a new registry in random order
             local sreg = ecr.registry()
 
             local ids = BULK_CREATE_IDS(sreg, N)
 
-            -- mix array of ids
+            -- randomize id array order
             local mixed = table.clone(ids)
             for i = 1, N do
                 local a = math.random(1, N)
@@ -127,11 +125,13 @@ TEST("registry:create()", function()
             end
         end
 
-        local reg = ecr.registry()
-        reg:create(CREATE_ID(3, 2))
-        CHECK(reg:create() == CREATE_ID(1, 1))
-        CHECK(reg:create() == CREATE_ID(2, 1)) 
-        CHECK(reg:create() == CREATE_ID(4, 1))
+        do -- test internal linked list order
+            local reg = ecr.registry()
+            reg:create(CREATE_ID(3, 2))
+            CHECK(reg:create() == CREATE_ID(1, 1))
+            CHECK(reg:create() == CREATE_ID(2, 1)) 
+            CHECK(reg:create() == CREATE_ID(4, 1))
+        end
     end
 
     do CASE "reuse previously used id"
@@ -143,7 +143,7 @@ TEST("registry:create()", function()
             CHECK(reg:contains(id))
         end
 
-        do
+        do -- test internal linked list order and version tracking
             local reg = ecr.registry()
             local id1, id2, id3 = reg:create(), reg:create(), reg:create()
             local id4 = reg:create()
@@ -1255,6 +1255,36 @@ TEST("registry:view()", function()
         end
     end
 
+    do CASE "view patch double"
+        local expected_values = {}
+
+        for id, a, b in reg:view(A, B) do
+            expected_values[id] = { a + 1, b + 2 }
+        end
+
+        reg:view(A :: number, B :: number):patch(function(a, b) return a + 1, b + 2 end)
+
+        for id, a, b in reg:view(A, B) do
+            CHECK(a == expected_values[id][1])
+            CHECK(b == expected_values[id][2])
+        end
+    end
+
+    do CASE "view patch double (reverse query order)"
+        local expected_values = {}
+
+        for id, a, b in reg:view(B, A) do
+            expected_values[id] = { a + 1, b + 2 }
+        end
+
+        reg:view(B :: number, A :: number):patch(function(a, b) return a + 1, b + 2 end)
+
+        for id, a, b in reg:view(B, A) do
+            CHECK(a == expected_values[id][1])
+            CHECK(b == expected_values[id][2])
+        end
+    end
+
     do CASE "view patch multi"
         local expected_values = {}
 
@@ -1492,7 +1522,7 @@ TEST("registry:track()", function()
 
     local function persist_cache_ids(observer: ecr.Observer<unknown>): { [ecr.entity]: { unknown } }
         local cache = {}
-        for id, a, b, c in observer:iter() do
+        for id, a, b, c in observer:iter() :: any do
             cache[id] = { a, b, c }
         end
         return cache

@@ -689,6 +689,11 @@ do
             reg:view(A):patch(function(a) return a end)
         end)
 
+        BENCH("2 components", function()
+            START(N)
+            reg:view(A, B):patch(function(a, b) return a, b end)
+        end)
+
         BENCH("4 components", function()
             START(N)
             reg:view(A, B, C, D):patch(function(a, b, c, d) return a, b, c, d end)
