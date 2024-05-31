@@ -2,7 +2,7 @@
 
 Each component type in the registry has its own [pool](../api/Pool.md). A pool
 stores every entity that has that component type, and their corresponding value
-for that component type. Pools are the underlying containers the registry
+for that component type. Pools are the underlying containers that the registry
 directly modifies.
 
 ECR was designed with transparent access to data in mind, and so, you can access
@@ -43,24 +43,7 @@ This can be useful for e.g:
 - Getting all entities and components to replicate a registry from server to
   client for the first time they join.
 
-- Modifying values directly for performance in systems acting on many entities.
-
-    ```lua
-    local Position = ecr.component(Vector3.new)
-    local Velocity = ecr.component(Vector3.new)
-
-    local function update_positions(dt: number)
-        -- groups sort their pools so that all entities in all of the group's
-        -- pools are sorted in the same order from 1 up to the group's size
-        -- this makes positions[i] correspond to velocities[i] (perfect SoA)
-        local n = #registry:group(Position, Velocity)
-        local positions = registry:storage(Position).values
-        local velocities = registry:storage(Velocity).values
-
-        for i = 1, n do
-            positions[i] += velocities[i] * dt
-        end
-    ```
+- Modifying values directly for performance systems.
 
 If needed you can also get all pools inside the registry via an iterator.
 

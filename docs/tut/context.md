@@ -1,12 +1,12 @@
 # Context
 
-All registries have a special entity, that uses a reserved id `ecr.context`,
-called the *context entity*.
+All registries have a special entity, using a special id `ecr.context`, called
+the *context entity*.
 
-Often you will need to store data about the world that isn't specific to an
-entity, data such as a round counter, in-game timer, etc.
-
-The context entity can be used to store data like this; the world's context.
+If you ever need to store general data about the world (like a round timer,
+chosen map, etc) the context entity is a place to do this. Being an entity,
+systems can still act on it saving you from having separate logic for normal
+entity data and context data (like automatic replication).
 
 This entity does not exist by default, it is automatically created the first
 time [`Registry:context()`](../api/Registry#context) is called, subsequent calls
@@ -19,6 +19,7 @@ registry:context():set(Round, 1)
 
 -- or, if you prefer
 
+registry:create(ecr.context)
 registry:set(ecr.context, Round, 1)
 ```
 

@@ -33,7 +33,9 @@ components.
 
 Once a group is created, it will ensure that its owned components are aligned
 with each other in memory whenever a component is added or removed from an
-entity.
+entity. This means the only performance cost grouping imposes is the addition
+and removal of group-owned components on entities. Changing the values
+of already added group-owned components is unaffected.
 
 ## Usage
 
@@ -53,18 +55,42 @@ The exact size of a group can also be read:
 local size = #registry:group(A, B)
 ```
 
+## Perfect SoA
+
+Since groups guarantee alignment of its owned components, they can be modified
+together directly.
+
+```lua
+local Position = ecr.component(Vector3.new)
+local Velocity = ecr.component(Vector3.new)
+
+local function update_positions(dt: number)
+    local n = #registry:group(Position, Velocity)
+    local positions = registry:storage(Position).values
+    local velocities = registry:storage(Velocity).values
+
+    for i = 1, n do
+        positions[i] += velocities[i] * dt
+    end
+```
+
+It is important not to exceed the size of the group `n` or you will act on
+entities outside of the group, where the `i`th component values may no longer
+correspond with each other.
+
 ## Limitations
 
 - As mentioned before, each component type can only be owned by one group,
   groups cannot share components so you need to profile to determine where the
   most benefit is gained.
 
-- In a rare case, causing an entity to join a group during iteration of a view
-  with a group-owned component, will invalidate the view iterator.
+- In a rare case, during the iteration of a view including a group-owned
+  component, an entity joining the group because a group-owned component was
+  added will invalidate the view iterator.
   
   This is due to how groups organise their components in memory. This can be
   avoided if you:
-    1. queue the entities to add components later, instead of during iteration.
+    1. defer adding components to after iteration instead of during iteration.
     2. know that adding those group-owned components will not cause the entity
        to enter the group.
 

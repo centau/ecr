@@ -17,7 +17,7 @@ local registry = ecr.registry()
 
 ## Entities
 
-An entity represents an object in the world is referenced using a unique id.
+An entity represents an object in the world and is referenced using a unique id.
 
 ```lua
 local id: ecr.entity = registry:create()
@@ -46,10 +46,10 @@ local Health = ecr.component() :: number
 ```
 
 Entities can have any amount of components added to or removed from them,
-whenever. They behave like tables, where they can have any amount of key-value
-pairs, where the component type is the key, and the component value is the
-value. Entities initially have no components when created, and will have all its
-components removed when destroyed.
+whenever. Like tables, they can have any amount of key-value pairs, where the
+component type is the key, and the component value is the value. Entities
+initially have no components when created, and will have all their components
+removed when destroyed.
 
 ```lua
 registry:set(id, Health, 100) -- adds a new component with a value of 100
@@ -63,16 +63,10 @@ Component values cannot be `nil`, components should be removed instead.
 
 ## Views
 
-A view allows you to look into the registry and get all entities that have the
-specified component types.
+You can get all entities that have a specific set of components by using a view.
 
-```lua
-registry:view(Health)
-
-registry:view(Position, Velocity)
-```
-
-To get all entities in a view you iterate over it.
+Views can include any amounts of components. A view only returns entities that
+have *at least* all the components included.
 
 ```lua
 for id, position, velocity in registry:view(Position, Velocity) do
@@ -99,7 +93,7 @@ You can also exclude component types from views. Any entities that have an
 excluded type will not be included in the view.
 
 ```lua
-local view = registry:view(A, B):exclude(C)
+local view = registry:view(A):exclude(B)
 ```
 
 Views are cheap to create and do not store their own state, so they do not need
@@ -118,7 +112,7 @@ registry:on_remove(type):connect(listener)
 
 All three listeners are called with:
 
-1. The entity whose component is being changed.
+1. The entity being acted on.
 2. The new component value (always `nil` in the case of `on_remove`).
 
 `on_add` is fired *after* the component is added.
@@ -150,8 +144,8 @@ end
 After iterating, the observer automatically clears so that only fresh changes
 are iterated.
 
-Observers provide a concise way to track and act on only specific entities
-that have changed since the last time a system ran.
+Observers provide a concise way to act only on a subset of entities that had
+components updated since the last time a system ran.
 
 Unlike a view, observers do store their own state, and must be stored aside to
 keep track over time.

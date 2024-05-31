@@ -2,8 +2,8 @@
 
 Entities are represented by a special component type, `ecr.entity`.
 
-This can be used in the same way as custom components types, except instead of
-representing components, represents entities themselves.
+This can be used in the same way as other components types, except instead of
+representing components, represents entities.
 
 This type cannot be used to modify the registry, methods like `add()`, `set()`,
 `remove()` do not work with this type.
@@ -24,7 +24,7 @@ local entities = registry:storage(ecr.entity).entities
 
 ## Exclude-only views
 
-You can get all entities without certain components with:
+You can get all entities without specific components with:
 
 ```lua
 for entity in registry:view(ecr.entity):exclude(...) do end
