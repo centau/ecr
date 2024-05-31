@@ -1140,7 +1140,7 @@ function view_create<T...>(reg: IRegistry, ...: T...): View<T...>
                 view_iter_general(includes, excludes)   
     end
 
-    local self: _View<T...> = setmetatable({
+    local self = {
         registry = reg,
         includes = includes,
         excludes = nil,
@@ -1177,16 +1177,18 @@ function view_create<T...>(reg: IRegistry, ...: T...): View<T...>
             end
         end,
 
-        iter = iter
-    }, {
+        iter = iter,
+
         __len = function(self: _View<T...>): number
             return get_smallest(get_pools(self.registry, self.includes)).size
         end,
 
         __iter = iter
-    })
+    }
 
-    return self
+    setmetatable(self, self)
+
+    return self :: _View<T...>
 end
 
 type _Observer<T...> = typeof(setmetatable({} :: {
@@ -1274,7 +1276,7 @@ function observer_create<T...>(reg: IRegistry, ...: T...): Observer<T...>
             end
     end
 
-    local self: _Observer<T...> = setmetatable({
+    local self = {
         registry = reg,
         pool = pool_create(), -- treat all initial ids as changed
         includes = includes,
@@ -1380,16 +1382,18 @@ function observer_create<T...>(reg: IRegistry, ...: T...): Observer<T...>
             return self
         end,
 
-        iter = function(self) return iter(self, false) end
-    }, {
+        iter = function(self) return iter(self, false) end,
+
         __len = function(self: _Observer<T...>): number
             return self.pool.size
         end,
 
         __iter = function(self) return iter(self, true) end
-    })
+    }
 
-    return self:reconnect()
+    setmetatable(self, self)
+
+    return self:reconnect()  :: _Observer<T...>
 end
 
 type _Group<T...> = typeof(setmetatable({} :: {
@@ -1473,20 +1477,22 @@ function group_create<T...>(reg: Registry, data: GroupData, ...: T...): Group<T.
         end
     end
 
-    local self: _Group<T...> = setmetatable({
+    local self = {
         data = data,
         pools = pools,
 
-        iter = iter
-    }, {
+        iter = iter,
+
         __len = function(self: _Group<T...>): number
             return self.data.size
         end,
 
         __iter = iter
-    })
+    }
 
-    return self
+    setmetatable(self, self)
+
+    return self :: _Group<T...>
 end
 
 end
