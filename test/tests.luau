@@ -2369,6 +2369,16 @@ TEST("buffer helpers", function()
             CHECK(arr[i] == ids[i])
         end
     end
+
+    do CASE "buffer to buffer"
+        buffer.fill(buf, 0, 0)
+        local pool = reg:storage(ecr.entity)
+        ecr.buffer_to_buffer(pool.entities, pool.size, buf)
+        local arr = ecr.buffer_to_array(buf, pool.size)
+        for i = 1, 10 do
+            CHECK(arr[i] == ids[i])
+        end
+    end
 end)
 
 if DEFER_ID_REUSE then

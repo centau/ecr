@@ -1127,6 +1127,12 @@ do TITLE "buffer"
     BENCH("buffer to array", function()
         ecr.buffer_to_array(buf, START(N), arr)
     end)
+
+    local pool = reg:storage(ecr.entity)
+
+    BENCH("buffer to buffer", function()
+        ecr.buffer_to_buffer(pool.entities, START(N), buf)
+    end)
 end
 
 local PN = 2^11 -- 2048

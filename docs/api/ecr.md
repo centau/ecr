@@ -162,6 +162,24 @@ Converts an array of entities into a buffer of entities.
 
     If no target buffer is given, one will be created.
 
+--------------------------------------------------------------------------------
+
+### buffer_to_buffer()
+
+Copies a buffer of entities into a buffer of entities.
+
+- **Type**
+
+    ```lua
+    function ecr.buffer_to_buffer(source: buffer, size: number, target: buffer?) -> buffer
+    ```
+
+- **Details**
+
+    Copies the first `size` ids from a buffer to a target buffer.
+
+    If no target buffer is given, one will be created.
+
 ## Constants
 
 ### entity

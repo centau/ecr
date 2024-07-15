@@ -2158,6 +2158,16 @@ local function array_to_buffer(arr: Array<entity>, size: number, buf: buffer?): 
     return buf
 end
 
+local function buffer_to_buffer(buf_src: buffer, size: number, buf_tar: buffer?): buffer
+    buf_tar = buf_tar or buffer.create(size * ID_SIZE); assert(buf_tar)
+
+    ASSERT(size * ID_SIZE <= buffer.len(buf_tar), "size is larger than buffer size")
+
+    buffer.copy(buf_tar, 0, buf_src, 0, size * ID_SIZE)
+
+    return buf_tar
+end
+
 --------------------------------------------------------------------------------
 -- export
 --------------------------------------------------------------------------------
@@ -2194,6 +2204,7 @@ local ecr = {
     
     array_to_buffer = array_to_buffer,
     buffer_to_array = buffer_to_array,
+    buffer_to_buffer = buffer_to_buffer,
 
     entity = ctype_entity,
     null = ID_NULL,

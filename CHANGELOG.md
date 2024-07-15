@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Method `View:patch()`.
 - Method `Registry:find()`.
 - Overload `ecr.queue()` to accept a function connector.
+- Function `ecr.buffer_to_buffer()`.
 
 # Changed
 
