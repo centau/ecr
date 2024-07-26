@@ -1616,7 +1616,7 @@ local Handle = (function(): HandleMT
     end
 
     function Handle.insert<T>(self: Handle, ctype: Array<T>, value: T): Handle
-        self.registry:insert(self.entity, ctype, value
+        self.registry:insert(self.entity, ctype, value)
         return self
     end
 
