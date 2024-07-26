@@ -621,6 +621,30 @@ TEST("registry:has()", function()
     end
 end)
 
+TEST("registry:insert()", function()
+    local ARRAY = ecr.component() :: {number}
+    local reg = ecr.registry()
+    local id = reg:create()
+    
+    do CASE "insert adds array if no value"
+        reg:insert(id, ARRAY, 1)
+
+        CHECK(reg:has(id, ARRAY))
+        CHECK(type(reg:get(id, ARRAY)) == "table")
+        CHECK(reg:get(id, ARRAY)[1] == 1)
+    end
+
+    do CASE "insert adds values to the end"
+        reg:insert(id, ARRAY, 2)
+
+        CHECK(reg:has(id, ARRAY))
+        CHECK(type(reg:get(id, ARRAY)) == "table")
+        CHECK(reg:get(id, ARRAY)[1] == 1)
+        CHECK(reg:get(id, ARRAY)[2] == 2)
+    end
+
+end)
+
 TEST("registry:patch()", function()
     local reg = ecr.registry()
 
