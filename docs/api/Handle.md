@@ -38,13 +38,14 @@ The `Handle` class wraps the following registry methods:
 - has_none()
 - add()
 - set()
+- insert()
 - patch()
 - has()
 - get()
 - try_get()
 - remove()
 
-The `set()` method will also return the handle it is called
+The `set()` and `inser()` method will also return the handle it is called
 on.
 
 - **Example**
