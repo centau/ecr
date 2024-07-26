@@ -114,6 +114,7 @@ export type Registry = {
     has_none: (self: Registry, id: entity) -> boolean,
     add: <T...>(self: Registry, id: entity, T...) -> (),
     set: <T>(self: Registry, id: entity, ctype: T, value: T) -> (),
+    insert: <T>(self: Registry, id: entity, ctype: Array<T>, value: T) -> (),
     patch: <T>(self: Registry, id: entity, ctype: T, fn: ((T) -> T)?) -> T,
     has: <T...>(self: Registry, id: entity, T...) -> boolean,
     get: <T...>(self: Registry, id: entity, T...) -> T...,
@@ -1797,6 +1798,26 @@ local function registry_create(): Registry
             ASSERT(ctype_is_tag(ctype), "cannot set component value to nil")
             if idx_ver ~= ID_NULL then return end
             POOL_ADD_ID(pool, id)
+        end
+    end
+
+    function registry.insert<T>(self: Registry, id: entity, ctype: Array<T>, value: T)
+        local pool = STORAGE(ctype)
+
+        local key = ID_KEY(id)
+        POOL_RESIZE_MAP_IF_NEEDED(pool, key)
+        local idx_ver = BUFFER_GET(pool.map, key)
+
+        if idx_ver ~= ID_NULL then
+            ID_ASSERT_VERSION_EQUAL(idx_ver, id)
+            local idx = ID_KEY(idx_ver)
+            local t = ARRAY_GET(pool.values, idx)
+            table.insert(t, value)
+            if pool.on_change then fire(pool.on_change, id, t) end
+        else
+            ASSERT_VALID_ENTITY(id)
+            local t = {value}
+            POOL_ADD(pool, id, t)
         end
     end
     
