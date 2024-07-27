@@ -1,4 +1,4 @@
-local testkit = require("test/testkit")
+local testkit = require("testkit")
 local BENCH, START = testkit.benchmark()
 
 local function TITLE(name: string)
@@ -6,7 +6,7 @@ local function TITLE(name: string)
     print(testkit.color.white(name))
 end
 
-local ecr = require "src/ecr"
+local ecr = require "../src/ecr"
 
 local function rtrue() return true :: any end
 local A, B, C, D = ecr.component(rtrue), ecr.component(rtrue), ecr.component(rtrue), ecr.component(rtrue)
