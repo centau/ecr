@@ -1134,7 +1134,7 @@ function view_create<T...>(reg: IRegistry, ...: T...): View<T...>
 
         return if #includes == 1 and not excludes then
                 view_iter_1(includes[1])
-            elseif #includes == 1 and excludes then
+            elseif #includes == 1 and excludes and #excludes == 1 then
                 view_iter_1_exclude_1(includes[1], excludes[1])
             elseif #includes == 2  and not excludes then 
                 view_iter_2(includes[1], includes[2])

@@ -27,6 +27,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Method `Observer:persist()`.
 - Method `View:use()`.
 
+# Fixed
+
+- Single type view not excluding properly with multiple exclude types.
+
 ## [0.8.0] - 2023-12-05
 
 ### Added

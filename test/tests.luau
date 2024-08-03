@@ -1119,6 +1119,7 @@ TEST("registry:view()", function()
     local ABCs = {}
     local AnotCs = {}
     local ABnotCs = {}
+    local AnotBCs = {}
     local notABs = {}
 
     for i = 1, N do
@@ -1140,6 +1141,7 @@ TEST("registry:view()", function()
         if has[A] and has[B] then table.insert(ABs, id) end
         if has[A] and has[B] and has[C] then table.insert(ABCs, id) end
         if has[A] and has[B] and not has[C] then table.insert(ABnotCs, id) end
+        if has[A] and not has[B] and not has[C] then table.insert(AnotBCs, id) end
         if not has[A] and not has[B] then table.insert(notABs, id) end
     end
 
@@ -1213,6 +1215,9 @@ TEST("registry:view()", function()
             if not CHECK(v) then continue end
             CHECK(v[1] == id)
         end
+        for id in viewed do
+            CHECK(not reg:has(id, C))
+        end
     end
 
     do CASE "view all entities with AB and not C"
@@ -1223,6 +1228,24 @@ TEST("registry:view()", function()
             if not CHECK(v) then continue end
             CHECK(v[1] == id)
         end
+        for id in viewed do
+            CHECK(not reg:has(id, C))
+        end
+    end
+
+    do CASE "view all entities with A and not BC"
+
+        local viewed = getids(reg:view(A):exclude(B, C))
+        CHECK(not empty(viewed))
+        for _, id in AnotBCs do
+            local v = viewed[id]
+            if not CHECK(v) then continue end
+            CHECK(v[1] == id)
+        end
+        for id in viewed do
+            CHECK(not reg:has(id, B))
+            CHECK(not reg:has(id, C))
+        end
     end
 
     do CASE "view all entities without AB"
@@ -1231,6 +1254,10 @@ TEST("registry:view()", function()
         for _, id in notABs do 
             local v = viewed[id]
             if not CHECK(v) then continue end
+        end
+        for id in viewed do
+            CHECK(not reg:has(id, A))
+            CHECK(not reg:has(id, B))
         end
     end
 
