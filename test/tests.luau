@@ -1566,6 +1566,30 @@ TEST("registry:on_remove()", function()
     end
 end)
 
+TEST("signals", function()
+    local reg = ecr.registry()
+
+    do CASE "firing after disconnecting"
+        local run = false
+        local dont_run = true
+        local a = reg:on_add(A):connect(function() run = true end) -- idx 1
+        local b = reg:on_add(A):connect(function() dont_run = false end) -- idx 2
+        -- {A, B}
+        a:disconnect()
+        -- {B}
+        a:reconnect()
+        -- {B, A}
+        local _c = reg:on_add(A):connect(function() end) -- idx 3
+        -- {B, A, C}
+        b:disconnect()
+        -- should be {A, C}, not {B, C}
+        reg:handle():set(A, true)
+        CHECK(run)
+        CHECK(dont_run)
+    end
+    
+end)
+
 TEST("registry:track()", function()
     local function flip()
         return math.random() > 0.3

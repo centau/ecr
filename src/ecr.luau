@@ -1515,7 +1515,6 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
     type _Connection<T... = ...unknown> = {
         signal: _Signal<T...>,
         listener: (T...) -> (),
-        idx: number,
         connected: boolean,
 
         disconnect: (_Connection<T...>) -> (),
@@ -1524,11 +1523,10 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
 
     local Connection = {}
 
-    function Connection.new<T...>(signal: _Signal<T...>, fn: (T...) -> (), idx: number): _Connection<T...>
+    function Connection.new<T...>(signal: _Signal<T...>, fn: (T...) -> ()): _Connection<T...>
         return {
             signal = signal,
             listener = fn,
-            idx = idx,
             connected = true,
 
             disconnect = function(self: _Connection<T...>)
@@ -1536,7 +1534,10 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
                     local listeners = self.signal.listeners
                     local n = #listeners
                     local last = listeners[n]
-                    listeners[self.idx] = last
+                    local idx = table.find(listeners, fn)
+                    assert(idx, "cannot find listener")
+
+                    listeners[idx] = last
                     listeners[n] = nil
 
                     self.connected = false
@@ -1577,7 +1578,7 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
 
                 self.listeners[n + 1] = listener
 
-                return Connection.new(self, listener, n + 1)
+                return Connection.new(self, listener)
             end
         }
 
