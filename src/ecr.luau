@@ -122,6 +122,7 @@ export type Registry = {
     try_get: <T>(self: Registry, id: entity, T) -> T?,
     remove: <T...>(self: Registry, id: entity, T...) -> (),
     find: <T>(self: Registry, ctype: T, value: T) -> entity?,
+    copy: <T>(self: Registry, a: T, b: T) -> (),
 
     view: <T...>(self: Registry, T...) -> View<T...>,
     track: <T...>(self: Registry, T...) -> Observer<T...>,
@@ -514,6 +515,17 @@ local function POOL_TRY_REMOVE<T>(self: Pool<T>, id: entity)
     if POOL_HAS(self, key) then
         POOL_REMOVE(self, key, id)
     end
+end
+
+local function POOL_COPY<T>(self: Pool<T>, into: Pool<T>)
+    POOL_RESIZE_MAP_IF_NEEDED(into, self.map_max)
+    POOL_RESIZE_ENTITIES_IF_NEEDED(into, self.capacity)
+    
+    into.size = self.size
+    
+    buffer.copy(into.map, 0, self.map, 0)
+    buffer.copy(into.entities, 0, self.entities, 0)
+    table.move(self.values, 1, math.max(self.size, into.size), 1, into.values)
 end
 
 local function pool_clear<T>(self: Pool<T>)
@@ -1934,6 +1946,13 @@ local function registry_create(): Registry
             local arr_idx = table.find(pool.values, value)
             return arr_idx and BUFFER_GET(pool.entities, arr_idx - 1)
         end
+    end
+
+    function registry.copy<T>(self: Registry, a: T, b: T)
+        local pool_a = STORAGE(a)
+        local pool_b = STORAGE(b)
+
+        POOL_COPY(pool_a, pool_b)
     end
 
     function registry.view<T...>(self: Registry, ...: T...): View<T...>

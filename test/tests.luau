@@ -2214,6 +2214,66 @@ TEST("registry:storage()", function()
     end
 end)
 
+TEST("registry:copy()", function()
+    local reg = ecr.registry()
+
+    do CASE "copy"
+        local entities = {
+            reg:handle():set(A, "value").entity,
+            reg:handle():set(A, "value").entity,
+            reg:handle():set(A, "value").entity,
+            reg:handle():set(A, "value").entity,
+        }
+
+        for id, b in reg:view(B) do
+            CHECK(false)
+        end
+
+        reg:copy(A, B)
+
+        for id, b in reg:view(B) do
+            CHECK(b == "value")
+        end
+
+        for _, id in entities do
+            reg:destroy(id)
+        end
+    end
+
+    do CASE "copies nil"
+        local e = reg:handle():set(B, "value")
+
+        for id, b in reg:view(B) do
+            CHECK(b == "value")
+        end
+
+        reg:copy(A, B)
+
+        for id, b in reg:view(B) do
+            CHECK(false)
+        end
+        e:destroy()
+    end
+
+    do CASE "copies tags"
+        local e = reg:handle():set(TA)
+
+        for id, b in reg:view(TB) do
+            CHECK(false)
+        end
+
+        reg:copy(TA, TB)
+
+        local pass = false
+        for id, b in reg:view(TB) do
+            CHECK(reg:has(id, TB, TA))
+            pass = true
+        end
+        CHECK(pass)
+        e:destroy()
+    end
+end)
+
 TEST("ecr.component()", function()
     do CASE "components have unique ids"
         local cache = {}

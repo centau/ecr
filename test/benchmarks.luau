@@ -1040,6 +1040,51 @@ do TITLE("contains")
     end)
 end
 
+do TITLE("copy")
+    local reg = REG_INIT(N)
+    local ids = table.create(N)
+
+    for i = 1, N do
+        ids[i] = reg:create()
+    end
+
+    BENCH("values no pre-alloc", function()
+        for i = 1, N do
+            reg:set(ids[i], A, "1")
+        end
+
+        START(N)
+
+        reg:copy(A, B)
+    end)
+
+    BENCH("values pre-alloc", function()
+        for i = 1, N do
+            reg:set(ids[i], A, "2")
+        end
+
+        START(N)
+
+        reg:copy(A, B)
+    end)
+
+    BENCH("tag no pre-alloc", function()
+        for i = 1, N do
+            reg:set(ids[i], TA)
+        end
+
+        START(N)
+
+        reg:copy(TA, TB)
+    end)
+
+    BENCH("tag pre-alloc", function()
+        START(N)
+
+        reg:copy(TA, TB)
+    end)
+end
+
 do TITLE "signal"
     local reg = REG_INIT(N)
     local ids = table.create(N)
