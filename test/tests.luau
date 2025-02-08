@@ -1,4 +1,4 @@
-local testkit = require("test/testkit")
+local testkit = require("./testkit")
 
 local TEST, CASE, CHECK, FINISH = testkit.test()
 
@@ -15,7 +15,7 @@ end
 type Map<T, U> = { [T]: U }
 type Array<T> = { T }
 
-local ecr = require "src/ecr"
+local ecr = require "../src/ecr"
 
 local A, B, C, D = ecr.component(), ecr.component(), ecr.component(), ecr.component()
 local E, F, G, H = ecr.component(), ecr.component(), ecr.component(), ecr.component(function() return true end)
