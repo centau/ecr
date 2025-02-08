@@ -1948,9 +1948,9 @@ local function registry_create(): Registry
         end
     end
 
-    function registry.copy<T>(self: Registry, a: T, b: T)
-        local pool_a = STORAGE(a)
-        local pool_b = STORAGE(b)
+    function registry.copy<T>(self: Registry, copy: T, paste: T)
+        local pool_a = STORAGE(copy)
+        local pool_b = STORAGE(paste)
 
         POOL_COPY(pool_a, pool_b)
     end

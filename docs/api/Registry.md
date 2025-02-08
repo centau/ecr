@@ -238,6 +238,23 @@ Returns the first entity found that has a component matching the given value.
 
 --------------------------------------------------------------------------------
 
+### copy()
+
+Copies the values of a component and pastes it into another component
+
+- **Type**
+
+    ```lua
+    function Registry:copy<T>(copy: T, paste: T)
+    ```
+
+- **Details**
+
+    This removes any entities that don't have a value in the copied component
+    from the pasted component. It does not fire signals when called.
+
+--------------------------------------------------------------------------------
+
 ### view()
 
 Creates a [`view`](View) with the given component types.
