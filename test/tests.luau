@@ -2272,6 +2272,18 @@ TEST("registry:copy()", function()
         CHECK(pass)
         e:destroy()
     end
+
+    do CASE "throws error if signal"
+        reg:handle():set(TA)
+        reg:on_add(TB):connect(function(a0: number, a1: nil)  end)
+
+        for id, b in reg:view(TB) do
+            CHECK(false)
+        end
+
+        local ok = pcall(reg.copy, reg, TA, TB)
+        CHECK(not ok)
+    end
 end)
 
 TEST("ecr.component()", function()

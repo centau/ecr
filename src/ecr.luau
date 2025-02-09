@@ -518,6 +518,8 @@ local function POOL_TRY_REMOVE<T>(self: Pool<T>, id: entity)
 end
 
 local function POOL_COPY<T>(self: Pool<T>, into: Pool<T>)
+    if into.on_add or into.on_change or into.on_remove or into.on_clear then throw("cannot paste into component with signals") end
+
     POOL_RESIZE_MAP_IF_NEEDED(into, self.map_max)
     POOL_RESIZE_ENTITIES_IF_NEEDED(into, self.capacity)
     
