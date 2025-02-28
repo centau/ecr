@@ -1,4 +1,4 @@
-local testkit = require("test/testkit")
+local testkit = require("./testkit")
 local BENCH, START = testkit.benchmark()
 
 local function TITLE(name: string)
@@ -6,7 +6,7 @@ local function TITLE(name: string)
     print(testkit.color.white(name))
 end
 
-local ecr = require "src/ecr"
+local ecr = require "../src/ecr"
 
 local function rtrue() return true :: any end
 local A, B, C, D = ecr.component(rtrue), ecr.component(rtrue), ecr.component(rtrue), ecr.component(rtrue)
@@ -1037,6 +1037,51 @@ do TITLE("contains")
         for i = 1, N do
             reg:contains(ids[i])   
         end
+    end)
+end
+
+do TITLE("copy")
+    local reg = REG_INIT(N)
+    local ids = table.create(N)
+
+    for i = 1, N do
+        ids[i] = reg:create()
+    end
+
+    BENCH("values no pre-alloc", function()
+        for i = 1, N do
+            reg:set(ids[i], A, "1")
+        end
+
+        START(N)
+
+        reg:copy(A, B)
+    end)
+
+    BENCH("values pre-alloc", function()
+        for i = 1, N do
+            reg:set(ids[i], A, "2")
+        end
+
+        START(N)
+
+        reg:copy(A, B)
+    end)
+
+    BENCH("tag no pre-alloc", function()
+        for i = 1, N do
+            reg:set(ids[i], TA)
+        end
+
+        START(N)
+
+        reg:copy(TA, TB)
+    end)
+
+    BENCH("tag pre-alloc", function()
+        START(N)
+
+        reg:copy(TA, TB)
     end)
 end
 

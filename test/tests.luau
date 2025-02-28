@@ -1,4 +1,4 @@
-local testkit = require("test/testkit")
+local testkit = require("./testkit")
 
 local TEST, CASE, CHECK, FINISH = testkit.test()
 
@@ -15,7 +15,7 @@ end
 type Map<T, U> = { [T]: U }
 type Array<T> = { T }
 
-local ecr = require "src/ecr"
+local ecr = require "../src/ecr"
 
 local A, B, C, D = ecr.component(), ecr.component(), ecr.component(), ecr.component()
 local E, F, G, H = ecr.component(), ecr.component(), ecr.component(), ecr.component(function() return true end)
@@ -2211,6 +2211,78 @@ TEST("registry:storage()", function()
 
         CHECK(cache[A] == pool_A)
         CHECK(cache[B] == pool_B)
+    end
+end)
+
+TEST("registry:copy()", function()
+    local reg = ecr.registry()
+
+    do CASE "copy"
+        local entities = {
+            reg:handle():set(A, "value").entity,
+            reg:handle():set(A, "value").entity,
+            reg:handle():set(A, "value").entity,
+            reg:handle():set(A, "value").entity,
+        }
+
+        for id, b in reg:view(B) do
+            CHECK(false)
+        end
+
+        reg:copy(A, B)
+
+        for id, b in reg:view(B) do
+            CHECK(b == "value")
+        end
+
+        for _, id in entities do
+            reg:destroy(id)
+        end
+    end
+
+    do CASE "copies nil"
+        local e = reg:handle():set(B, "value")
+
+        for id, b in reg:view(B) do
+            CHECK(b == "value")
+        end
+
+        reg:copy(A, B)
+
+        for id, b in reg:view(B) do
+            CHECK(false)
+        end
+        e:destroy()
+    end
+
+    do CASE "copies tags"
+        local e = reg:handle():set(TA)
+
+        for id, b in reg:view(TB) do
+            CHECK(false)
+        end
+
+        reg:copy(TA, TB)
+
+        local pass = false
+        for id, b in reg:view(TB) do
+            CHECK(reg:has(id, TB, TA))
+            pass = true
+        end
+        CHECK(pass)
+        e:destroy()
+    end
+
+    do CASE "throws error if signal"
+        reg:handle():set(TA)
+        reg:on_add(TB):connect(function(a0: number, a1: nil)  end)
+
+        for id, b in reg:view(TB) do
+            CHECK(false)
+        end
+
+        local ok = pcall(reg.copy, reg, TA, TB)
+        CHECK(not ok)
     end
 end)
 
