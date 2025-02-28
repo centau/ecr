@@ -20,8 +20,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 # Changed
 
 - Method `Registry:patch()` will return the new value.
-- Methods `Observer:iter()` and `Queue:iter()` will no longer clear on
-  completion. Iteration by `__iter` will still clear.
 
 # Removed
 

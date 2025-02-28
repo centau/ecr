@@ -1234,7 +1234,7 @@ function observer_create<T...>(reg: IRegistry, ...: T...): Observer<T...>
         table.insert(includes, ctype)
     end
 
-    local function iter(self: _Observer<T...>, clear_on_finish: boolean): () -> (entity, T...)
+    local function iter(self: _Observer<T...>): () -> (entity, T...)
         local pool = self.pool
         local reg = self.registry
         local includes = get_pools(reg, self.includes)
@@ -1255,7 +1255,7 @@ function observer_create<T...>(reg: IRegistry, ...: T...): Observer<T...>
                     n = i
 
                     if i < 0 then
-                        if clear_on_finish then self:clear() end
+                        self:clear()
                         return NIL
                     end
 
@@ -1287,7 +1287,7 @@ function observer_create<T...>(reg: IRegistry, ...: T...): Observer<T...>
                         return id, unpack(tuple)
                     end
 
-                    if clear_on_finish then self:clear() end
+                    self:clear()
                 return nil :: any, nil :: any
             end
     end
@@ -1398,13 +1398,13 @@ function observer_create<T...>(reg: IRegistry, ...: T...): Observer<T...>
             return self
         end,
 
-        iter = function(self) return iter(self, false) end,
+        iter = function(self) return iter(self) end,
 
         __len = function(self: _Observer<T...>): number
             return self.pool.size
         end,
 
-        __iter = function(self) return iter(self, true) end
+        __iter = function(self) return iter(self) end
     }
 
     setmetatable(self, self)
@@ -2121,7 +2121,7 @@ local Queue = {} do
         end
     end
 
-    local function iter(self: _Queue, clear_on_finish: boolean)
+    local function iter(self: _Queue)
         local columns = self.columns
         local n = self.size
         local i = 0
@@ -2131,7 +2131,7 @@ local Queue = {} do
             return function()
                 i += 1
                 local value = column[i]
-                if i == n and clear_on_finish then self:clear() end
+                if i == n then self:clear() end
                 return value
             end
         else
@@ -2141,14 +2141,14 @@ local Queue = {} do
                 for ci, column in next, columns do
                     tuple[ci] = column[i]
                 end
-                if i == n and clear_on_finish then self:clear() end
+                if i == n then self:clear() end
                 return unpack(tuple)
             end
         end
     end
 
-    Queue.iter = function(self) return iter(self, false) end
-    Queue.__iter = function(self) return iter(self, true) end
+    Queue.iter = function(self) return iter(self) end
+    Queue.__iter = function(self) return iter(self) end
 
     function Queue.__len(self: _Queue)
         return self.size

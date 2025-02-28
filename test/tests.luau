@@ -1607,14 +1607,6 @@ TEST("registry:track()", function()
         return cache
     end
 
-    local function persist_cache_ids(observer: ecr.Observer<unknown>): { [ecr.entity]: { unknown } }
-        local cache = {}
-        for id, a, b, c in observer:iter() :: any do
-            cache[id] = { a, b, c }
-        end
-        return cache
-    end
-
     local reg = ecr.registry()
     local observerA = reg:track(A)
     local observerB = reg:track(B)
@@ -1692,14 +1684,14 @@ TEST("registry:track()", function()
     end
 
     do CASE "AnotC tracked"
-        local cache = persist_cache_ids(observerAnotC)
+        local cache = cache_ids(observerAnotC)
         CHECK(not empty(cache))
         for _, id in AnotCs do
             local v = cache[id]
             if not CHECK(v) then continue end
             CHECK(v[1] == id)
         end
-        CHECK(#observerAnotC > 0)
+        CHECK(#observerAnotC == 0)
     end
 
     do CASE "ABC tracked"
@@ -1743,7 +1735,7 @@ TEST("registry:track()", function()
             CHECK(v == id + 1)
         end
 
-        CHECK(#observerB > 0)
+        CHECK(#observerB == 0)
     end
 
     do CASE "removed components are not returned"
@@ -2338,11 +2330,11 @@ TEST("ecr.queue()", function()
         end
     end
     
-    do CASE "new iter does not clear"
+    do CASE "new iter clear"
         local queue = ecr.queue()
         queue:add(1)
         for _ in queue:iter() do end
-        CHECK(#queue == 1)
+        CHECK(#queue == 0)
     end
 
     do CASE "manual clear"
