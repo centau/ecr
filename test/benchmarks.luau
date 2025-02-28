@@ -245,6 +245,48 @@ do TITLE "set"
     end
 end
 
+do TITLE "insert"
+
+    BENCH("insert new array", function()
+        local reg = REG_INIT(N)
+        local ids = table.create(N)
+
+        for i = 1, N do
+            local e = reg:create()
+            ids[i] = e
+        end
+
+        for i = 1, START(N) do
+            reg:insert(ids[i], A, true)
+        end
+    end)
+
+    BENCH("insert new value", function()
+        local reg = REG_INIT(N)
+        local ids = table.create(N)
+
+        for i = 1, N do
+            local e = reg:create()
+            reg:insert(e, A, true)
+            ids[i] = e
+        end
+
+        for i = 1, START(N) do
+            reg:insert(ids[i], A, true)
+        end
+    end)
+
+    BENCH("insert new value to same entity", function()
+        local reg = REG_INIT(N)
+        local id = reg:create()
+
+        for i = 1, START(N) do
+            reg:insert(id, A, true)
+        end
+    end)
+
+end
+
 do TITLE "patch"
     local function setup()
         local reg = REG_INIT(N)

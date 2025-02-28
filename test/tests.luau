@@ -621,6 +621,30 @@ TEST("registry:has()", function()
     end
 end)
 
+TEST("registry:insert()", function()
+    local ARRAY = ecr.component() :: {number}
+    local reg = ecr.registry()
+    local id = reg:create()
+    
+    do CASE "insert adds array if no value"
+        reg:insert(id, ARRAY, 1)
+
+        CHECK(reg:has(id, ARRAY))
+        CHECK(type(reg:get(id, ARRAY)) == "table")
+        CHECK(reg:get(id, ARRAY)[1] == 1)
+    end
+
+    do CASE "insert adds values to the end"
+        reg:insert(id, ARRAY, 2)
+
+        CHECK(reg:has(id, ARRAY))
+        CHECK(type(reg:get(id, ARRAY)) == "table")
+        CHECK(reg:get(id, ARRAY)[1] == 1)
+        CHECK(reg:get(id, ARRAY)[2] == 2)
+    end
+
+end)
+
 TEST("registry:patch()", function()
     local reg = ecr.registry()
 
@@ -1095,6 +1119,7 @@ TEST("registry:view()", function()
     local ABCs = {}
     local AnotCs = {}
     local ABnotCs = {}
+    local AnotBCs = {}
     local notABs = {}
 
     for i = 1, N do
@@ -1116,6 +1141,7 @@ TEST("registry:view()", function()
         if has[A] and has[B] then table.insert(ABs, id) end
         if has[A] and has[B] and has[C] then table.insert(ABCs, id) end
         if has[A] and has[B] and not has[C] then table.insert(ABnotCs, id) end
+        if has[A] and not has[B] and not has[C] then table.insert(AnotBCs, id) end
         if not has[A] and not has[B] then table.insert(notABs, id) end
     end
 
@@ -1189,6 +1215,9 @@ TEST("registry:view()", function()
             if not CHECK(v) then continue end
             CHECK(v[1] == id)
         end
+        for id in viewed do
+            CHECK(not reg:has(id, C))
+        end
     end
 
     do CASE "view all entities with AB and not C"
@@ -1199,6 +1228,24 @@ TEST("registry:view()", function()
             if not CHECK(v) then continue end
             CHECK(v[1] == id)
         end
+        for id in viewed do
+            CHECK(not reg:has(id, C))
+        end
+    end
+
+    do CASE "view all entities with A and not BC"
+
+        local viewed = getids(reg:view(A):exclude(B, C))
+        CHECK(not empty(viewed))
+        for _, id in AnotBCs do
+            local v = viewed[id]
+            if not CHECK(v) then continue end
+            CHECK(v[1] == id)
+        end
+        for id in viewed do
+            CHECK(not reg:has(id, B))
+            CHECK(not reg:has(id, C))
+        end
     end
 
     do CASE "view all entities without AB"
@@ -1207,6 +1254,10 @@ TEST("registry:view()", function()
         for _, id in notABs do 
             local v = viewed[id]
             if not CHECK(v) then continue end
+        end
+        for id in viewed do
+            CHECK(not reg:has(id, A))
+            CHECK(not reg:has(id, B))
         end
     end
 
@@ -1513,6 +1564,30 @@ TEST("registry:on_remove()", function()
 
         CHECK(cid == id2)
     end
+end)
+
+TEST("signals", function()
+    local reg = ecr.registry()
+
+    do CASE "firing after disconnecting"
+        local run = false
+        local dont_run = true
+        local a = reg:on_add(A):connect(function() run = true end) -- idx 1
+        local b = reg:on_add(A):connect(function() dont_run = false end) -- idx 2
+        -- {A, B}
+        a:disconnect()
+        -- {B}
+        a:reconnect()
+        -- {B, A}
+        local _c = reg:on_add(A):connect(function() end) -- idx 3
+        -- {B, A, C}
+        b:disconnect()
+        -- should be {A, C}, not {B, C}
+        reg:handle():set(A, true)
+        CHECK(run)
+        CHECK(dont_run)
+    end
+    
 end)
 
 TEST("registry:track()", function()

@@ -71,6 +71,7 @@ type HandleMT = {
     has_none: (self: Handle) -> boolean,
     add: <T...>(self: Handle, T...) -> (),
     set: <T>(self: Handle, ctype: T, value: T) -> Handle,
+    insert: <T>(self: Handle, ctype: Array<T>, value: T) -> Handle,
     patch: <T>(self: Handle, ctype: T, fn: ((T) -> T)?) -> T,
     has: <T...>(self: Handle, T...) -> boolean,
     get: <T...>(self: Handle, T...) -> T...,
@@ -114,6 +115,7 @@ export type Registry = {
     has_none: (self: Registry, id: entity) -> boolean,
     add: <T...>(self: Registry, id: entity, T...) -> (),
     set: <T>(self: Registry, id: entity, ctype: T, value: T) -> (),
+    insert: <T>(self: Registry, id: entity, ctype: Array<T>, value: T) -> (),
     patch: <T>(self: Registry, id: entity, ctype: T, fn: ((T) -> T)?) -> T,
     has: <T...>(self: Registry, id: entity, T...) -> boolean,
     get: <T...>(self: Registry, id: entity, T...) -> T...,
@@ -1132,7 +1134,7 @@ function view_create<T...>(reg: IRegistry, ...: T...): View<T...>
 
         return if #includes == 1 and not excludes then
                 view_iter_1(includes[1])
-            elseif #includes == 1 and excludes then
+            elseif #includes == 1 and excludes and #excludes == 1 then
                 view_iter_1_exclude_1(includes[1], excludes[1])
             elseif #includes == 2  and not excludes then 
                 view_iter_2(includes[1], includes[2])
@@ -1513,7 +1515,6 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
     type _Connection<T... = ...unknown> = {
         signal: _Signal<T...>,
         listener: (T...) -> (),
-        idx: number,
         connected: boolean,
 
         disconnect: (_Connection<T...>) -> (),
@@ -1522,11 +1523,10 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
 
     local Connection = {}
 
-    function Connection.new<T...>(signal: _Signal<T...>, fn: (T...) -> (), idx: number): _Connection<T...>
+    function Connection.new<T...>(signal: _Signal<T...>, fn: (T...) -> ()): _Connection<T...>
         return {
             signal = signal,
             listener = fn,
-            idx = idx,
             connected = true,
 
             disconnect = function(self: _Connection<T...>)
@@ -1534,7 +1534,10 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
                     local listeners = self.signal.listeners
                     local n = #listeners
                     local last = listeners[n]
-                    listeners[self.idx] = last
+                    local idx = table.find(listeners, fn)
+                    assert(idx, "cannot find listener")
+
+                    listeners[idx] = last
                     listeners[n] = nil
 
                     self.connected = false
@@ -1575,7 +1578,7 @@ local signal_create: <T...>() -> (Signal<T...>, Array<(T...) -> ()>) do
 
                 self.listeners[n + 1] = listener
 
-                return Connection.new(self, listener, n + 1)
+                return Connection.new(self, listener)
             end
         }
 
@@ -1610,6 +1613,11 @@ local Handle = (function(): HandleMT
 
     function Handle.set<T>(self: Handle, ctype: T, value: T): Handle
         self.registry:set(self.entity, ctype, value)
+        return self
+    end
+
+    function Handle.insert<T>(self: Handle, ctype: Array<T>, value: T): Handle
+        self.registry:insert(self.entity, ctype, value)
         return self
     end
 
@@ -1797,6 +1805,26 @@ local function registry_create(): Registry
             ASSERT(ctype_is_tag(ctype), "cannot set component value to nil")
             if idx_ver ~= ID_NULL then return end
             POOL_ADD_ID(pool, id)
+        end
+    end
+
+    function registry.insert<T>(self: Registry, id: entity, ctype: Array<T>, value: T)
+        local pool = STORAGE(ctype)
+
+        local key = ID_KEY(id)
+        POOL_RESIZE_MAP_IF_NEEDED(pool, key)
+        local idx_ver = BUFFER_GET(pool.map, key)
+
+        if idx_ver ~= ID_NULL then
+            ID_ASSERT_VERSION_EQUAL(idx_ver, id)
+            local idx = ID_KEY(idx_ver)
+            local t = ARRAY_GET(pool.values, idx)
+            table.insert(t, value)
+            if pool.on_change then fire(pool.on_change, id, t) end
+        else
+            ASSERT_VALID_ENTITY(id)
+            local t = {value}
+            POOL_ADD(pool, id, t)
         end
     end
     

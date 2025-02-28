@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Method `View:patch()`.
 - Method `Registry:find()`.
+- Method `Registry:insert()`
 - Overload `ecr.queue()` to accept a function connector.
 - Function `ecr.buffer_to_buffer()`.
 
@@ -25,6 +26,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Method `Observer:persist()`.
 - Method `View:use()`.
+
+# Fixed
+
+- Single type view not excluding properly with multiple exclude types.
+- `Connection:disconnect()` disconnecting the wrong listener
 
 ## [0.8.0] - 2023-12-05
 
