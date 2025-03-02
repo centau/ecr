@@ -25,22 +25,6 @@ Excludes entities with the given components from the view.
 
 --------------------------------------------------------------------------------
 
-### patch()
-
-Updates all entity components in the view using a given function.
-
-- **Type**
-
-    ```lua
-    function View:patch<T...>(fn: (T...) -> T...)
-    ```
-
-- **Details**
-
-    ::: warning
-    Returning `nil` will result in undefined behavior.
-    :::
-
 ## Iteration
 
 Iterates all entities in the view.

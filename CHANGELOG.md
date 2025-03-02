@@ -6,14 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## Unreleased
+## [0.9.0] - 2025-03-02
 
 # Added
 
-- Method `View:patch()`.
 - Method `Registry:find()`.
-- Method `Registry:insert()`
-- Method `Registry:copy()`
+- Method `Registry:insert()`.
+- Method `Registry:copy()`.
 - Overload `ecr.queue()` to accept a function connector.
 - Overload `ecr.registry()` to restrict entity range.
 - Function `ecr.buffer_to_buffer()`.
@@ -30,7 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 # Fixed
 
 - Single type view not excluding properly with multiple exclude types.
-- `Connection:disconnect()` disconnecting the wrong listener
+- `Connection:disconnect()` disconnecting the wrong listener.
 
 ---
 

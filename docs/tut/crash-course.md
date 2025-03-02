@@ -80,15 +80,6 @@ iteration.
 Components added or entities created during iteration will not be returned
 during that iteration.
 
-For simpler view operations, the following can be done which is equivalent to
-the above:
-
-```lua
-registry:view(Position, Velocity):patch(function(position, velocity)
-    return position, position + velocity * 1/60
-end)
-```
-
 You can also exclude component types from views. Any entities that have an
 excluded type will not be included in the view.
 
