@@ -22,7 +22,6 @@ local E, F, G, H = ecr.component(), ecr.component(), ecr.component(), ecr.compon
 
 local TA, TB, TC, TD = ecr.tag(), ecr.tag(), ecr.tag(), ecr.tag()
 
-local DEFER_ID_REUSE = ecr._test.defer_id_reuse
 local MAX_VER = ecr._test.max_ver
 
 local function KEY(id: ecr.entity): number
@@ -36,25 +35,20 @@ local function VER(id: ecr.entity): number
 end
 
 local function GET_KEY_VERSION(reg: ecr.Registry, key: number): number
-    return ecr._test.get_key_version(reg:storage(ecr.entity) :: any, key)
+    return ecr._test.get_key_version(reg, key)
 end
 
 local function CREATE_ID(key: number, ver: number)
     return ecr._test.create_id(key, ver)
 end
 
-local function SET_KEY_VERSION(reg: ecr.Registry, key: number, ver: number)
-    reg:release(reg:create(CREATE_ID(key, 1))) -- ensure key exists
-    ecr._test.set_key_version(reg:storage(ecr.entity) :: any, key, ver)
+local function SET_KEY_VERSION_AND_ENSURE_EXISTS(reg: ecr.Registry, key: number, ver: number)
+    reg:release(reg:create(CREATE_ID(key, 1)))
+    ecr._test.set_key_version(reg, key, ver)
 end
 
-local function CREATE_DEPRECATED_ID(reg: ecr.Registry): ecr.entity
-    local id = reg:create()
-    reg:release(id)
-    SET_KEY_VERSION(reg, KEY(id), MAX_VER)
-    id = reg:create()
-    reg:release(id)
-    return id
+local function SET_KEY_VERSION(reg: ecr.Registry, key: number, ver: number)
+    ecr._test.set_key_version(reg, key, ver)
 end
 
 local function BULK_CREATE_IDS(reg: ecr.Registry, n: number): { ecr.entity }
@@ -63,6 +57,25 @@ local function BULK_CREATE_IDS(reg: ecr.Registry, n: number): { ecr.entity }
         ids[i] = reg:create()
     end
     return ids
+end
+
+local function DEBUG_ID(key_ver: ecr.entity): string
+    local key = bit32.band(key_ver, 2^16 - 1)
+    local ver = bit32.rshift(bit32.band(key_ver, bit32.lshift(2^16 - 1, 16)), 16)
+    return `{key}:{ver}`
+end
+
+local function DEBUG_ENTITY_LIST(reg: ecr.Registry)
+    local list = reg:storage("list") :: any
+    local s = {}
+    table.insert(s, "------------------")
+    table.insert(s, `free: {list.free}`)
+    for i = 0, list.capacity - 1 do
+        local key_ver = buffer.readu32(list.data, i*4)
+        table.insert(s, `{i}: {DEBUG_ID(key_ver)} {key_ver}`)
+    end
+    table.insert(s, "------------------")
+    print(table.concat(s, "\n"))
 end
 
 local N = 1e3
@@ -182,14 +195,6 @@ TEST("registry:create()", function()
         end
     end
 
-    do CASE "reuse deprecated id"
-        local reg = ecr.registry()
-        local id = CREATE_DEPRECATED_ID(reg)
-        reg:create(id)
-        CHECK(reg:contains(id))
-        CHECK(VER(id) == MAX_VER)
-    end
-
     do CASE "error if key is already in use"
         local sreg = ecr.registry()
         local id = sreg:create()
@@ -198,14 +203,13 @@ TEST("registry:create()", function()
 
         CHECK(id == reg:create())
 
-        CHECK_ERR("key already in use", function()
+        CHECK_ERR("unable to create entity; key is already in use", function()
             reg:create(id)
         end)
     end
 
     do CASE "error if null is used"
         local reg = ecr.registry()
-
         CHECK_ERR("malformed id", function()
             reg:create(ecr.null)
         end)
@@ -223,9 +227,71 @@ TEST("registry:create()", function()
 
         CHECK(not reg:contains(ecr.null))
 
-        CHECK_ERR("entity limit reached", function()
+        CHECK_ERR("cannot create entity; registry is at max entities", function()
             reg:create()
         end)
+    end
+
+    do CASE "partitions respected"
+        local sreg = ecr.registry(1, 100)
+        local reg = ecr.registry(101, 200)
+
+        local ids = {}
+
+        for i = 1, 100 do
+            ids[i] = sreg:create()
+        end
+        CHECK_ERR("cannot create entity; registry is at max entities", function()
+            sreg:create()
+        end)
+
+        for i = 1, 100 do
+            reg:create()
+        end
+        CHECK_ERR("cannot create entity; registry is at max entities", function()
+            reg:create()
+        end)
+
+        for _, id in ids do
+            reg:create(id)
+        end
+
+        for _, id in ids do
+            CHECK(reg:contains(id))
+        end
+
+        -- check if entity outside partition is not readded to list
+        reg:destroy(ids[1])
+        CHECK_ERR("cannot create entity; registry is at max entities", function()
+            reg:create()
+        end)
+
+    end
+
+    do CASE "partition edge cases"
+        CHECK(not pcall(function() ecr.registry(0, 1) end))
+        CHECK(not pcall(function() ecr.registry(2, 1) end))
+        CHECK(not pcall(function() ecr.registry(1, 2^16-1) end))
+        CHECK(pcall(function() ecr.registry(1, 2^16-2) end))
+
+        do
+            local reg = ecr.registry(1000, 1000)
+            reg:create()
+            CHECK_ERR("cannot create entity; registry is at max entities", function()
+                reg:create()
+            end)
+        end
+
+        do -- test linked list traversal branch
+            local reg = ecr.registry(901, 1000)
+            reg:create(CREATE_ID(1000, 1)) -- create last entity to initialize linked list of entire partition
+            SET_KEY_VERSION(reg, 950, 10)
+            reg:destroy(reg:create(CREATE_ID(950, 2))) -- create entity in middle of list then destroy
+            CHECK(reg:create() == CREATE_ID(950, 3)) -- pop head which was previously destroyed entity
+            for i = 1, 49 do -- check linked list is maintained
+                CHECK(reg:create() == CREATE_ID(900 + i, 1))
+            end
+        end
     end
 end)
 
@@ -249,13 +315,6 @@ TEST("registry:release()", function()
     do CASE "release null id"
         CHECK_ERR("invalid entity", function()
             reg:release(ecr.null)
-        end)
-    end
-
-    do CASE "release deprecated id"
-        local id = CREATE_DEPRECATED_ID(reg)
-        CHECK_ERR("invalid entity", function()
-            reg:release(id)
         end)
     end
 end)
@@ -302,11 +361,6 @@ TEST("registry:contains()", function()
 
     do CASE "null entity invalid"
         CHECK(not reg:contains(ecr.null))
-    end
-
-    do CASE "deprecated id invalid"
-        local id = CREATE_DEPRECATED_ID(reg)
-        CHECK(not reg:contains(id))
     end
 end)
 
@@ -469,13 +523,6 @@ TEST("registry:set()", function()
     do CASE "add component to null entity"
         CHECK_ERR("invalid entity", function()
             reg:set(ecr.null, A, true)
-        end)
-    end
-
-    do CASE "add component to deprecated id"
-        CHECK_ERR("invalid entity", function()
-            local id = CREATE_DEPRECATED_ID(reg)
-            reg:set(id, A, 1)
         end)
     end
 
@@ -861,50 +908,24 @@ TEST("registry:clear()", function()
     do CASE "clear entities"
         local reg = ecr.registry()
     
-        -- deprecate key = 1
-        assert(KEY(CREATE_DEPRECATED_ID(reg)) == 1)
-
-        -- set key = 2 version to max
-        SET_KEY_VERSION(reg, 2, MAX_VER)
-        do
-            local id = reg:create()
-            assert(KEY(id) == 2)
-            assert(VER(id) == MAX_VER)
-        end
-
         local ids = table.create(N)
+
+        -- set key = 1 version to max
+        SET_KEY_VERSION_AND_ENSURE_EXISTS(reg, 1, MAX_VER)
+
         for i = 1, N do
             ids[i] = reg:create()
-            if i == N/2 then
-                reg:release(ids[i])
-                ids[i] = reg:create()
-            end
         end
 
         reg:clear()
 
         local ids_after = BULK_CREATE_IDS(reg, N)
 
-        if DEFER_ID_REUSE then
-            CHECK(KEY(ids_after[1]) == 3) -- key = 1 should not be reused
-            CHECK(KEY(ids_after[2]) == 4) -- key = 2 should now be deprecated
-
-            for i = 1, N do
-                CHECK(KEY(ids_after[i]) ~= 1)
-                CHECK(KEY(ids_after[i]) ~= 2)
+        for i = 1, N do
+            if i == 1 then
+                CHECK(ids_after[i] == CREATE_ID(1, 1))
+            else
                 CHECK(VER(ids[i]) + 1 == VER(ids_after[i]))
-            end
-        else
-            for i = 1, N do
-                if i == 1 then
-                    assert(ids[i] == CREATE_ID(1, 1))
-                    CHECK(ids_after[i] == CREATE_ID(2, 1))
-                elseif i == 2 then
-                    assert(ids[i] == CREATE_ID(3, 1))
-                    CHECK(ids_after[i] == CREATE_ID(1, 2))
-                else
-                    CHECK(VER(ids[i - 1]) + 1 == VER(ids_after[i]))
-                end
             end
         end
     end
@@ -994,14 +1015,6 @@ TEST("registry:destroy()", function()
             reg:destroy(id)
         end)
     end
-
-    do CASE "destroy deprecated id"
-        local id = CREATE_DEPRECATED_ID(reg)
-
-        CHECK_ERR("invalid entity", function()
-            reg:destroy(id)
-        end)
-    end
 end)
 
 TEST("#registry", function()
@@ -1072,21 +1085,6 @@ TEST("registry:view(ecr.entity)", function()
                 CHECK(cache[entity])
             end
         end
-    end
-
-    do CASE "deprecated id not returned"
-        local reg = ecr.registry()
-        CREATE_DEPRECATED_ID(reg) -- deprecate key1
-        local id2 = reg:create() -- key2
-
-        local ids = {}
-        for id in reg:view(ecr.entity) do
-            table.insert(ids, id)
-        end
-
-        local r_id = ids[1] -- should be key2
-
-        CHECK(#ids == 1 and r_id == id2)
     end
 end)
 
@@ -2528,7 +2526,7 @@ TEST("deferred id reuse", function()
         
         reg2:release( reg2:create() ); -- ensure id internally exists
 
-        SET_KEY_VERSION(reg2, 1, MAX_VER - 1)
+        SET_KEY_VERSION_AND_ENSURE_EXISTS(reg2, 1, MAX_VER - 1)
 
         -- verify version was set to MAX-1 correctly
         local id = reg2:create()
@@ -2617,7 +2615,7 @@ TEST("immediate id reuse", function()
         local chosen_key = KEY(ids[chosen])
 
         reg:release(ids[chosen])
-        SET_KEY_VERSION(reg, KEY(ids[chosen]), ecr._test.max_ver)
+        SET_KEY_VERSION_AND_ENSURE_EXISTS(reg, KEY(ids[chosen]), ecr._test.max_ver)
         CHECK(reg:create() == ecr._test.create_id(chosen_key, ecr._test.max_ver))
 
         reg:clear()

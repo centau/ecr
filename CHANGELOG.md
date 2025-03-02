@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Method `Registry:insert()`
 - Method `Registry:copy()`
 - Overload `ecr.queue()` to accept a function connector.
+- Overload `ecr.registry()` to restrict entity range.
 - Function `ecr.buffer_to_buffer()`.
 
 # Changed
@@ -30,6 +31,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Single type view not excluding properly with multiple exclude types.
 - `Connection:disconnect()` disconnecting the wrong listener
+
+---
 
 ## [0.8.0] - 2023-12-05
 

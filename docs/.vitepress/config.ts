@@ -55,7 +55,8 @@ export default defineConfig({
                         { text: "Entity Type", link: "/tut/entity-type" },
                         { text: "Context", link: "/tut/context" },
                         { text: "Pools", link: "/tut/storage" },
-                        { text: "Groups", link: "/tut/groups" }
+                        { text: "Groups", link: "/tut/groups" },
+                        { text: "Partitions", link: "/tut/partition" }
                     ]
                 }
             ],

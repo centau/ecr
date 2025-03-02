@@ -10,7 +10,14 @@ Creates a new registry.
 
     ```lua
     function ecr.registry(): Registry
+    function ecr.registry(start: number, end: number): Registry
     ```
+
+- **Details**
+
+    If specified, the entity id space can be restricted. This is useful for
+    ensuring ids are not in conflict when copying entities from one registry to
+    another.
 
 --------------------------------------------------------------------------------
 

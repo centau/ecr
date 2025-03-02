@@ -65,7 +65,7 @@ do TITLE "entities"
         end
     end)
 
-    BENCH("create with id", function()
+    BENCH("create with id (init)", function()
         local sreg = REG_INIT(N)
         
         local id = table.create(N)
@@ -77,6 +77,24 @@ do TITLE "entities"
         local reg = REG_INIT(N)
 
         for i = 1, START(N) do
+            reg:create(id[i])
+        end
+    end)
+
+    BENCH("create with id", function()
+        local sreg = REG_INIT(N)
+        
+        local id = table.create(N)
+
+        for i = 1, N do
+            id[i] = sreg:create()
+        end
+
+        local reg = REG_INIT(N)
+
+        START(N)
+        reg:create(id[N])
+        for i = 1, N - 1 do
             reg:create(id[i])
         end
     end)
@@ -495,6 +513,12 @@ do TITLE "find"
         local id = reg:create()
         reg:set(id, A, i)
     end
+
+    BENCH("search through 1", function()
+        for i = 1, START(N) do
+            reg:find(A, 1)
+        end
+    end)
 
     BENCH("search through 10", function()
         for i = 1, START(N) do
@@ -1016,6 +1040,35 @@ do TITLE("destroy")
 
         for i = 1, N/10 do
             ids[i] = reg:create()
+        end
+
+        for i = 1, START(N/10) do
+            reg:destroy(ids[i])
+        end
+    end)
+
+    BENCH("32 components (1024 registered)", function()
+        local ctypes = {}
+        for i = 1, 1024 do
+            ctypes[i] = ecr.component()
+        end
+
+        local reg = ecr.registry()
+
+        do
+            local id = reg:create()
+            for i = 1, 1024  do
+                reg:set(id, ctypes[i], true)
+            end
+        end
+
+        local ids = table.create(N)
+
+        for i = 1, N/10 do
+            ids[i] = reg:create()
+            for j = 1, 32 do
+                reg:set(ids[i], ctypes[j], true)
+            end
         end
 
         for i = 1, START(N/10) do
