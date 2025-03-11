@@ -45,8 +45,8 @@ The `Handle` class wraps the following registry methods:
 - try_get()
 - remove()
 
-The `set()` and `insert()` method will also return the handle it is called
-on.
+The `set()`, `insert()`, `add()` and `remove()` methods will also return the
+handle it is called on.
 
 - **Example**
 
