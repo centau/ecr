@@ -395,6 +395,39 @@ do TITLE "has"
     end)
 end
 
+do TITLE "has_any"
+    local reg = REG_INIT(N)
+    local ids = table.create(N)
+
+    for i = 1, N do
+        ids[i] = reg:create()
+        reg:set(ids[i], A, true)
+        reg:set(ids[i], B, true)
+        reg:set(ids[i], C, true)
+        reg:set(ids[i], D, true)
+    end
+
+    BENCH("1 component", function()
+        for i = 1, START(N) do
+            reg:has_any(ids[i], A)
+        end
+    end)
+
+    BENCH("2 components", function()
+        for i = 1, START(N) do
+            local e = ids[i]
+            reg:has_any(e, A, B)
+        end
+    end)
+
+    BENCH("4 components", function()
+        for i = 1, START(N) do
+            local e = ids[i]
+            reg:has_any(e, A, B, C, D)
+        end
+    end)
+end
+
 do TITLE("get")
     local reg = REG_INIT(N)
     local ids = table.create(N)
