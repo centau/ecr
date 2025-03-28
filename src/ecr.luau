@@ -692,12 +692,30 @@ local function HAS_ANY(pools: Array<Pool<unknown>>, key: number): boolean
     return false
 end
 
-local function get_smallest(pools: Array<Pool<unknown>>): Pool<unknown>
-    local s: Pool<unknown>?
-    for _, pool in next, pools do
-        s = if s == nil or pool.size < s.size then pool else s
+local function get_smallest(pools: Array<Pool<unknown>>): (Pool<unknown>, number)
+    local pool: Pool<unknown>?
+    local pos = 0
+
+    for i, p in next, pools do
+        if pool == nil or p.size < pool.size then
+            pool = p
+            pos = i
+        end
     end
-    return assert(s, "no pools given")
+
+    return assert(pool, "no pools given"), pos
+end
+
+local get_smallest_first_tuple = {}
+local function get_smallest_first(pools: Array<Pool<unknown>>): (number, ...Pool<unknown>)
+    table.clear(get_smallest_first_tuple)
+    local s, s_pos = get_smallest(pools)
+    for i, p in next, pools do
+        if p ~= s then
+            table.insert(get_smallest_first_tuple, p)
+        end
+    end
+    return s_pos, s, unpack(get_smallest_first_tuple)
 end
 
 local function get_pools(registry: IRegistry, ctypes: Array<CType>): Array<Pool<unknown>>
@@ -743,7 +761,7 @@ local function view_iter_1<A>(a: Pool<A>): () -> (entity, A)
     end
 end
 
-local function view_iter_1_exclude_1<A>(a: Pool<A>, b: Pool<unknown>): () -> (entity, A)
+local function view_iter_1_excl_1<A>(a: Pool<A>, b: Pool<unknown>): () -> (entity, A)
     local n = a.size
     local entities = a.entities
     local values = a.values
@@ -762,24 +780,6 @@ local function view_iter_1_exclude_1<A>(a: Pool<A>, b: Pool<unknown>): () -> (en
 
         ASSERT_INVALIDATION(a)
         return NIL, NIL
-    end
-end
-
-local function view_patch_1<A>(a: Pool<A>, fn: (A) -> A)
-    local entities = a.entities
-    local values = a.values
-
-    local on_change = a.on_change :: Array<Listener<A>>
-    if on_change then
-        for i, v in values do
-            local v_new = fn(v)
-            fire(on_change, BUFFER_GET(entities, i - 1), v_new)
-            values[i] = v_new
-        end
-    else
-        for i, v in values do
-            values[i] = fn(v)
-        end
     end
 end
 
@@ -827,51 +827,135 @@ local function view_iter_2<A, B>(a: Pool<A>, b: Pool<B>): () -> (entity, A, B)
     end
 end
 
-local function view_patch_2<A, B>(a: Pool<A>, b: Pool<B>, fn: (A, B) -> (A, B))
+local function view_iter_2_excl_1<A, B>(a: Pool<A>, b: Pool<B>, c: Pool<unknown>): () -> (entity, A, B)
     local na, nb = a.size, b.size
-
-    local a_on_change = a.on_change :: Array<Listener<A>>
-    local b_on_change = b.on_change :: Array<Listener<B>>
 
     if na <= nb then
         local n = na
         local entities = a.entities
         local values = a.values
 
-        for i = 0, n - 1 do
-            local id = BUFFER_GET(entities, i)
-            local idx_ver = POOL_FIND(b, ID_KEY(id))
-            if idx_ver == ID_NULL then continue end
-            local idx = ID_KEY(idx_ver)
+        clear_invalidation_flag(a)
 
-            local va_new, vb_new = fn(ARRAY_GET(values, i), ARRAY_GET(b.values, idx))
-
-            if a_on_change then fire(a_on_change, id, va_new) end
-            if b_on_change then fire(b_on_change, id, vb_new) end
-
-            ARRAY_SET(values, i, va_new)
-            ARRAY_SET(b.values, idx, vb_new)
+        return function()
+            for i = n - 1, 0, -1 do
+                local id = BUFFER_GET(entities, i)
+                local key = ID_KEY(id)
+                if POOL_FIND(c, key) ~= ID_NULL then continue end
+                local idx_ver = POOL_FIND(b, key)
+                if idx_ver == ID_NULL then continue end
+                n = i
+                return id, ARRAY_GET(values, i), ARRAY_GET(b.values, ID_KEY(idx_ver))
+            end
+    
+            ASSERT_INVALIDATION(a)
+            return NIL, NIL, NIL
         end
-
     else
         local n = nb
         local entities = b.entities
         local values = b.values
 
-        for i = 0, n - 1 do
-            local id = BUFFER_GET(entities, i)
-            local idx_ver = POOL_FIND(a, ID_KEY(id))
-            if idx_ver == ID_NULL then continue end
-            local idx = ID_KEY(idx_ver)
+        clear_invalidation_flag(b)
 
-            local va_new, vb_new = fn(ARRAY_GET(a.values, idx), ARRAY_GET(values, i))
-
-            if a_on_change then fire(a_on_change, id, va_new) end
-            if b_on_change then fire(b_on_change, id, vb_new) end
-
-            ARRAY_SET(a.values, idx, va_new)
-            ARRAY_SET(values, i, vb_new)
+        return function()
+            for i = n - 1, 0, -1 do
+                local id = BUFFER_GET(entities, i)
+                local key = ID_KEY(id)
+                if POOL_FIND(c, key) ~= ID_NULL then continue end
+                local idx_ver = POOL_FIND(a, key)
+                if idx_ver == ID_NULL then continue end
+                n = i
+                return id, ARRAY_GET(a.values, ID_KEY(idx_ver)), ARRAY_GET(values, i)   
+            end
+    
+            ASSERT_INVALIDATION(b)
+            return NIL, NIL, NIL
         end
+    end
+end
+
+local function view_iter_3(includes: Array<Pool<unknown>>): () -> (entity, ...any)
+    local s_pos, s, a, b = get_smallest_first(includes)
+
+    local n = s.size
+    local entities = s.entities
+    local values = s.values
+
+    clear_invalidation_flag(s)
+
+    return function()
+        for i = n - 1, 0, -1 do
+            local id = BUFFER_GET(entities, i)
+            local key = ID_KEY(id)
+            
+            local a_idx_ver = POOL_FIND(a, key)
+            if a_idx_ver == ID_NULL then continue end
+            local va = ARRAY_GET(a.values, ID_KEY(a_idx_ver))
+
+            local b_idx_ver = POOL_FIND(b, key)
+            if b_idx_ver == ID_NULL then continue end
+            local vb = ARRAY_GET(b.values, ID_KEY(b_idx_ver))
+
+            local sv = ARRAY_GET(values, i)
+
+            n = i
+            if s_pos == 1 then
+                return id, sv, va, vb
+            elseif s_pos == 2 then
+                return id, va, sv, vb
+            else
+                return id, va, vb, sv
+            end
+        end
+
+        ASSERT_INVALIDATION(s)
+        return NIL
+    end
+end
+
+local function view_iter_4(includes: Array<Pool<unknown>>): () -> (entity, ...any)
+    local s_pos, s, a, b, c = get_smallest_first(includes)
+
+    local n = s.size
+    local entities = s.entities
+    local values = s.values
+
+    clear_invalidation_flag(s)
+
+    return function()
+        for i = n - 1, 0, -1 do
+            local id = BUFFER_GET(entities, i)
+            local key = ID_KEY(id)
+            
+            local a_idx_ver = POOL_FIND(a, key)
+            if a_idx_ver == ID_NULL then continue end
+            local va = ARRAY_GET(a.values, ID_KEY(a_idx_ver))
+
+            local b_idx_ver = POOL_FIND(b, key)
+            if b_idx_ver == ID_NULL then continue end
+            local vb = ARRAY_GET(b.values, ID_KEY(b_idx_ver))
+
+            local c_idx_ver = POOL_FIND(c, key)
+            if c_idx_ver == ID_NULL then continue end
+            local vc = ARRAY_GET(c.values, ID_KEY(c_idx_ver))
+
+            local sv = ARRAY_GET(values, i)
+
+            n = i
+            if s_pos == 1 then
+                return id, sv, va, vb, vc
+            elseif s_pos == 2 then
+                return id, va, sv, vb, vc
+            elseif s_pos == 3 then
+                return id, va, vb, sv, vc
+            else
+                return id, va, vb, vc, sv
+            end
+        end
+
+        ASSERT_INVALIDATION(s)
+        return NIL
     end
 end
 
@@ -933,6 +1017,72 @@ local function view_iter_general(
 
         ASSERT_INVALIDATION(source)
         return NIL
+    end
+end
+
+local function view_patch_1<A>(a: Pool<A>, fn: (A) -> A)
+    local entities = a.entities
+    local values = a.values
+
+    local on_change = a.on_change :: Array<Listener<A>>
+    if on_change then
+        for i, v in values do
+            local v_new = fn(v)
+            fire(on_change, BUFFER_GET(entities, i - 1), v_new)
+            values[i] = v_new
+        end
+    else
+        for i, v in values do
+            values[i] = fn(v)
+        end
+    end
+end
+
+local function view_patch_2<A, B>(a: Pool<A>, b: Pool<B>, fn: (A, B) -> (A, B))
+    local na, nb = a.size, b.size
+
+    local a_on_change = a.on_change :: Array<Listener<A>>
+    local b_on_change = b.on_change :: Array<Listener<B>>
+
+    if na <= nb then
+        local n = na
+        local entities = a.entities
+        local values = a.values
+
+        for i = 0, n - 1 do
+            local id = BUFFER_GET(entities, i)
+            local idx_ver = POOL_FIND(b, ID_KEY(id))
+            if idx_ver == ID_NULL then continue end
+            local idx = ID_KEY(idx_ver)
+
+            local va_new, vb_new = fn(ARRAY_GET(values, i), ARRAY_GET(b.values, idx))
+
+            if a_on_change then fire(a_on_change, id, va_new) end
+            if b_on_change then fire(b_on_change, id, vb_new) end
+
+            ARRAY_SET(values, i, va_new)
+            ARRAY_SET(b.values, idx, vb_new)
+        end
+
+    else
+        local n = nb
+        local entities = b.entities
+        local values = b.values
+
+        for i = 0, n - 1 do
+            local id = BUFFER_GET(entities, i)
+            local idx_ver = POOL_FIND(a, ID_KEY(id))
+            if idx_ver == ID_NULL then continue end
+            local idx = ID_KEY(idx_ver)
+
+            local va_new, vb_new = fn(ARRAY_GET(a.values, idx), ARRAY_GET(values, i))
+
+            if a_on_change then fire(a_on_change, id, va_new) end
+            if b_on_change then fire(b_on_change, id, vb_new) end
+
+            ARRAY_SET(a.values, idx, va_new)
+            ARRAY_SET(values, i, vb_new)
+        end
     end
 end
 
@@ -1035,9 +1185,15 @@ function view_create<T...>(reg: IRegistry, ...: T...): View<T...>
         return if #includes == 1 and not excludes then
                 view_iter_1(includes[1])
             elseif #includes == 1 and excludes and #excludes == 1 then
-                view_iter_1_exclude_1(includes[1], excludes[1])
-            elseif #includes == 2  and not excludes then 
+                view_iter_1_excl_1(includes[1], excludes[1])
+            elseif #includes == 2 and not excludes then 
                 view_iter_2(includes[1], includes[2])
+            elseif #includes == 2 and excludes and #excludes == 1 then
+                view_iter_2_excl_1(includes[1], includes[2], excludes[1])
+            elseif #includes == 3 and not excludes then
+                view_iter_3(includes)
+            elseif #includes == 4 and not excludes then
+                view_iter_4(includes)
             else
                 view_iter_general(includes, excludes)   
     end

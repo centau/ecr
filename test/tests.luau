@@ -1115,6 +1115,7 @@ TEST("registry:view()", function()
     local Cs = {}
     local ABs = {}
     local ABCs = {}
+    local ABCDs = {}
     local AnotCs = {}
     local ABnotCs = {}
     local AnotBCs = {}
@@ -1127,7 +1128,7 @@ TEST("registry:view()", function()
         local has = {}
         for _, component in { A, B, C, D, E, F, G, H } do
             if flip() then
-                reg:set(id, component, id)
+                reg:set(id, component, id * component)
                 has[component] = true
             end
         end
@@ -1140,6 +1141,7 @@ TEST("registry:view()", function()
         if has[A] and has[B] and has[C] then table.insert(ABCs, id) end
         if has[A] and has[B] and not has[C] then table.insert(ABnotCs, id) end
         if has[A] and not has[B] and not has[C] then table.insert(AnotBCs, id) end
+        if has[A] and has[B] and has[C] and has[D] then table.insert(ABCDs, id) end
         if not has[A] and not has[B] then table.insert(notABs, id) end
     end
 
@@ -1156,7 +1158,7 @@ TEST("registry:view()", function()
         for _, id in As do
             local v = viewed[id]
             if not CHECK(v) then continue end
-            CHECK(v[1] == id)
+            CHECK(v[1] == id * A)
         end
     end
 
@@ -1166,7 +1168,7 @@ TEST("registry:view()", function()
         for _, id in Bs do
             local v = viewed[id]
             if not CHECK(v) then continue end
-            CHECK(v[1] == id)
+            CHECK(v[1] == id * B)
         end
     end
 
@@ -1176,8 +1178,8 @@ TEST("registry:view()", function()
         for _, id in ABs do
             local v = viewed[id]
             if not CHECK(v) then continue end
-            CHECK(v[1] == id)
-            CHECK(v[2] == id)
+            CHECK(v[1] == id * A)
+            CHECK(v[2] == id * B)
         end
     end
 
@@ -1187,9 +1189,22 @@ TEST("registry:view()", function()
         for _, id in ABCs do
             local v = viewed[id]
             if not CHECK(v) then continue end
-            CHECK(v[1] == id)
-            CHECK(v[2] == id)
-            CHECK(v[3] == id)
+            CHECK(v[1] == id * A)
+            CHECK(v[2] == id * B)
+            CHECK(v[3] == id * C)
+        end
+    end
+
+    do CASE "view all entities with ABCD"
+        local viewed = getids(reg:view(A, B, C, D))
+        CHECK(not empty(viewed))
+        for _, id in ABCDs do
+            local v = viewed[id]
+            if not CHECK(v) then continue end
+            CHECK(v[1] == id * A)
+            CHECK(v[2] == id * B)
+            CHECK(v[3] == id * C)
+            CHECK(v[4] == id * D)
         end
     end
 
@@ -1211,7 +1226,7 @@ TEST("registry:view()", function()
         for _, id in AnotCs do 
             local v = viewed[id]
             if not CHECK(v) then continue end
-            CHECK(v[1] == id)
+            CHECK(v[1] == id * A)
         end
         for id in viewed do
             CHECK(not reg:has(id, C))
@@ -1224,7 +1239,8 @@ TEST("registry:view()", function()
         for _, id in ABnotCs do 
             local v = viewed[id]
             if not CHECK(v) then continue end
-            CHECK(v[1] == id)
+            CHECK(v[1] == id * A)
+            CHECK(v[2] == id * B)
         end
         for id in viewed do
             CHECK(not reg:has(id, C))
@@ -1238,7 +1254,7 @@ TEST("registry:view()", function()
         for _, id in AnotBCs do
             local v = viewed[id]
             if not CHECK(v) then continue end
-            CHECK(v[1] == id)
+            CHECK(v[1] == id * A)
         end
         for id in viewed do
             CHECK(not reg:has(id, B))

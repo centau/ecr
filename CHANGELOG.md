@@ -6,9 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## Unreleased
+
+### Improved
+
+- Iteration of 3 and 4 component views 3x faster.
+
+---
+
 ## [0.9.0] - 2025-03-02
 
-# Added
+### Added
 
 - Method `Registry:find()`.
 - Method `Registry:insert()`.
@@ -17,16 +25,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Overload `ecr.registry()` to restrict entity range.
 - Function `ecr.buffer_to_buffer()`.
 
-# Changed
+### Changed
 
 - Method `Registry:patch()` will return the new value.
 
-# Removed
+### Removed
 
 - Method `Observer:persist()`.
 - Method `View:use()`.
 
-# Fixed
+### Fixed
 
 - Single type view not excluding properly with multiple exclude types.
 - `Connection:disconnect()` disconnecting the wrong listener.
@@ -73,7 +81,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Improved
 
-Large refactor to use the new Luau `buffer` datatype. Up to 2x faster and 2-4x
+- Large refactor to use the new Luau `buffer` datatype. Up to 2x faster and 2-4x
 less memory usage across the board.
 
 ---

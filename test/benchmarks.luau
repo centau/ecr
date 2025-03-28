@@ -615,6 +615,18 @@ do TITLE("create view")
             reg:view(A, B, C, D)
         end
     end)
+
+    BENCH("1 component and iterate", function()
+        for i = 1, START(N) do
+            for _ in reg:view(A) do end
+        end
+    end)
+
+    BENCH("4 component and iterate", function()
+        for i = 1, START(N) do
+            for _ in reg:view(A, B, C, D) do end
+        end
+    end)
 end
 
 do
@@ -639,6 +651,13 @@ do
 
             START(exact_size(view))
             for entity, a, b in view do end
+        end)
+
+        BENCH("3 components", function()
+            local view = reg:view(A, B, C)
+
+            START(exact_size(view))
+            for entity, a, b, c in view do end
         end)
 
         BENCH("4 components", function()
