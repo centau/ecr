@@ -70,14 +70,14 @@ type HandleMT = {
     __index: HandleMT,
     destroy: (self: Handle) -> (),
     has_none: (self: Handle) -> boolean,
-    add: <T...>(self: Handle, T...) -> (),
+    add: <T...>(self: Handle, T...) -> Handle,
     set: <T>(self: Handle, ctype: T, value: T) -> Handle,
     insert: <T>(self: Handle, ctype: Array<T>, value: T) -> Handle,
     patch: <T>(self: Handle, ctype: T, fn: ((T) -> T)?) -> T,
     has: <T...>(self: Handle, T...) -> boolean,
     get: <T...>(self: Handle, T...) -> T...,
     try_get: <T>(self: Handle, T) -> T?,
-    remove: <T...>(self: Handle, T...) -> (),
+    remove: <T...>(self: Handle, T...) -> Handle,
 }
 
 export type View<T...> = typeof(setmetatable({} :: {
@@ -1665,6 +1665,7 @@ local Handle = (function(): HandleMT
 
     function Handle.add<T...>(self: Handle, ...: T...)
         self.registry:add(self.entity, ...)
+        return self
     end
 
     function Handle.set<T>(self: Handle, ctype: T, value: T): Handle
@@ -1695,6 +1696,7 @@ local Handle = (function(): HandleMT
 
     function Handle.remove<T...>(self: Handle, ...: T...)
         self.registry:remove(self.entity, ...)
+        return self
     end
 
     return Handle
