@@ -1831,7 +1831,7 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
             )
 
             if desired_key > entity_list.capacity - 1 then
-                local new_capacity = (desired_id + 1) * 1.5
+                local new_capacity = math.ceil((desired_key + 1) * 1.5)
                 if new_capacity - 1 > ID_MAX_VALID_KEY then new_capacity = ID_MAX_VALID_KEY + 1 end
                 entity_list_resize(entity_list, new_capacity, partition_start, partition_stop)
             end

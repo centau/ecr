@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Iteration of 3 and 4 component views 3x faster.
 
+### Fixed
+
+- Method `Registry:create(id)` rarely causing an out of bounds buffer access.
+
 ---
 
 ## [0.9.0] - 2025-03-02
