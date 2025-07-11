@@ -1836,7 +1836,7 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
                 entity_list_resize(entity_list, new_capacity, partition_start, partition_stop)
             end
 
-            ASSERT(BUFFER_GET(entity_list.data, desired_key) ~= desired_id, "unable to create entity; key is already in use")
+            ASSERT(ID_KEY(BUFFER_GET(entity_list.data, desired_key)) ~= desired_key, "unable to create entity; key is already in use")
 
             if entity_list.free == desired_key then
                 entity_list.free = ID_KEY(BUFFER_GET(entity_list.data, desired_key))

@@ -196,16 +196,29 @@ TEST("registry:create()", function()
     end
 
     do CASE "error if key is already in use"
-        local sreg = ecr.registry()
-        local id = sreg:create()
+        do
+            local sreg = ecr.registry()
+            local id = sreg:create()
 
-        local reg = ecr.registry()
+            local reg = ecr.registry()
 
-        CHECK(id == reg:create())
+            CHECK(id == reg:create())
 
-        CHECK_ERR("unable to create entity; key is already in use", function()
-            reg:create(id)
-        end)
+            CHECK_ERR("unable to create entity; key is already in use", function()
+                reg:create(id)
+            end)
+        end
+
+        do -- try force create an id with same key as one in use
+            local ok, err = pcall(function()
+                local reg = ecr.registry()
+                local id1 = reg:create() -- ID(1,1)
+                reg:destroy(id1)
+                reg:create() -- ID(1,2)
+                reg:create(id1)
+            end)
+            CHECK(not ok and string.find(err, "already in use"))
+        end
     end
 
     do CASE "error if null is used"

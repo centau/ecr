@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
-- Method `Registry:create(id)` rarely causing an out of bounds buffer access.
+- Method `Registry:create(id)` causing an out of bounds buffer access if key was already in use with a different version.
 
 ---
 
