@@ -75,6 +75,7 @@ type HandleMT = {
     insert: <T>(self: Handle, ctype: Array<T>, value: T) -> Handle,
     patch: <T>(self: Handle, ctype: T, fn: ((T) -> T)?) -> T,
     has: <T...>(self: Handle, T...) -> boolean,
+    has_any: <T...>(self: Handle, T...) -> boolean,
     get: <T...>(self: Handle, T...) -> T...,
     try_get: <T>(self: Handle, T) -> T?,
     remove: <T...>(self: Handle, T...) -> (),
@@ -119,6 +120,7 @@ export type Registry = {
     insert: <T>(self: Registry, id: entity, ctype: Array<T>, value: T) -> (),
     patch: <T>(self: Registry, id: entity, ctype: T, fn: ((T) -> T)?) -> T,
     has: <T...>(self: Registry, id: entity, T...) -> boolean,
+    has_any: <T...>(self: Registry, id: entity, T...) -> boolean,
     get: <T...>(self: Registry, id: entity, T...) -> T...,
     try_get: <T>(self: Registry, id: entity, T) -> T?,
     remove: <T...>(self: Registry, id: entity, T...) -> (),
@@ -1685,6 +1687,10 @@ local Handle = (function(): HandleMT
         return self.registry:has(self.entity, ...)
     end
 
+    function Handle.has_any<T...>(self: Handle, ...: T...): boolean
+        return self.registry:has_any(self.entity, ...)
+    end
+
     function Handle.get<T...>(self: Handle, ...: T...): T...
         return self.registry:get(self.entity, ...)
     end
@@ -2005,6 +2011,17 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
             (c == nil or POOL_FIND(STORAGE(c), key) ~= ID_NULL) and
             (d == nil or POOL_FIND(STORAGE(d), key) ~= ID_NULL) and
             (e == nil or throw("args exceeded") :: never)
+    end :: any) :: <T...>(self: Registry, id: entity, T...) -> boolean
+
+    registry.has_any = (function(self: Registry, id: entity, a, b, c, d, e): boolean
+        local key = ID_KEY(id)
+        return ENTITY_LIST_ID_IN_USE(entity_list, id) and (
+            POOL_FIND(STORAGE(a), key) ~= ID_NULL or 
+            (b ~= nil and POOL_FIND(STORAGE(b), key) ~= ID_NULL) or
+            (c ~= nil and POOL_FIND(STORAGE(c), key) ~= ID_NULL) or
+            (d ~= nil and POOL_FIND(STORAGE(d), key) ~= ID_NULL) or
+            (e ~= nil and throw("args exceeded") :: never)
+        )
     end :: any) :: <T...>(self: Registry, id: entity, T...) -> boolean
 
     local function UNSAFE_GET(ctype: CType, key: number): unknown
