@@ -1737,13 +1737,13 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
     setmetatable(ctype_pools :: any, {
         __index = function(self, ctype: CType): Pool<unknown>
             ASSERT_CTYPE_VALID(ctype)
-            ASSERT(ctype ~= ctype_entity, "attempt to use entity type")
             ASSERT((ctype :: number) <= MAX_CTYPE, `cannot use {ctype_debug(ctype)}, component must be created before registry creation`)
             local pool = pool_create(1)
             self[ctype] = pool
             return pool
         end
     })
+    ctype_pools[ctype_entity] = entity_pool
 
     local function STORAGE<T>(ctype: T): Pool<T>
         return ctype_pools[ctype] :: Pool<any>
@@ -1887,7 +1887,7 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
         ASSERT_VALID_ENTITY(id)
         local key = ID_KEY(id)
 
-        for _, pool in next, ctype_pools do
+        for _, pool in next, ctype_pools, 1 do -- k0=1 to skip entity pool
             if POOL_HAS(pool, key) then return false end
         end
 
@@ -2105,15 +2105,11 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
         return group_create(registry, group or group_init(...), ...)
     end
 
-    local function STORAGE_OR_ENTITY_POOL<T>(ctype: T): Pool<T>
-        return ctype == ctype_entity and entity_pool :: Pool<any> or STORAGE(ctype)
-    end
-
     function registry.storage<T>(self: Registry, ctype: T?): any
         if ctype == "list" then
             return entity_list
         elseif ctype then
-            return STORAGE_OR_ENTITY_POOL(ctype)
+            return STORAGE(ctype)
         else
             return coroutine.wrap(function()
                 for ctype, pool in next, ctype_pools do
@@ -2127,8 +2123,8 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
         return (signals.on_add[ctype] or (function() 
             local signal = signal_create() :: any
             signals.on_add[ctype] = signal
-            function signal.on_empty() STORAGE_OR_ENTITY_POOL(ctype).on_add = false end
-            function signal.on_not_empty() STORAGE_OR_ENTITY_POOL(ctype).on_add = signal.listeners end
+            function signal.on_empty() STORAGE(ctype).on_add = false end
+            function signal.on_not_empty() STORAGE(ctype).on_add = signal.listeners end
             return signal
         end)()) :: Signal<entity, T>
     end
@@ -2137,8 +2133,8 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
         return (signals.on_change[ctype] or (function() 
             local signal = signal_create() :: any
             signals.on_change[ctype] = signal
-            function signal.on_empty() STORAGE_OR_ENTITY_POOL(ctype).on_change = false end
-            function signal.on_not_empty() STORAGE_OR_ENTITY_POOL(ctype).on_change = signal.listeners end
+            function signal.on_empty() STORAGE(ctype).on_change = false end
+            function signal.on_not_empty() STORAGE(ctype).on_change = signal.listeners end
             return signal    
         end)()) :: Signal<entity, T>    
     end
@@ -2147,8 +2143,8 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
         return signals.on_remove[ctype] or (function() 
             local signal = signal_create() :: any
             signals.on_remove[ctype] = signal
-            function signal.on_empty() STORAGE_OR_ENTITY_POOL(ctype).on_remove = false end
-            function signal.on_not_empty() STORAGE_OR_ENTITY_POOL(ctype).on_remove = signal.listeners end
+            function signal.on_empty() STORAGE(ctype).on_remove = false end
+            function signal.on_not_empty() STORAGE(ctype).on_remove = signal.listeners end
             return signal
         end)() :: Signal<entity, nil>
     end
@@ -2157,8 +2153,8 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
         return signals.on_clear[ctype] or (function() 
             local signal = signal_create() :: any
             signals.on_clear[ctype] = signal
-            function signal.on_empty() STORAGE_OR_ENTITY_POOL(ctype).on_clear = false end
-            function signal.on_not_empty() STORAGE_OR_ENTITY_POOL(ctype).on_clear = signal.listeners end
+            function signal.on_empty() STORAGE(ctype).on_clear = false end
+            function signal.on_not_empty() STORAGE(ctype).on_clear = signal.listeners end
             return signal
         end)() :: Signal<>
     end
@@ -2167,8 +2163,8 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
         return signals.after_clear[ctype] or (function() 
             local signal = signal_create() :: any
             signals.after_clear[ctype] = signal
-            function signal.on_empty() STORAGE_OR_ENTITY_POOL(ctype).after_clear = false end
-            function signal.on_not_empty() STORAGE_OR_ENTITY_POOL(ctype).after_clear = signal.listeners end
+            function signal.on_empty() STORAGE(ctype).after_clear = false end
+            function signal.on_not_empty() STORAGE(ctype).after_clear = signal.listeners end
             return signal
         end)() :: Signal<>
     end
