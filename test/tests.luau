@@ -1331,6 +1331,19 @@ TEST("registry:view()", function()
         CHECK(not ok)
     end
 
+    do CASE "view of"
+        local list = {}
+        
+        for id, a, b in reg:view(A, B) do
+            table.insert(list, id)
+        end
+
+        for id, a, b in reg:view(A, B):of(list) do
+            CHECK(id * A == a)
+            CHECK(id * B == b)
+        end
+    end
+
     do CASE "view patch single"
         local expected_values = {}
 

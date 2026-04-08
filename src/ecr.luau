@@ -82,7 +82,8 @@ type HandleMT = {
 
 export type View<T...> = typeof(setmetatable({} :: {
     exclude: <U...>(self: View<T...>, U...) -> View<T...>,
-    patch: (self: View<T...>, fn: (T...) -> T...) -> (),
+    of: (self: View<T...>, list: Array<entity>) -> View<T...>,
+    patch: (self: View<T...>, fn: (T...) -> T...) -> (), 
     iter: (self: View<T...>) -> () -> (entity, T...)
 }, {} :: {
     __len: (self: View<T...>) -> number ,
@@ -1020,6 +1021,42 @@ local function view_iter_general(
     end
 end
 
+local function view_iter_list_general(
+    list: Array<entity>,
+    includes: Array<Pool<unknown>>,
+    excludes: Array<Pool<unknown>>?
+): () -> (entity, ...any)
+    local n = #list
+
+    local last_pos = #includes
+    local tuple = table.create(last_pos)
+
+    return function()
+        for i = n, 1, -1 do
+            local id = list[i]
+            local key = ID_KEY(id)
+            
+            if excludes and HAS_ANY(excludes, key) then continue end
+
+            local has_all = true
+
+            for pos = 1, last_pos do
+                local pool = includes[pos]
+                local idx_ver = POOL_FIND(pool, key)
+                if idx_ver == ID_NULL then has_all = false; break end
+                tuple[pos] = ARRAY_GET(pool.values, ID_KEY(idx_ver))
+            end
+
+            if has_all == false then continue end
+            
+            n = i - 1
+            return id, unpack(tuple)
+        end
+
+        return NIL
+    end
+end
+
 local function view_patch_1<A>(a: Pool<A>, fn: (A) -> A)
     local entities = a.entities
     local values = a.values
@@ -1160,8 +1197,10 @@ type _View<T...> = typeof(setmetatable({} :: {
     registry: IRegistry,
     includes: Array<CType>,
     excludes: Array<CType>?,
+    use_list: Array<entity>?,
     
     exclude: <U...>(_View<T...>, U...) -> _View<T...>,
+    of: (_View<T...>, list: Array<entity>) -> _View<T...>,
     patch: (_View<T...>, fn: (T...) -> T...) -> (),
     iter: (_View<T...>) -> () -> (entity, T...)
 }, {} :: {
@@ -1182,7 +1221,9 @@ function view_create<T...>(reg: IRegistry, ...: T...): View<T...>
         local includes = get_pools(self.registry, self.includes)
         local excludes = self.excludes and get_pools(self.registry, self.excludes)
 
-        return if #includes == 1 and not excludes then
+        return if self.use_list then
+                view_iter_list_general(self.use_list, includes, excludes)   
+            elseif #includes == 1 and not excludes then
                 view_iter_1(includes[1])
             elseif #includes == 1 and excludes and #excludes == 1 then
                 view_iter_1_excl_1(includes[1], excludes[1])
@@ -1219,6 +1260,11 @@ function view_create<T...>(reg: IRegistry, ...: T...): View<T...>
                 table.insert(excludes, ctype)
             end
 
+            return self
+        end,
+
+        of = function(self: _View<T...>, list: Array<entity>?): _View<T...>
+            self.use_list = list or {}
             return self
         end,
 
