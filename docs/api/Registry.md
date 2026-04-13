@@ -154,6 +154,22 @@ Checks if an entity has all of the given components.
 
 --------------------------------------------------------------------------------
 
+### has_any()
+
+Checks if an entity has any of the given components.
+
+- **Type**
+
+    ```lua
+    function Registry:has_any<T...>(id: entity, components: T...): boolean
+    ```
+
+- **Details**
+
+    Will return `true` if the entity has *any* component given.
+
+--------------------------------------------------------------------------------
+
 ### get()
 
 Gets an entity's component values.
