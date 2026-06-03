@@ -1766,7 +1766,7 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
     local registry = {}
 
     local entity_list: EntityList = entity_list_create()
-    local entity_pool = pool_create()
+    local entity_pool = pool_create<<entity>>()
 
     local signals = {
         on_add = {} :: Map<CType, Signal<entity, unknown>>,
@@ -1862,7 +1862,7 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
             entity_list.free = ID_KEY(next_key_cur_ver)
 
             POOL_RESIZE_MAP_IF_NEEDED(entity_pool, new_key)
-            POOL_ADD_ID(entity_pool, new_id)
+            POOL_ADD(entity_pool, new_id, new_id)
 
             return new_id
         else
@@ -1897,7 +1897,7 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
             BUFFER_SET(entity_list.data, desired_key, desired_id)
 
             POOL_RESIZE_MAP_IF_NEEDED(entity_pool, desired_key)
-            POOL_ADD_ID(entity_pool, desired_id)
+            POOL_ADD(entity_pool, desired_id, desired_id)
 
             return desired_id
         end

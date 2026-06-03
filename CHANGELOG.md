@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Changed
+
+- `ecr.entity` is no longer a tag, the values are the same as the entity id itself.
+
 ### Improved
 
 - Iteration of 3 and 4 component views 3x faster.

@@ -1097,6 +1097,10 @@ TEST("registry:view(ecr.entity)", function()
             for _, entity in ids do
                 CHECK(cache[entity])
             end
+
+            for entity, e in reg:view(ecr.entity) do
+                CHECK(entity == e)
+            end
         end
     end
 end)
