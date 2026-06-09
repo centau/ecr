@@ -41,6 +41,7 @@ The `Handle` class wraps the following registry methods:
 - insert()
 - patch()
 - has()
+- has_any()
 - get()
 - try_get()
 - remove()

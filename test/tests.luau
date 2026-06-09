@@ -681,6 +681,43 @@ TEST("registry:has()", function()
     end
 end)
 
+TEST("registry:has_any()", function()
+    local reg = ecr.registry()
+    
+    do
+        local id = reg:create()
+
+        do CASE "has component"
+            reg:set(id, A, true)
+            reg:set(id, B, true)
+            CHECK(reg:has_any(id, A, B) == true)
+            reg:remove(id, A)
+            CHECK(reg:has_any(id, A, B) == true)
+        end
+
+        do CASE "does not have any component"
+            reg:remove(id, A, B)
+            CHECK(reg:has_any(id, A, B) == false)
+        end
+    end
+
+    do CASE "invalid entity"
+        local id = reg:create()
+        reg:release(id)
+        CHECK(reg:has_any(id, A) == false)
+    end
+
+    do CASE "invalid entity with used key that has component"
+        local id = reg:create()
+        reg:release(id)
+
+        local newid = reg:create()
+        reg:set(newid, A, 1)
+
+        CHECK(reg:has_any(id, A) == false)
+    end
+end)
+
 TEST("registry:insert()", function()
     local ARRAY = ecr.component() :: {number}
     local reg = ecr.registry()
