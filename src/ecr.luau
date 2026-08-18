@@ -11,6 +11,8 @@ local MAX_ENTITIES = 0x0000_FFFF
 --------------------------------------------------------------------------------
 
 export type entity = number
+export type component<T> = { __ctype: T, read __component: true }
+export type read_component<T> = { read __ctype: T, read __component: true }
 
 type Array<T> = { [number]: T }
 type Map<T, U> = { [T]: U }
@@ -70,18 +72,21 @@ type HandleMT = {
     __index: HandleMT,
     destroy: (self: Handle) -> (),
     has_none: (self: Handle) -> boolean,
-    add: <T>(self: Handle, T) -> T,
-    set: <T>(self: Handle, ctype: T, value: T) -> Handle,
-    insert: <T>(self: Handle, ctype: Array<T>, value: T) -> Handle,
-    patch: <T>(self: Handle, ctype: T, fn: ((T) -> T)?) -> T,
-    has: <T...>(self: Handle, T...) -> boolean,
-    get: <T...>(self: Handle, T...) -> T...,
-    try_get: <T>(self: Handle, T) -> T?,
-    remove: <T...>(self: Handle, T...) -> (),
+    add: <T>(self: Handle, ctype: read_component<T>) -> T,
+    set: <T>(self: Handle, ctype: component<T>, value: T) -> Handle,
+    insert: <T>(self: Handle, ctype: component<Array<T>>, value: T) -> Handle,
+    patch: <T>(self: Handle, ctype: component<T>, fn: ((T) -> T)?) -> T,
+    has: (self: Handle, ...read_component<unknown>) -> boolean,
+    get: & (<A>(self: Handle, ctype: read_component<A>) -> A)
+		& (<A, B>(self: Handle, read_component<A>, read_component<B>) -> (A, B))
+		& (<A, B, C>(self: Handle, read_component<A>, read_component<B>, read_component<C>) -> (A, B, C))
+		& (<A, B, C, D>(self: Handle, read_component<A>, read_component<B>, read_component<C>, read_component<D>) -> (A, B, C, D)),
+    try_get: <T>(self: Handle, ctype: read_component<T>) -> T?,
+    remove: (self: Handle, ...read_component<unknown>) -> (),
 }
 
 export type View<T...> = typeof(setmetatable({} :: {
-    exclude: <U...>(self: View<T...>, U...) -> View<T...>,
+    exclude: (self: View<T...>, ...read_component<unknown>) -> View<T...>,
     of: (self: View<T...>, list: Array<entity>) -> View<T...>,
     patch: (self: View<T...>, fn: (T...) -> T...) -> (), 
     iter: (self: View<T...>) -> () -> (entity, T...)
@@ -91,7 +96,7 @@ export type View<T...> = typeof(setmetatable({} :: {
 }))
 
 export type Observer<T...> = typeof(setmetatable({} :: {
-    exclude: <U...>(self: Observer<T...>, U...) -> Observer<T...>,
+    exclude: (self: Observer<T...>, ...read_component<unknown>) -> Observer<T...>,
     disconnect: (self: Observer<T...>) -> Observer<T...>,
     reconnect: (self: Observer<T...>) -> Observer<T...>,
     clear: (self: Observer<T...>) -> Observer<T...>,
@@ -115,29 +120,51 @@ export type Registry = {
     contains: (self: Registry, id: entity) -> boolean,
 
     has_none: (self: Registry, id: entity) -> boolean,
-    add: <T>(self: Registry, id: entity, ctype: T) -> T,
-    set: <T>(self: Registry, id: entity, ctype: T, value: T) -> (),
-    insert: <T>(self: Registry, id: entity, ctype: Array<T>, value: T) -> (),
-    patch: <T>(self: Registry, id: entity, ctype: T, fn: ((T) -> T)?) -> T,
-    has: <T...>(self: Registry, id: entity, T...) -> boolean,
-    get: <T...>(self: Registry, id: entity, T...) -> T...,
-    try_get: <T>(self: Registry, id: entity, T) -> T?,
-    remove: <T...>(self: Registry, id: entity, T...) -> (),
-    find: <T>(self: Registry, ctype: T, value: T) -> entity?,
-    copy: <T>(self: Registry, a: T, b: T) -> (),
+    add: <T>(self: Registry, id: entity, ctype: read_component<T>) -> T,
+    set: <T>(self: Registry, id: entity, ctype: component<T>, value: T) -> (),
+    insert: <T>(self: Registry, id: entity, ctype: component<Array<T>>, value: T) -> (),
+    patch: <T>(self: Registry, id: entity, ctype: component<T>, fn: ((T) -> T)?) -> T,
+    has: (self: Registry, id: entity, ...read_component<unknown>) -> boolean,
+    get: & (<A>(self: Registry, id: entity, ctype: read_component<A>) -> A)
+		& (<A, B>(self: Registry, id: entity, read_component<A>, read_component<B>) -> (A, B))
+		& (<A, B, C>(self: Registry, id: entity, read_component<A>, read_component<B>, read_component<C>) -> (A, B, C))
+		& (<A, B, C, D>(self: Registry, id: entity, read_component<A>, read_component<B>, read_component<C>, read_component<D>) -> (A, B, C, D)),
+    try_get: <T>(self: Registry, id: entity, ctype: read_component<T>) -> T?,
+    remove: (self: Registry, id: entity, ...read_component<unknown>) -> (),
+    find: <T>(self: Registry, ctype: component<T>, value: T) -> entity?,
+    copy: <T>(self: Registry, a: component<T>, b: component<T>) -> (),
 
-    view: <T...>(self: Registry, T...) -> View<T...>,
-    track: <T...>(self: Registry, T...) -> Observer<T...>,
-    group: <T...>(self: Registry, T...) -> Group<T...>,
+    view: & (<A>(self: Registry, component<A>) -> View<A>)
+        & (<A, B>(self: Registry, component<A>, component<B>) -> View<A, B>)
+        & (<A, B, C>(self: Registry, component<A>, component<B>, component<C>) -> View<A, B, C>)
+        & (<A, B, C, D>(self: Registry, component<A>, component<B>, component<C>, component<D>) -> View<A, B, C, D>)
+        & (<A, B, C, D, E>(self: Registry, component<A>, component<B>, component<C>, component<D>, component<E>) -> View<A, B, C, D, E>)
+        & (<A, B, C, D, E, F>(self: Registry, component<A>, component<B>, component<C>, component<D>, component<E>, component<F>) -> View<A, B, C, D, E, F>)
+        & (<A, B, C, D, E, F, G>(self: Registry, component<A>, component<B>, component<C>, component<D>, component<E>, component<F>, component<G>) -> View<A, B, C, D, E, F, G>)
+		& (<A, B, C, D, E, F, G, H>(self: Registry, component<A>, component<B>, component<C>, component<D>, component<E>, component<F>, component<G>, component<H>, ...read_component<unknown>) -> View<A, B, C, D, E, F, G, H>),
 
-    clear: <T...>(self: Registry, T...) -> (),
-    storage: (<T>(self: Registry, ctype: T) -> Pool<T>) & (<T>(self: Registry) -> () -> (unknown, Pool<unknown>)),
+    track: & (<A>(self: Registry, read_component<A>) -> Observer<A>)
+		& (<A, B>(self: Registry, read_component<A>, read_component<B>) -> Observer<A, B>)
+		& (<A, B, C>(self: Registry, read_component<A>, read_component<B>, read_component<C>) -> Observer<A, B, C>)
+		& (<A, B, C, D>(self: Registry, read_component<A>, read_component<B>, read_component<C>, read_component<D>) -> Observer<A, B, C, D>)
+		& (<A, B, C, D, E>(self: Registry, read_component<A>, read_component<B>, read_component<C>, read_component<D>, read_component<E>) -> Observer<A, B, C, D, E>)
+		& (<A, B, C, D, E, F>(self: Registry, read_component<A>, read_component<B>, read_component<C>, read_component<D>, read_component<E>, read_component<F>) -> Observer<A, B, C, D, E, F>)
+		& (<A, B, C, D, E, F, G>(self: Registry, read_component<A>, read_component<B>, read_component<C>, read_component<D>, read_component<E>, read_component<F>, read_component<G>) -> Observer<A, B, C, D, E, F, G>)
+		& (<A, B, C, D, E, F, G, H>(self: Registry, read_component<A>, read_component<B>, read_component<C>, read_component<D>, read_component<E>, read_component<F>, read_component<G>, read_component<H>, ...read_component<unknown>) -> Observer<A, B, C, D, E, F, G, H>),
 
-    on_add: <T>(self: Registry, ctype: T) -> Signal<entity, T>,
-    on_change: <T>(self: Registry, ctype: T) -> Signal<entity, T>,
-    on_remove: <T>(self: Registry, ctype: T) -> Signal<entity, nil>,
-    on_clear: <T>(self: Registry, ctype: T) -> Signal<>,
-    after_clear: <T>(self: Registry, ctype: T) -> Signal<>,
+    group: & (<A, B>(self: Registry, read_component<A>, read_component<B>) -> Group<A, B>)
+		& (<A, B, C>(self: Registry, read_component<A>, read_component<B>, read_component<C>) -> Group<A, B, C>)
+		& (<A, B, C, D>(self: Registry, read_component<A>, read_component<B>, read_component<C>, read_component<D>) -> Group<A, B, C, D>)
+		& (<A, B, C, D, E>(self: Registry, read_component<A>, read_component<B>, read_component<C>, read_component<D>, read_component<E>, ...read_component<unknown>) -> Group<A, B, C, D, E>),
+
+    clear: (self: Registry, ...read_component<unknown>) -> (),
+    storage: (<T>(self: Registry, ctype: component<T>) -> Pool<T>) & ((self: Registry) -> () -> (read_component<unknown>, Pool<unknown>)),
+
+    on_add: <T>(self: Registry, ctype: read_component<T>) -> Signal<entity, T>,
+    on_change: <T>(self: Registry, ctype: read_component<T>) -> Signal<entity, T>,
+    on_remove: (self: Registry, ctype: read_component<unknown>) -> Signal<entity, nil>,
+    on_clear: (self: Registry, ctype: read_component<unknown>) -> Signal<>,
+    after_clear: (self: Registry, ctype: read_component<unknown>) -> Signal<>,
 
     handle: ((self: Registry, id: entity) -> Handle) & ((self: Registry) -> Handle),
     context: (self: Registry) -> Handle
@@ -155,7 +182,7 @@ export type Queue<T...> = typeof(setmetatable({} :: {
 local NIL = nil :: any
 
 -- error but stack trace always starts at first callsite outside of this file
-local function throw(msg: string)
+local function throw<T>(msg: string): T
     local s = 1
     repeat s += 1 until debug.info(s, "s") ~= debug.info(1, "s") 
     error(msg, s)
@@ -689,12 +716,12 @@ end
 local view_create, observer_create, group_create do
 
 type IRegistry = {
-    storage: <T>(self: IRegistry, ctype: T) -> Pool<T>,
-    on_add: <T>(self: IRegistry, ctype: T) -> Signal<entity, T>,
-    on_change: <T>(self: IRegistry, ctype: T) -> Signal<entity, T>,
-    on_remove: <T>(self: IRegistry, ctype: T) -> Signal<entity, nil>,
-    on_clear: <T>(self: IRegistry, ctype: T) -> Signal<>,
-    after_clear: <T>(self: IRegistry, ctype: T) -> Signal<>,
+    storage: <T>(self: IRegistry, ctype: component<T>) -> Pool<T>,
+    on_add: <T>(self: IRegistry, ctype: component<T>) -> Signal<entity, T>,
+    on_change: <T>(self: IRegistry, ctype: component<T>) -> Signal<entity, T>,
+    on_remove: <T>(self: IRegistry, ctype: component<T>) -> Signal<entity, nil>,
+    on_clear: <T>(self: IRegistry, ctype: component<T>) -> Signal<>,
+    after_clear: <T>(self: IRegistry, ctype: component<T>) -> Signal<>,
 }
 
 local function HAS_ANY(pools: Array<Pool<unknown>>, key: number): boolean
@@ -1709,7 +1736,7 @@ end
 --------------------------------------------------------------------------------
 
 local Handle = (function(): HandleMT
-    local Handle = {}
+    local Handle = {} :: HandleMT
     Handle.__index = Handle
 
     function Handle.destroy(self: Handle)
@@ -1720,25 +1747,25 @@ local Handle = (function(): HandleMT
         return self.registry:has_none(self.entity)
     end
 
-    function Handle.add<T>(self: Handle, ctype: T): T
+    function Handle.add<T>(self: Handle, ctype: read_component<T>): T
         return self.registry:add(self.entity, ctype)
     end
 
-    function Handle.set<T>(self: Handle, ctype: T, value: T): Handle
+    function Handle.set<T>(self: Handle, ctype: component<T>, value: T): Handle
         self.registry:set(self.entity, ctype, value)
         return self
     end
 
-    function Handle.insert<T>(self: Handle, ctype: Array<T>, value: T): Handle
+    function Handle.insert<T>(self: Handle, ctype: component<Array<T>>, value: T): Handle
         self.registry:insert(self.entity, ctype, value)
         return self
     end
 
-    function Handle.patch<T>(self: Handle, ctype: T, fn: ((T) -> T)?): T
+    function Handle.patch<T>(self: Handle, ctype: component<T>, fn: ((T) -> T)?): T
         return self.registry:patch(self.entity, ctype, fn)
     end
 
-    function Handle.has<T...>(self: Handle, ...: T...): boolean
+    function Handle.has(self: Handle, ...: read_component<unknown>): boolean
         return self.registry:has(self.entity, ...)
     end
 
@@ -1746,11 +1773,11 @@ local Handle = (function(): HandleMT
         return self.registry:get(self.entity, ...)
     end
 
-    function Handle.try_get<T>(self: Handle, ctype: T): T?
+    function Handle.try_get<T>(self: Handle, ctype: read_component<T>): T?
         return self.registry:try_get(self.entity, ctype)
     end
 
-    function Handle.remove<T...>(self: Handle, ...: T...)
+    function Handle.remove(self: Handle, ...: read_component<unknown>)
         self.registry:remove(self.entity, ...)
     end
 
@@ -1815,22 +1842,22 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
             group[i] = pool
             pool.group = group
 
-            table.insert(group.connections, registry:on_add(ctype):connect(function(id)
+            table.insert(group.connections, (registry :: Registry):on_add(ctype):connect(function(id)
                 POOL_TRY_GROUP(pool, id)
-            end))
+            end));
 
-            table.insert(group.connections, registry:on_remove(ctype):connect(function(id)
+            table.insert(group.connections, (registry :: Registry):on_remove(ctype):connect(function(id)
                 POOL_TRY_UNGROUP(pool, id)
-            end))
+            end));
 
-            registry:on_clear(ctype):connect(function()
+            (registry :: Registry):on_clear(ctype):connect(function()
                 for _, cn in group.connections do cn:disconnect() end
-            end)
+            end);
 
-            registry:after_clear(ctype):connect(function()
+            (registry :: Registry):after_clear(ctype):connect(function()
                 group.size = 0
                 for _, cn in group.connections do cn:reconnect() end
-            end)
+            end);
         end
 
         local pool = STORAGE((...))
@@ -2063,7 +2090,7 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
             (b == nil or POOL_FIND(STORAGE(b), key) ~= ID_NULL) and
             (c == nil or POOL_FIND(STORAGE(c), key) ~= ID_NULL) and
             (d == nil or POOL_FIND(STORAGE(d), key) ~= ID_NULL) and
-            (e == nil or throw("args exceeded") :: never)
+            (e == nil or throw<<never>>("args exceeded"))
     end :: any) :: <T...>(self: Registry, id: entity, T...) -> boolean
 
     local function UNSAFE_GET(ctype: CType, key: number): unknown
@@ -2161,7 +2188,7 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
             ASSERT(STORAGE(ctype).group == group, `cannot create group; {ctype_debug(ctype, i)} is not owned by the same group as previous args`)
         end
 
-        return group_create(registry, group or group_init(...), ...)
+        return group_create(registry :: Registry, group or group_init(...), ...)
     end
 
     function registry.storage<T>(self: Registry, ctype: T?): any
@@ -2229,7 +2256,7 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
     end
 
     function registry.handle(self: Registry, id: entity?): Handle
-        id = id or registry:create()
+        id = id or (registry :: Registry):create()
 
         local handle = handle_cache[id]
 
@@ -2239,18 +2266,18 @@ local function registry_create(range_start: number?, range_stop: number?): Regis
                 entity = id :: entity
             }, Handle))
 
-            handle_cache[id] = handle
+            handle_cache[id] = handle :: Handle
         end
 
-        return assert(handle)
+        return assert(handle) :: Handle
     end
 
     function registry.context(self: Registry): Handle
-        if not ENTITY_LIST_ID_IN_USE(entity_list, ID_CTX) then registry:create(ID_CTX) end
-        return registry:handle(ID_CTX)  
+        if not ENTITY_LIST_ID_IN_USE(entity_list, ID_CTX) then (registry :: any):create(ID_CTX) end
+        return (registry :: Registry):handle(ID_CTX)  
     end
 
-    return table.freeze(registry)
+    return table.freeze(registry) :: Registry
 end
 
 --------------------------------------------------------------------------------
@@ -2407,11 +2434,11 @@ local ecr = {
     component = function(constructor: () -> ()?)
         ASSERT(constructor == nil or type(constructor) == "function", "constructor must be a function")
         return ctype_create(constructor or false)
-    end :: (() -> unknown) & (<T>(constructor: () -> T) -> T),
+    end :: (<T>(constructor: (() -> T)?) -> component<T>),
 
-    tag = function() return ctype_create(true) end :: () -> nil,
+    tag = function() return ctype_create(true) end :: () -> component<nil>,
 
-    is_tag = function<T>(ctype: T): boolean
+    is_tag = function(ctype: read_component<unknown>): boolean
         ASSERT_CTYPE_VALID(ctype)
         return ctype_is_tag(ctype)
     end,
@@ -2427,7 +2454,7 @@ local ecr = {
             ASSERT_CTYPE_VALID(v)
             return ctype_names[v]
         end
-    end :: (<T>(names: T & {}) -> T) & (<T>(ctype: T) -> string?),
+    end :: (<T>(names: T & {read [string]: read_component<unknown>}) -> T) & (<T>(ctype: component<T>) -> string?),
     
     queue = queue_create,
     
@@ -2435,7 +2462,7 @@ local ecr = {
     buffer_to_array = buffer_to_array,
     buffer_to_buffer = buffer_to_buffer,
 
-    entity = ctype_entity,
+    entity = ctype_entity :: component<entity>,
     null = ID_NULL,
     context = ID_CTX,
     id_size = ID_SIZE,

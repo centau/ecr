@@ -36,13 +36,12 @@ A component is data that can be added to entities.
 There is the *component type*, which represents a type of data, and there is
 the *component value*, which is a value for a type added to an entity.
 
-Component types are created by `ecr.component()`, which returns an id
-representing that type. This can be typecasted to the type of value it
-represents.
+Component types are created by `ecr.component<T>()`, which returns an id
+representing a value of type `T`.
 
 ```lua
-local Name = ecr.component() :: string
-local Health = ecr.component() :: number
+local Name = ecr.component<<string>>()
+local Health = ecr.component<<number>>()
 ```
 
 Entities can have any amount of components added to or removed from them,
@@ -152,8 +151,8 @@ component types must also be defined before the registry using them is created.
 local ecr = require(ecr)
 
 local cts = {
-    Health = ecr.component() :: number,
-    Poisoned = ecr.component() :: number
+    Health = ecr.component<<number>>(),
+    Poisoned = ecr.component<<number>>()
 }
 
 ecr.name(cts)

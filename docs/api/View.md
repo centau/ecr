@@ -15,7 +15,7 @@ Excludes entities with the given components from the view.
 - **Type**
 
     ```lua
-    function View:exclude<T...>(components: ...unknown): View<T...>
+    function View:exclude<T...>(components: ...read_component<unknown>): View<T...>
     ```
 
 - **Details**

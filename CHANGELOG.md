@@ -25,6 +25,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Component type inference with Luau's new type solver. Components now use
+  `component<T>` and `read_component<T>`; mutating APIs such as `Registry:set()`
+  require `component<T>`, preventing incompatible values from being accepted.
+  See [PR #30](https://github.com/centau/ecr/pull/30) for details.
 - Method `Registry:create(id)` causing an out of bounds buffer access if key was already in use with a different version.
 
 ---

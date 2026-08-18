@@ -13,7 +13,7 @@ time [`Registry:context()`](../api/Registry#context) is called, subsequent calls
 return the same entity.
 
 ```lua
-local Round = ecr.component() :: number
+local Round = ecr.component<<number>>()
 
 registry:context():set(Round, 1)
 

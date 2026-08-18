@@ -10,7 +10,7 @@ local Tag = ecr.tag()
 
 Tags types are used in the same way as any other component type. They are useful
 for marking entities in some state, and are more efficient than something like
-`ecr.component() :: true`.
+`ecr.component<<true>>()`.
 
 Example usage:
 

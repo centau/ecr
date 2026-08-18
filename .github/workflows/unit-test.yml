@@ -14,7 +14,7 @@ jobs:
         uses: robinraju/release-downloader@v1.6
         with: 
           repository: Roblox/luau
-          tag: "0.723"
+          tag: "0.735"
           fileName: luau-ubuntu.zip
           out-file-path: bin
 
@@ -23,3 +23,6 @@ jobs:
 
       - name: Run unit tests
         run: bin/luau test/tests.luau
+
+      - name: Run typechecking tests
+        run: bash test/typecheck/run.sh "$GITHUB_WORKSPACE/bin/luau-analyze"

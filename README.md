@@ -25,14 +25,17 @@ ECR is a Luau ECS library.
 Read the [crash course](https://centau.github.io/ecr/tut/crash-course) for a
 brief introduction to the library.
 
+When using Luau's new type solver, declare components without constructors as
+`ecr.component<<T>>()`.
+
 ## Code sample
 
 ```lua
 local ecr = require(ecr)
 
 -- define components
-local Position = ecr.component() :: Vector3
-local Velocity = ecr.component() :: Vector3
+local Position = ecr.component<<Vector3>>()
+local Velocity = ecr.component<<Vector3>>()
 
 -- define a system
 local function update_physics(world: ecr.Registry, dt: number)

@@ -71,18 +71,18 @@ Checks if the given entity exists in the registry.
 
 ### add()
 
-Adds all given components to an entity.
+Adds a component to an entity using its constructor.
 
 - **Type**
   
     ```lua
-    function Registry:add<T...>(id: entity, components: T...)
+    function Registry:add<T>(id: entity, component: read_component<T>): T
     ```
 
 - **Details**
 
-    Adds the given components to the entity by using each component
-    constructor or no value at all if the component is a tag type.
+    Adds the component to the entity by using its constructor, or no value if it
+    is a tag type. Returns the current value.
 
     Adding a component to an entity that already has the component will do
     nothing.
@@ -96,7 +96,7 @@ Adds or changes an entity's component.
 - **Type**
 
     ```lua
-    function Registry:set<T>(id: entity, component: T, value: T)
+    function Registry:set<T>(id: entity, component: component<T>, value: T)
     ```
 
 - **Details**
@@ -116,7 +116,7 @@ Updates an entity's component.
 - **Type**
 
     ```lua
-    function Registry:patch<T>(id: entity, component: T, patcher: (T) -> T): T
+    function Registry:patch<T>(id: entity, component: component<T>, patcher: ((T) -> T)?): T
     ```
 
 - **Details**
@@ -145,7 +145,7 @@ Checks if an entity has all of the given components.
 - **Type**
 
     ```lua
-    function Registry:has<T...>(id: entity, components: T...): boolean
+    function Registry:has(id: entity, components: ...read_component<unknown>): boolean
     ```
 
 - **Details**
@@ -161,12 +161,13 @@ Gets an entity's component values.
 - **Type**
 
     ```lua
-    function Registry:get<T...>(id: entity, components: T...): T...
+    function Registry:get<T>(id: entity, component: read_component<T>): T
     ```
 
 - **Details**
 
-    Will error if the entity does not have a component.
+    Will error if the entity does not have a component. There are overloads for
+    two through four component types, each returning the matching value tuple.
 
 --------------------------------------------------------------------------------
 
@@ -177,7 +178,7 @@ Gets an entity's component value.
 - **Type**
 
     ```lua
-    function Registry:try_get<T>(id: entity, components: T): T?
+    function Registry:try_get<T>(id: entity, component: read_component<T>): T?
     ```
 
 - **Details**
@@ -193,7 +194,7 @@ Removes the given components from an entity.
 - **Type**
 
     ```lua
-    function Registry:remove<T...>(id: entity, components: T...)
+    function Registry:remove(id: entity, components: ...read_component<unknown>)
     ```
 
 - **Details**
@@ -209,7 +210,7 @@ Removes all entities and components from the registry.
 - **Type**
 
     ```lua
-    function Registry:clear<T...>(components: T...)
+    function Registry:clear(components: ...read_component<unknown>)
     ```
 
 - **Details**
@@ -229,7 +230,7 @@ Returns the first entity found that has a component matching the given value.
 - **Type**
 
     ```lua
-    function Registry:find<T>(component: T, value: T): entity?
+    function Registry:find<T>(component: component<T>, value: T): entity?
     ```
 
 - **Details**
@@ -245,7 +246,7 @@ Copies the values of a component and pastes it into another component
 - **Type**
 
     ```lua
-    function Registry:copy<T>(copy: T, paste: T)
+    function Registry:copy<T>(copy: component<T>, paste: component<T>)
     ```
 
 - **Details**
@@ -262,7 +263,7 @@ Creates a [`view`](View) with the given component types.
 - **Type**
 
     ```lua
-    function Registry:view<T...>(components: T...): View<T...>
+    function Registry:view<T>(component: component<T>): View<T>
     ```
 
 --------------------------------------------------------------------------------
@@ -274,7 +275,7 @@ Creates an [`observer`](Observer) with the given component types.
 - **Type**
 
     ```lua
-    function Registry:track<T...>(...: T...): Observer<T...>
+    function Registry:track<T>(component: read_component<T>): Observer<T>
     ```
 
 --------------------------------------------------------------------------------
@@ -286,7 +287,7 @@ Creates a [`group`](Group.md) with the given component types.
 - **Type**
 
     ```lua
-    function Registry:group<T...>(...: T...): Group<T...>
+    function Registry:group<A, B>(a: read_component<A>, b: read_component<B>): Group<A, B>
     ```
 
 - **Details**
@@ -312,7 +313,7 @@ added to an entity.
 - **Type**
 
     ```lua
-    function Registry:on_add<T>(component: T): Signal<entity, T>
+    function Registry:on_add<T>(component: read_component<T>): Signal<entity, T>
     ```
 
     The signal is fired *after* the component is changed.
@@ -333,7 +334,7 @@ changed for an entity.
 - **Type**
 
     ```lua
-    function Registry:on_change<T>(component: T): Signal<entity, T>
+    function Registry:on_change<T>(component: read_component<T>): Signal<entity, T>
     ```
 
     The signal is fired *before* the component is changed.
@@ -354,7 +355,7 @@ removed from an entity.
 - **Type**
 
     ```lua
-    function Registry:on_remove<T>(component: T): Signal<entity, nil>
+    function Registry:on_remove(component: read_component<unknown>): Signal<entity, nil>
     ```
 
 - **Details**
@@ -366,6 +367,30 @@ removed from an entity.
     ::: warning
     The registry cannot be modified within a listener.
     :::
+
+--------------------------------------------------------------------------------
+
+### on_clear()
+
+Returns a [signal](Signal) fired when the given component type is cleared.
+
+- **Type**
+
+    ```lua
+    function Registry:on_clear(component: read_component<unknown>): Signal<>
+    ```
+
+--------------------------------------------------------------------------------
+
+### after_clear()
+
+Returns a [signal](Signal) fired after the given component type is cleared.
+
+- **Type**
+
+    ```lua
+    function Registry:after_clear(component: read_component<unknown>): Signal<>
+    ```
 
 --------------------------------------------------------------------------------
 
@@ -411,8 +436,8 @@ Returns the [pool](Pool) for a given component type.
 - **Type**
 
     ```lua
-    function Registry:storage<T>(component: T): Pool<T>
-    function Registry:storage(): () -> (unknown, Pool<unknown>)
+    function Registry:storage<T>(component: component<T>): Pool<T>
+    function Registry:storage(): () -> (read_component<unknown>, Pool<unknown>)
     ```
 
 - **Details**

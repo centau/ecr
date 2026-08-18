@@ -15,7 +15,7 @@ Excludes entities with the given components from the observer.
 - **Type**
 
     ```lua
-    function Observer:exclude<T...>(components: ...unknown): Observer<T...>
+    function Observer:exclude<T...>(components: ...read_component<unknown>): Observer<T...>
     ```
 
 - **Details**
@@ -32,7 +32,7 @@ Disconnects the observer, stopping any new changes from being tracked
 - **Type**
 
     ```lua
-    function Observer:disconnect<T...>(): Observer<T...>
+    function Observer:disconnect(): Observer<T...>
     ```
 
     The observer must be empty before it is disconnected.
@@ -50,7 +50,7 @@ Reconnects the Observer and allows it to track changes again.
 - **Type**
 
     ```lua
-    function Observer:reconnect<T...>(): Observer<T...>
+    function Observer:reconnect(): Observer<T...>
     ```
 
 --------------------------------------------------------------------------------
@@ -62,7 +62,7 @@ Clears all stored entities.
 - **Type**
 
     ```lua
-    function Observer:clear<T...>(): Observer<T...>
+    function Observer:clear(): Observer<T...>
     ```
 
 ## Iteration

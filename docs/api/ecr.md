@@ -28,8 +28,7 @@ Creates a new component type.
 - **Type**
 
     ```lua
-    function ecr.component(): unknown
-    function ecr.component<T>(constructor: () -> T): T
+    function ecr.component<T>(constructor: (() -> T)?): component<T>
     ```
 
 - **Details**
@@ -45,8 +44,8 @@ Creates a new component type.
     No constructor.
 
     ```lua
-    local Position = ecr.component() :: Vector3
-    local Health = ecr.component() :: number
+    local Position = ecr.component<<Vector3>>()
+    local Health = ecr.component<<number>>()
     ```
 
     With constructor.
@@ -71,7 +70,7 @@ Creates a new tag component type.
 - **Type**
 
     ```lua
-    function ecr.tag(): nil
+    function ecr.tag(): component<nil>
     ```
 
 - **Details**
@@ -89,7 +88,7 @@ Checks if a component type is a tag.
 - **Type**
 
     ```lua
-    function ecr.is_tag<T>(ctype: T): boolean
+    function ecr.is_tag(ctype: read_component<unknown>): boolean
     ```
 
 --------------------------------------------------------------------------------
@@ -125,7 +124,8 @@ Associates names with components for debugging.
 - **Type**
 
     ```lua
-    function ecr.name<T>(names: T & Map<string, unknown>) -> T
+    function ecr.name<T>(names: T & { read [string]: read_component<unknown> }): T
+    function ecr.name<T>(component: component<T>): string?
     ```
 
 - **Details**
@@ -196,7 +196,7 @@ Special component type that represents entities in a registry.
 - **Type**
   
     ```lua
-    ecr.entity: entity
+    ecr.entity: component<entity>
     ```
 
 --------------------------------------------------------------------------------
